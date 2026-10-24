@@ -1,0 +1,725 @@
+// Segundo modelo: uma cópia das notas escolhidas em que o motor decide
+// sozinho, sem pedir aprovação, rodada após rodada, até nada mais mudar:
+//   1. um conjunto se contradiz → desativa a nota mais fraca do conflito
+//      (uma lei adotada pelo modelo; depois grau M, D, F; entre iguais, a
+//      mais recente)
+//   2. as leis contradizem um teorema → refutado (desativado)
+//   3. teoremas que não seguem → adota a lei que fecha mais deles, desde que
+//      ela não contradiga as leis, não seja o próprio teorema disfarçado e
+//      não refute outro teorema aberto (uma por conjunto e rodada; se a lei
+//      vem de uma nota desativada, ativa a nota)
+// Cada lei adotada pode fazer outros teoremas seguirem: a rodada seguinte
+// confere de novo os que estão abertos (o banco de provas reaproveita o que
+// não mudou). No ponto fixo, uma reação em cadeia completa, com
+// aprimoramento, classifica cada nota e cada teorema. O caderno não é
+// tocado: o resultado só vai para ele se o usuário levar.
+
+import { inativasDoContexto, pedidoDaCadeia } from '../dados/cadeia'
+import { ETIQUETA_APROXIMADA, ETIQUETA_NUMEROS, ETIQUETA_SELECAO, SABE, sabeDaNota } from '../dados/conhecido'
+import { contextoDoTeorema } from '../dados/premissas'
+import type { EntradaDicionario, Nota } from '../dados/tipos'
+import type { Formula } from '../logica/ast'
+import { canonica } from '../logica/canonica'
+import { limiteTexto, tamanhoTexto } from './avaliar'
+import { estadoEfetivo, reacaoEmCadeia, type AjudaZ3, type ContextoCadeia, type LimitesAprimoramento, type RelatorioCadeia } from './cadeia'
+import { analisar, buscarModelo, nao, type OpcoesMotor } from './motor'
+import { testarNosDados, type ConjuntoDados, type VereditoDados } from './dados'
+import { oQueObservar, type Observacao } from './observar'
+
+/** começo do id das leis que o modelo cria (sem ":", que marca fórmula de teorema) */
+export const PREFIXO_ADOTADA = 'modelo-'
+
+/** rodadas no máximo antes do aprimoramento final */
+export const MAX_RODADAS_MODELO = 15
+/** quantas vezes o aprimoramento pode mandar refazer as rodadas num nível maior */
+const MAX_REFEITAS = 2
+/** sugestões testadas por rodada (as melhores primeiro) */
+const MAX_TENTATIVAS = 6
+
+export interface PedidoModelo {
+  /** cópia das notas das pastas escolhidas (com as leis induzidas dos dados, e sem as que os dados derrubaram) */
+  notas: Nota[]
+  /** limites do aparelho: o ponto fixo é aprofundado até eles */
+  aprimorar?: LimitesAprimoramento
+  /** tempo máximo das rodadas (o aprimoramento final tem o seu) */
+  orcamentoMs: number
+  /** dados do mundo: leis adotadas não podem contradizê-los; teses são conferidas neles */
+  dados?: ConjuntoDados[]
+  /** leis que os dados derrubaram antes de começar (id → por quê) */
+  desativadasPelosDados?: Record<string, string>
+}
+
+/** começo do id das leis induzidas dos dados (entram na cópia como leis de grau M) */
+export const PREFIXO_INDUZIDA = 'induzida-'
+
+export type TipoEvento = 'desativou' | 'refutou' | 'ativou' | 'adotou' | 'provou' | 'aviso'
+
+export interface EventoModelo {
+  rodada: number
+  tipo: TipoEvento
+  /** rótulo do conjunto ("Leis e fatos", "Visão de …") */
+  conjunto: string
+  notaId?: string
+  titulo: string
+  detalhe: string
+}
+
+export type Classe =
+  /** premissa ativa, independente das outras */
+  | 'lei'
+  /** premissa ativa que decorre das outras */
+  | 'redundante'
+  /** lei criada pelo modelo para fechar teoremas */
+  | 'adotada'
+  /** nota desativada que o modelo ativou para fechar teoremas */
+  | 'ativada'
+  /** premissa que o modelo desativou (entrava em contradição) */
+  | 'desativada'
+  /** premissa desativada que não contradiz as leis (o modelo não precisou dela) */
+  | 'compativel'
+  /** premissa desativada que contradiz as leis */
+  | 'incompativel'
+  /** teorema que vale em todos os mundos testados */
+  | 'provado'
+  /** teorema que não contradiz as leis, mas não segue delas */
+  | 'tese'
+  /** teses que, juntas, contradizem as leis */
+  | 'conflito'
+  /** teorema contradito pelas leis */
+  | 'refutado'
+  /** usa números: decide o Z3 */
+  | 'numerico'
+  | 'incerto'
+  /** consequência nova, que não estava escrita */
+  | 'descoberta'
+  /** lei induzida dos dados (hipótese: grau M) */
+  | 'induzida'
+
+export interface ItemModelo {
+  /** id da nota, "nota:índice" (fórmula de teorema) ou "consequencia:conjunto:k" */
+  id: string
+  notaId?: string
+  /** conjunto: "geral" ou "visao:<titular>" */
+  chave: string
+  titulo: string
+  formula: string
+  classe: Classe
+  explicacao: string
+  /** de onde vem (ids de notas e de teoremas): para o grau herdado */
+  apoio?: string[]
+  geracao?: number
+  /** o que os dados do mundo dizem (vale em k casos, ou o contraexemplo observado) */
+  dados?: string
+  /** o que observar para decidir (teses) */
+  observar?: Observacao[]
+  /** conjectura de um problema do TPTP: o que os provadores já sabem, comparado com o que o motor achou */
+  tptp?: { texto: string; discorda: boolean }
+}
+
+export interface RelatorioModelo {
+  situacao: 'rodadas' | 'final' | 'pronto'
+  rodada: number
+  /** nível das rodadas (o aprimoramento final vai além: ver `final`) */
+  N: number
+  K: number
+  /** as notas do modelo como estão agora (ativadas, desativadas, adotadas) */
+  notas: Nota[]
+  eventos: EventoModelo[]
+  itens: ItemModelo[]
+  /** a reação em cadeia completa do ponto fixo */
+  final: RelatorioCadeia[] | null
+  /** por que as rodadas pararam */
+  parouPor: string
+}
+
+/** "x" ou "x:0" → id da nota */
+const notaDe = (id: string) => {
+  const k = id.lastIndexOf(':')
+  return k > 0 && /^\d+$/.test(id.slice(k + 1)) ? id.slice(0, k) : id
+}
+
+const FORCA = { M: 1, D: 2, F: 3 } as const
+
+/** 0 = lei adotada pelo modelo; depois M, D e F (fatos contam como F) */
+const forcaDe = (n: Nota, criadas: Set<string>) => (criadas.has(n.id) ? 0 : FORCA[n.compartimento === 'fato' ? 'F' : n.grau])
+
+/**
+ * As buscas do conjunto mínimo tiram antes os primeiros grupos da lista.
+ * `fortesPrimeiro`: num conflito, sobram as notas fracas (é delas que uma sai);
+ * senão, no apoio de um teorema sobram as fortes (o grau herdado fica o mais alto possível).
+ */
+function ordenar(c: ContextoCadeia, notas: Nota[], criadas: Set<string>, fortesPrimeiro: boolean): ContextoCadeia {
+  const forca = new Map(notas.map((n) => [n.id, forcaDe(n, criadas)]))
+  const f = (id: string) => forca.get(id) ?? 3
+  return { ...c, grupos: [...c.grupos].sort((a, b) => (fortesPrimeiro ? f(b.id) - f(a.id) : f(a.id) - f(b.id))) }
+}
+
+/** A nota que sai de um conflito: a adotada pelo modelo, depois a de grau mais fraco, depois a mais recente. */
+function maisFraca(ids: string[], notas: Nota[], criadas: Set<string>): { nota: Nota; porque: string } | null {
+  const forca = (n: Nota) => forcaDe(n, criadas)
+  const cs = ids.map((id) => notas.find((n) => n.id === id)).filter((n): n is Nota => !!n)
+  if (!cs.length) return null
+  cs.sort((a, b) => forca(a) - forca(b) || b.atualizadaEm.localeCompare(a.atualizadaEm))
+  const n = cs[0]
+  const iguais = cs.filter((x) => forca(x) === forca(n)).length > 1
+  const porque = criadas.has(n.id)
+    ? 'é uma lei que o próprio modelo tinha adotado'
+    : n.compartimento !== 'fato' && n.grau === 'M'
+      ? 'tem grau M (mapeamento não medido), o mais fraco'
+      : n.compartimento !== 'fato' && n.grau === 'D'
+        ? 'tem grau D (decisão), mais fraco que as estabelecidas'
+        : iguais
+          ? 'todas têm o mesmo grau; é a mais recente'
+          : 'é a mais fraca do conflito'
+  return { nota: n, porque }
+}
+
+const lista = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} e ${xs.at(-1)}`)
+
+export async function rodarModelo(
+  p: PedidoModelo,
+  dicionario: EntradaDicionario[],
+  op: OpcoesMotor,
+  enviar: (r: RelatorioModelo) => void,
+  progresso: (msg: string) => void,
+  ajudaZ3?: AjudaZ3,
+): Promise<void> {
+  const ini = Date.now()
+  let notas = p.notas.map((n) => ({ ...n, formulas: [...n.formulas], tags: [...n.tags] }))
+  const eventos: EventoModelo[] = []
+  /** leis criadas pelo modelo */
+  const criadas = new Set<string>()
+  const ativadas = new Map<string, string>()
+  /** id → por que saiu */
+  const desativadas = new Map<string, string>()
+  const refutados = new Map<string, string>()
+  /** formas canônicas de leis desativadas: não voltam pela porta dos fundos */
+  const proibidas = new Set<string>()
+  /** teoremas que já seguem: enquanto nenhuma premissa sair, continuam seguindo */
+  const provados = new Set<string>()
+  /** resultado de cada teorema na rodada anterior */
+  const ultimo = new Map<string, string>()
+  let nivel: OpcoesMotor = { ...op }
+  let seq = 0
+  const r: RelatorioModelo = { situacao: 'rodadas', rodada: 0, N: op.N, K: op.K, notas, eventos, itens: [], final: null, parouPor: '' }
+  const mandar = () => enviar({ ...r, notas, eventos: [...eventos] })
+  const nota = (id: string) => notas.find((n) => n.id === notaDe(id))
+  const titulo = (id: string) => {
+    const n = nota(id)
+    const fs = n?.formulas.filter((f) => f.trim()).length ?? 0
+    const i = id !== notaDe(id) ? Number(id.slice(id.lastIndexOf(':') + 1)) : -1
+    return (n?.titulo || 'Sem título') + (i >= 0 && fs > 1 ? ` (fórmula ${i + 1})` : '')
+  }
+  const mudar = (id: string, m: Partial<Nota>) => (notas = notas.map((n) => (n.id === id ? { ...n, ...m } : n)))
+  const evento = (e: Omit<EventoModelo, 'rodada'>) => eventos.push({ ...e, rodada: r.rodada })
+  const dados = p.dados ?? []
+  /** a fórmula (já pronta) é contradita pelo que foi observado? */
+  const contraOsDados = (f: Formula) => dados.some((c) => testarNosDados(f, c)?.tipo === 'falha')
+  for (const [id, motivo] of Object.entries(p.desativadasPelosDados ?? {})) {
+    const n = nota(id)
+    desativadas.set(id, motivo)
+    for (const f of analisar(n?.formulas ?? [], dicionario, true)) proibidas.add(canonica(f.original))
+    evento({ tipo: 'desativou', conjunto: 'Dados do mundo', notaId: id, titulo: n?.titulo || 'Sem título', detalhe: motivo })
+  }
+
+  for (let refeitas = 0; ; refeitas++) {
+    // rodadas até o ponto fixo
+    for (;;) {
+      if (r.rodada >= MAX_RODADAS_MODELO) {
+        r.parouPor = `chegou a ${MAX_RODADAS_MODELO} rodadas`
+        break
+      }
+      if (Date.now() - ini > p.orcamentoMs) {
+        r.parouPor = `atingiu o tempo das rodadas (${Math.round(p.orcamentoMs / 60000)} min)`
+        break
+      }
+      r.rodada++
+      r.N = nivel.N
+      r.K = nivel.K
+      mandar()
+      let mudou = false
+      for (const c0 of pedidoDaCadeia(notas, dicionario).contextos) {
+        // só os teoremas ainda abertos são conferidos de novo
+        const c: ContextoCadeia = ordenar({ ...c0, teoremas: c0.teoremas.filter((t) => !provados.has(t.id)) }, notas, criadas, true)
+        let rel: RelatorioCadeia | null = null
+        await reacaoEmCadeia(
+          { contextos: [c], inativas: inativasDoContexto(notas, c.chave), rapida: true, limites: p.aprimorar },
+          dicionario,
+          nivel,
+          (rs) => (rel = rs[0]),
+          (_, msg) => progresso(`rodada ${r.rodada} · ${c.rotulo}: ${msg}`),
+        )
+        const rc = rel as RelatorioCadeia | null
+        if (!rc) continue
+
+        // 1. contradição: sai a nota mais fraca do conflito
+        if (rc.consistencia?.tipo === 'sem-modelo') {
+          const v = maisFraca(rc.consistencia.conflito, notas, criadas)
+          if (!v) continue
+          const outras = rc.consistencia.conflito.filter((id) => id !== v.nota.id).map(titulo)
+          const motivo = `${outras.length ? `junto com ${lista(outras.map((t) => `“${t}”`))}, levava` : 'leva'} a uma contradição (em todos os mundos até ${limiteTexto(nivel.N, rc.K)}); saiu porque ${v.porque}`
+          mudar(v.nota.id, { ativa: false })
+          desativadas.set(v.nota.id, motivo)
+          for (const f of analisar(v.nota.formulas, dicionario)) proibidas.add(canonica(f.original))
+          provados.clear() // sem uma premissa, o que seguia precisa ser conferido de novo
+          evento({ tipo: 'desativou', conjunto: c.rotulo, notaId: v.nota.id, titulo: v.nota.titulo || 'Sem título', detalhe: motivo })
+          mudou = true
+          continue
+        }
+        if (rc.consistencia?.tipo === 'grande-demais') {
+          const detalhe = rc.consistencia.tempo
+            ? `a consistência não foi decidida a tempo (com ${rc.consistencia.n} objetos); ficou como está`
+            : 'o conjunto é grande demais para este aparelho; ficou como está'
+          evento({ tipo: 'aviso', conjunto: c.rotulo, titulo: c.rotulo, detalhe })
+          continue
+        }
+
+        // 2. teoremas: refutados saem; os que passaram a seguir entram no diário
+        for (const t of rc.teoremas) {
+          const antes = ultimo.get(t.id)
+          // o que o Z3 decidiu (qualquer tamanho) vale mais que o que o motor finito viu (até N)
+          const efetivo = estadoEfetivo(t).tipo
+          ultimo.set(t.id, efetivo)
+          if (efetivo === 'segue' && t.resultado.tipo === 'segue') {
+            provados.add(t.id)
+            if (antes && antes !== 'segue') {
+              const de = t.resultado.notas.map(titulo)
+              evento({
+                tipo: 'provou',
+                conjunto: c.rotulo,
+                notaId: t.notaId,
+                titulo: titulo(t.id),
+                detalhe: `passou a seguir${de.length ? ` de ${lista(de)}` : ''}`,
+              })
+            }
+          } else if (efetivo === 'contradiz' && t.resultado.tipo === 'contradiz') {
+            const por = t.resultado.notas.map(titulo)
+            const onde = t.z3 === 'contradiz' ? 'provado, com qualquer número de objetos' : `em todos os mundos até ${limiteTexto(nivel.N, rc.K)}`
+            const motivo = `as leis implicam o contrário${por.length ? ` (${lista(por)})` : ''}, ${onde}`
+            refutados.set(t.id, motivo)
+            mudar(t.notaId, { ativa: false })
+            evento({ tipo: 'refutou', conjunto: c.rotulo, notaId: t.notaId, titulo: titulo(t.id), detalhe: motivo })
+          }
+        }
+
+        // 3. a lei que fecha mais teoremas abertos, se não estraga nada
+        const abertos = rc.teoremas
+          .filter((t) => t.resultado.tipo === 'nao-segue')
+          .map((t) => ({ t, f: analisar([t.formula], dicionario)[0] }))
+          .filter((x) => !!x.f)
+        // conjecturas de problemas do TPTP: o que se sabe delas não muda com uma lei
+        // inventada, então o modelo não as fecha adotando leis (mas não adota lei que as refute)
+        const doTptp = new Set(abertos.filter((x) => sabeDaNota(notas.find((n) => n.id === x.t.notaId)?.tags ?? [])).map((x) => x.t.id))
+        if (!abertos.some((x) => !doTptp.has(x.t.id)) || !rc.sugestoes.length) continue
+        const premissas = analisar(
+          c.grupos.flatMap((g) => g.formulas),
+          dicionario,
+        ).map((x) => x.expandida)
+        // as que fecham mais teoremas e não estragam nada (as sugestões vêm das que fecham mais para as que fecham menos)
+        const boas: { s: (typeof rc.sugestoes)[number]; L: NonNullable<ReturnType<typeof analisar>[number]> }[] = []
+        let tentativas = 0
+        for (const s of rc.sugestoes) {
+          if (s.lei.equivalente) continue // seria assumir o próprio teorema
+          if (s.fecha.every((id) => doTptp.has(id))) continue
+          if (s.lei.notaId && desativadas.has(s.lei.notaId)) continue
+          if (boas.length && s.fecha.length < boas[0].s.fecha.length) break
+          const L = analisar([s.lei.formula], dicionario)[0]
+          if (!L || proibidas.has(canonica(L.original))) continue
+          if (contraOsDados(L.expandida)) continue // o mundo observado já a derruba
+          if (++tentativas > MAX_TENTATIVAS) break
+          progresso(`rodada ${r.rodada} · ${c.rotulo}: a lei "${s.lei.nome}" refuta algum teorema aberto?`)
+          const refuta = abertos.find(
+            (x) => !s.fecha.includes(x.t.id) && buscarModelo([...premissas, L.expandida, x.f!.expandida], nivel).status === 'sem-modelo',
+          )
+          if (!refuta) boas.push({ s, L })
+        }
+        // uma nota do próprio caderno vem antes; entre leis novas, a mais fraca (a que menos se compromete):
+        // se, com as leis, A implica B e B não implica A, fica B
+        const implica = (a: (typeof boas)[number], b: (typeof boas)[number]) =>
+          buscarModelo([...premissas, a.L.expandida, nao(b.L.expandida)], nivel).status === 'sem-modelo'
+        const escolhida =
+          boas.find((b) => b.s.lei.notaId) ??
+          boas.find((a) => !boas.some((b) => b !== a && implica(a, b) && !implica(b, a))) ??
+          boas[0]
+        if (escolhida) {
+          const { s } = escolhida
+          const fecha = lista(s.fecha.map((id) => `“${titulo(id)}”`))
+          const conferido = `não contradiz as leis nem refuta outro teorema aberto (todos os mundos até ${limiteTexto(nivel.N, rc.K)})`
+          const inativa = s.lei.notaId ? notas.find((n) => n.id === s.lei.notaId && !n.ativa) : undefined
+          if (inativa) {
+            const detalhe = `estava desativada; ativada porque fecha ${fecha} e ${conferido}`
+            mudar(inativa.id, { ativa: true })
+            ativadas.set(inativa.id, detalhe)
+            evento({ tipo: 'ativou', conjunto: c.rotulo, notaId: inativa.id, titulo: inativa.titulo || 'Sem título', detalhe })
+          } else {
+            const titular = c.chave.startsWith('visao:') ? c.chave.slice('visao:'.length) : ''
+            const agora = new Date().toISOString()
+            const id = `${PREFIXO_ADOTADA}${++seq}`
+            const detalhe = `diz que ${s.lei.leitura}; adotada porque fecha ${fecha} e ${conferido}`
+            notas = [
+              ...notas,
+              {
+                id,
+                titulo: s.lei.nome,
+                texto:
+                  `Lei adotada pelo segundo modelo (rodada ${r.rodada}).\n\nO que diz: ${s.lei.leitura}.\n\n` +
+                  `Por que: fecha ${fecha}. Sem ela, há um cenário (${tamanhoTexto(s.lei.n)}) em que as leis valem e o teorema falha. ` +
+                  `Ela ${conferido}.`,
+                formulas: [s.lei.formula],
+                tags: ['segundo-modelo'],
+                criadaEm: agora,
+                atualizadaEm: agora,
+                ativa: true,
+                compartimento: titular ? 'visao' : 'lei',
+                grau: 'D',
+                fonte: '',
+                data: '',
+                titular,
+              },
+            ]
+            criadas.add(id)
+            evento({ tipo: 'adotou', conjunto: c.rotulo, notaId: id, titulo: s.lei.nome, detalhe })
+          }
+          mudou = true
+        }
+      }
+      mandar()
+      if (!mudou) {
+        r.parouPor = 'ponto fixo: nada mais a desativar, ativar ou adotar'
+        break
+      }
+    }
+
+    // ponto fixo: a reação em cadeia completa, aprofundando até o limite do aparelho
+    r.situacao = 'final'
+    mandar()
+    // os refutados voltam só para a conferência (o aprofundamento também os reconfere)
+    const notaRefutada = new Set([...refutados.keys()].map(notaDe))
+    const pedido = pedidoDaCadeia(
+      notas.map((n) => (notaRefutada.has(n.id) ? { ...n, ativa: true } : n)),
+      dicionario,
+    )
+    await reacaoEmCadeia(
+      // o Z3 faz uma tentativa curta por conclusão: o modelo não fica parado minutos esperando por ele
+      { ...pedido, contextos: pedido.contextos.map((c) => ordenar(c, notas, criadas, false)), aprimorar: p.aprimorar, z3Curto: true },
+      dicionario,
+      nivel,
+      (rs) => {
+        r.final = rs
+        // a conferência no nível das rodadas acabou: a classificação já aparece
+        // (provisória) enquanto o aprimoramento aprofunda
+        if (!r.itens.length && rs.length && rs.every((x) => x.etapa === 'fim'))
+          r.itens = classificar(notas, rs, dicionario, nivel, { criadas, ativadas, desativadas, refutados, titulo })
+        mandar()
+      },
+      (_, msg) => progresso(`classificando: ${msg}`),
+      ajudaZ3,
+    )
+    const virada = r.final?.map((x) => x.aprimoramento?.virada).find((v) => !!v)
+    if (virada && refeitas < MAX_REFEITAS) {
+      // uma conclusão caiu num cenário maior: as rodadas recomeçam nesse nível
+      evento({
+        tipo: 'aviso',
+        conjunto: '',
+        titulo: 'Aprimoramento',
+        detalhe: `com ${virada.N} objetos, ${virada.descricao}: deixou de valer. As rodadas recomeçam nesse nível.`,
+      })
+      // recomeça pelo menos 2 tamanhos acima (cair de novo no tamanho seguinte custaria outra volta)
+      const teto = p.aprimorar?.N ?? virada.N
+      nivel = { ...nivel, N: Math.min(teto, Math.max(virada.N, nivel.N + 2)), K: Math.max(nivel.K, virada.K) }
+      provados.clear()
+      r.situacao = 'rodadas'
+      r.itens = []
+      continue
+    }
+    break
+  }
+
+  r.itens = classificar(notas, r.final ?? [], dicionario, nivel, { criadas, ativadas, desativadas, refutados, titulo })
+  // o mundo: o que os dados dizem de cada item, e o que observar para decidir as teses
+  progresso('conferindo nos dados e procurando o que observar')
+  r.itens = comOMundo(r.itens, notas, r.final ?? [], dicionario, nivel, dados)
+  r.itens = comOTptp(r.itens, notas)
+  r.situacao = 'pronto'
+  mandar()
+}
+
+/** O que os dados dizem de uma fórmula: o primeiro conjunto que a contradiz, ou o que mais a apoia. */
+export function vereditoDosDados(formulas: string[], dicionario: EntradaDicionario[], dados: ConjuntoDados[]): (VereditoDados & { texto: string }) | null {
+  const fs = analisar(formulas, dicionario, true).map((x) => x.expandida)
+  if (!fs.length || !dados.length) return null
+  let melhor: (VereditoDados & { texto: string }) | null = null
+  for (const f of fs)
+    for (const c of dados) {
+      const v = testarNosDados(f, c)
+      if (!v) continue
+      const onde = v.modo === 'casos' ? 'casos medidos' : 'objetos observados'
+      if (v.tipo === 'falha')
+        return {
+          ...v,
+          texto: `os dados contradizem: ${v.contra.slice(0, 3).join(', ')}${v.contra.length > 3 ? ` e mais ${v.contra.length - 3}` : ''} (“${c.nome}”)`,
+        }
+      if (v.tipo === 'vale' && (!melhor || melhor.tipo !== 'vale' || v.conferidos > melhor.conferidos))
+        melhor = {
+          ...v,
+          texto: `vale nos ${v.conferidos} ${onde} de “${c.nome}”${v.desconhecidos ? ` (${v.desconhecidos} sem dado)` : ''}`,
+        }
+      if (v.tipo === 'incerto' && !melhor)
+        melhor = { ...v, texto: v.grande ? `grande demais para conferir nos dados de “${c.nome}”` : `os dados de “${c.nome}” não decidem (falta observar)` }
+    }
+  return melhor
+}
+
+/** Cada item com o que os dados dizem dele; as teses que continuam abertas ganham o que observar. */
+function comOMundo(itens: ItemModelo[], notas: Nota[], finais: RelatorioCadeia[], dicionario: EntradaDicionario[], op: OpcoesMotor, dados: ConjuntoDados[]): ItemModelo[] {
+  const contextos = pedidoDaCadeia(notas, dicionario).contextos
+  return itens.map((it0) => {
+    const it = { ...it0 }
+    const nota = it.notaId ? notas.find((n) => n.id === it.notaId) : undefined
+    const formulas = nota && nota.compartimento !== 'teorema' ? nota.formulas.filter((f) => f.trim()) : [it.formula]
+    const v = vereditoDosDados(formulas, dicionario, dados)
+    if (v) {
+      // a explicação já diz o que os dados dizem (lei derrubada por eles): não repete
+      if (!it.explicacao.includes(v.texto)) it.dados = v.texto
+      const ehTese = it.classe === 'tese' || it.classe === 'conflito' || it.classe === 'numerico'
+      if (v.tipo === 'falha' && (ehTese || it.classe === 'provado' || it.classe === 'descoberta')) {
+        const vinha = it.classe === 'provado' || it.classe === 'descoberta'
+        it.classe = 'refutado'
+        it.explicacao = vinha
+          ? `segue das leis, mas ${v.texto} — então alguma das leis de onde vem está errada`
+          : `${v.texto} — observado no mundo`
+      } else if (v.tipo === 'vale' && ehTese) {
+        const f = analisar([it.formula], dicionario, true)[0]?.original
+        if (f?.k === 'exists') {
+          it.classe = 'provado'
+          it.explicacao = `observado: ${v.texto} (um exemplo basta para uma tese de "existe")`
+        } else it.dados = `${v.texto} — apoia, mas não prova (faltam os não observados)`
+      }
+    }
+    if (it.classe === 'tese' || it.classe === 'conflito' || it.classe === 'numerico') {
+      const ctx = contextos.find((c) => c.chave === it.chave)
+      const t = finais.find((r) => r.chave === it.chave)?.teoremas.find((x) => x.id === it.id)
+      const contra = t?.resultado.tipo === 'nao-segue' ? t.resultado.mundo : undefined
+      if (ctx) it.observar = oQueObservar(ctx.grupos, it.formula, dicionario, op, contra)
+    }
+    return it
+  })
+}
+
+/**
+ * Conjecturas de problemas do TPTP: o que os provadores já sabem (para todos
+ * os tamanhos de mundo) ao lado do que o motor achou (até um limite). Um
+ * teorema conhecido que o motor só confere até N, ou nem confere, passa a
+ * provado — se os axiomas do problema continuam todos ativos (mais leis não
+ * desfazem uma prova; menos, sim). Discordância é aviso: tradução ou motor.
+ */
+export function comOTptp(itens: ItemModelo[], notas: Nota[]): ItemModelo[] {
+  return itens.map((it0) => {
+    const nota = it0.notaId ? notas.find((n) => n.id === it0.notaId) : undefined
+    const sabe = nota?.compartimento === 'teorema' ? sabeDaNota(nota.tags) : undefined
+    if (!nota || !sabe) return it0
+    const it = { ...it0 }
+    const pasta = nota.tags.find((t) => t.startsWith('tptp-problema-'))
+    const desativados = notas.filter((n) => n.compartimento === 'lei' && !!pasta && n.tags.includes(pasta) && !n.ativa)
+    const inteiros = !desativados.length
+    const semAxioma = `sem ${desativados.length === 1 ? 'o axioma desativado' : `os ${desativados.length} axiomas desativados`}`
+    const contra = it.classe === 'tese' || it.classe === 'conflito' || it.classe === 'refutado'
+    const avisar = (texto: string, discorda = false) => (it.tptp = { texto, discorda })
+    // problema com números: o motor finito deixou as leis com números de fora; o cenário
+    // que ele achou pode não valer com elas (quem decide é o Z3)
+    if (contra && nota.tags.includes(ETIQUETA_NUMEROS) && (sabe === 'segue' || sabe === 'contraditorio')) {
+      avisar(
+        `${SABE[sabe].longo}; o cenário que o motor achou deixa de fora as leis com números (o motor finito não lê números): quem decide é o Z3`,
+      )
+      return it
+    }
+    // ordem superior ou polimorfismo traduzidos: a tradução não tem tudo o que o original garante
+    if (nota.tags.includes(ETIQUETA_APROXIMADA)) {
+      if (it.classe === 'provado') avisar('o TPTP confirma: os provadores provaram que segue em todos os tamanhos, não só até o limite')
+      else if (contra && (sabe === 'segue' || sabe === 'contraditorio'))
+        avisar(
+          `${SABE[sabe].longo}; o cenário que o motor achou é da tradução para primeira ordem, que não tem todas as funções (ou todos os tipos) do original: pode não valer lá`,
+        )
+      else avisar(`${SABE[sabe].longo} (no problema original, de ordem superior ou com tipos polimórficos)`)
+      return it
+    }
+    // problema grande: vieram só os axiomas ligados à conjectura. Segue com eles ⟹ segue com
+    // todos; mas um cenário onde ela falha pode ser só falta de um axioma deixado de fora
+    if (nota.tags.includes(ETIQUETA_SELECAO)) {
+      switch (sabe) {
+        case 'segue':
+          if (it.classe === 'provado') avisar('o TPTP confirma: os provadores provaram que segue em todos os tamanhos, não só até o limite')
+          else if (contra)
+            avisar(
+              'com só os axiomas escolhidos há um cenário onde não segue; os provadores provaram que segue com todos os axiomas do problema: falta algum que ficou de fora',
+            )
+          else avisar(`os provadores provaram que segue com todos os axiomas do problema (aqui vieram só os escolhidos; ${it.explicacao})`)
+          break
+        case 'nao-segue':
+          avisar(
+            it.classe === 'provado'
+              ? 'o TPTP sabe que não segue: o contraexemplo é maior que o limite conferido (ou infinito)'
+              : 'o TPTP sabe que não segue, com todos os axiomas do problema',
+          )
+          break
+        case 'contraditorio':
+          avisar('o TPTP sabe que os axiomas deste problema se contradizem — com todos; os escolhidos podem não se contradizer')
+          break
+        default:
+          avisar(`${SABE[sabe].longo} (com todos os axiomas; aqui vieram só os escolhidos)`)
+      }
+      return it
+    }
+    switch (sabe) {
+      case 'segue':
+        if (it.classe === 'provado') avisar('o TPTP confirma: os provadores provaram que segue em todos os tamanhos, não só até o limite')
+        else if (contra)
+          avisar(
+            inteiros
+              ? 'discorda do TPTP: os provadores provaram que segue. Confira a tradução — ou é um erro do motor'
+              : `os provadores provaram que segue com todos os axiomas do problema; ${semAxioma}, pode mesmo não seguir`,
+            inteiros,
+          )
+        else if (inteiros) {
+          avisar(`provado pelos provadores do TPTP; o motor sozinho não decidiu (${it.explicacao})`)
+          it.classe = 'provado'
+          it.explicacao = 'os provadores do TPTP provaram que segue dos axiomas do problema, em todos os tamanhos'
+        } else avisar(`os provadores provaram que segue com todos os axiomas do problema (aqui, ${semAxioma})`)
+        break
+      case 'nao-segue':
+        if (it.classe === 'provado') {
+          const deFora = (it.apoio ?? []).filter((id) => !notas.find((n) => n.id === id.split(':')[0])?.tags.includes(pasta ?? ''))
+          avisar(
+            deFora.length
+              ? 'o TPTP sabe que não segue só dos axiomas do problema; aqui segue porque há outras leis no conjunto'
+              : 'o TPTP sabe que não segue: o contraexemplo é maior que o limite conferido (ou infinito)',
+          )
+        }
+        else if (it.classe === 'tese') avisar('o TPTP confirma: não segue')
+        else avisar('o TPTP sabe que não segue dos axiomas do problema')
+        break
+      case 'contraditorio':
+        avisar('o TPTP sabe que os axiomas deste problema se contradizem')
+        break
+      case 'aberto':
+      case 'desconhecido':
+        avisar(
+          it.classe === 'tese'
+            ? `${SABE[sabe].longo} — e o motor achou um cenário onde a conjectura falha: confira, pode ser novidade`
+            : SABE[sabe].longo,
+        )
+        break
+      default:
+        avisar(SABE[sabe].longo)
+    }
+    return it
+  })
+}
+
+interface Decisoes {
+  criadas: Set<string>
+  ativadas: Map<string, string>
+  desativadas: Map<string, string>
+  refutados: Map<string, string>
+  titulo: (id: string) => string
+}
+
+/** Cada nota e cada teorema do modelo, com a classe e o porquê. */
+function classificar(notas: Nota[], finais: RelatorioCadeia[], dicionario: EntradaDicionario[], op: OpcoesMotor, d: Decisoes): ItemModelo[] {
+  const itens: ItemModelo[] = []
+  const contextos = pedidoDaCadeia(notas, dicionario).contextos
+  const de = (ids: string[]) => lista(ids.map((id) => `“${d.titulo(id)}”`))
+  for (const n of notas) {
+    const formulas = n.formulas.filter((f) => f.trim())
+    if (!formulas.length) continue
+    const chave = n.compartimento === 'teorema' ? contextoDoTeorema(n) : n.compartimento === 'visao' ? `visao:${n.titular.trim()}` : 'geral'
+    const rel = finais.find((x) => x.chave === chave)
+    const base = { notaId: n.id, chave, titulo: n.titulo || 'Sem título' }
+
+    if (n.compartimento !== 'teorema') {
+      const item = (classe: Classe, explicacao: string, apoio?: string[]) =>
+        itens.push({ ...base, id: n.id, formula: formulas.join(' ; '), classe, explicacao, apoio })
+      if (n.id.startsWith(PREFIXO_INDUZIDA)) {
+        item(n.ativa ? 'induzida' : 'desativada', n.ativa ? n.texto.split('\n')[0] : (d.desativadas.get(n.id) ?? ''))
+      } else if (d.criadas.has(n.id)) {
+        item(n.ativa ? 'adotada' : 'desativada', n.ativa ? 'lei criada pelo modelo (grau D: é uma decisão do modelo)' : (d.desativadas.get(n.id) ?? ''))
+      } else if (d.desativadas.has(n.id)) item('desativada', d.desativadas.get(n.id)!)
+      else if (n.ativa) {
+        const l = rel?.leis.find((x) => x.id === n.id)
+        if (d.ativadas.has(n.id)) item('ativada', d.ativadas.get(n.id)!)
+        else if (l?.tipo === 'decorre') item('redundante', `decorre de ${de(l.notas) || 'nada (vale sempre)'}: pode virar teorema`, l.notas)
+        else if (l?.tipo === 'independente') item('lei', 'independente: diz algo que as outras leis não dizem')
+        else item('lei', rel?.consistencia?.tipo === 'consistente' ? 'ativa e consistente com as outras' : 'ativa')
+      } else {
+        // desativada pelo usuário: cabe junto com as leis?
+        const ctx = contextos.find((c) => c.chave === chave)
+        const fs = analisar(formulas, dicionario)
+        if (!fs.length) item('incerto', 'usa números ou tem erro: o motor finito não decide')
+        else {
+          const premissas = analisar(ctx?.grupos.flatMap((g) => g.formulas) ?? [], dicionario).map((x) => x.expandida)
+          const b = buscarModelo([...premissas, ...fs.map((x) => x.expandida)], op)
+          if (b.status === 'modelo') item('compativel', 'desativada; não contradiz as leis ativas, mas nenhum teorema precisou dela')
+          else if (b.status === 'sem-modelo') item('incompativel', `desativada; contradiz as leis ativas (todos os mundos até ${limiteTexto(op.N, op.K)})`)
+          else item('incerto', 'desativada; grande demais para conferir')
+        }
+      }
+      continue
+    }
+
+    n.formulas.forEach((formula, i) => {
+      if (!formula.trim()) return
+      const id = `${n.id}:${i}`
+      const item = (classe: Classe, explicacao: string, extra: Partial<ItemModelo> = {}) =>
+        itens.push({ ...base, id, titulo: d.titulo(id), formula, classe, explicacao, ...extra })
+      const t = rel?.teoremas.find((x) => x.id === id)
+      if (d.refutados.has(id) && t?.resultado.tipo !== 'contradiz') return item('refutado', d.refutados.get(id)!)
+      if (!t) return item('incerto', n.ativa ? 'não foi conferido' : 'a nota saiu porque outra fórmula dela foi refutada')
+      const nivel = rel ? limiteTexto(rel.N, rel.K) : ''
+      // o Z3 achou um cenário (maior que os testados, ou infinito) em que as leis valem e ele falha
+      if (t.z3 === 'nao-segue' || t.z3 === 'nao-contradiz')
+        return item('tese', `não segue das leis: valia até ${nivel}, mas o Z3 achou um cenário maior (ou infinito) em que as leis valem e ele falha`)
+      switch (t.resultado.tipo) {
+        case 'segue': {
+          const apoio = t.apoio?.length ? t.apoio : t.resultado.notas
+          const onde = t.z3 === 'segue' ? 'provado (vale com qualquer número de objetos)' : `vale em todos os mundos até ${nivel} (ainda sem prova para maiores)`
+          return item('provado', `${onde}; ${apoio.length ? `vem de ${de(apoio)}` : 'vale sempre, sem precisar de lei'}`, {
+            apoio,
+            geracao: t.geracao,
+          })
+        }
+        case 'nao-segue': {
+          const outros = rel!.conflitoTeoremas?.filter((x) => x !== id) ?? []
+          if (rel!.conflitoTeoremas?.includes(id))
+            return item('conflito', `não segue, e junto com ${de(outros)} contradiz as leis: não podem valer todos`)
+          return item('tese', `não contradiz as leis (há mundo onde vale), mas não segue delas: há um cenário (${tamanhoTexto(t.resultado.mundo.n)}) onde falha`)
+        }
+        case 'contradiz':
+          return item('refutado', `as leis implicam o contrário (${de(t.resultado.notas)}), em todos os mundos até ${nivel}`)
+        case 'aritmetica':
+          return item('numerico', 'usa números: o motor finito não decide; o Z3 decide (ligue-o em Contradições)')
+        case 'tempo':
+          return item(
+            'incerto',
+            `não decidiu a tempo: ${t.resultado.n > 1 ? `até ${t.resultado.n - 1} objeto${t.resultado.n > 2 ? 's' : ''} não há cenário onde falhe; com ` : 'com '}${t.resultado.n} a checagem passou do prazo do aparelho`,
+          )
+        case 'premissas-contraditorias':
+          return item('incerto', 'as leis do conjunto se contradizem')
+        default:
+          return item('incerto', 'grande demais ou com erro')
+      }
+    })
+  }
+  for (const rel of finais)
+    (rel.consequencias ?? []).forEach((q, k) =>
+      itens.push({
+        id: `consequencia:${rel.chave}:${k}`,
+        chave: rel.chave,
+        titulo: q.descricao,
+        formula: q.formula,
+        classe: 'descoberta',
+        explicacao: `consequência nova, ainda não escrita: segue de ${de(q.notas) || 'nada (vale sempre)'} (todos os mundos até ${limiteTexto(rel.N, rel.K)})`,
+        apoio: q.notas,
+      }),
+    )
+  return itens
+}

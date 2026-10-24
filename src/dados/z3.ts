@@ -1,0 +1,430 @@
+// Z3 no navegador: carregado sob demanda (35 MB), só no PWA servido por
+// http(s) com isolamento entre origens (o service worker cuida dos cabeçalhos).
+// Roda num worker só dele, trocado por um novo de tempos em tempos (cada
+// checagem deixa memória presa no Z3) e sempre que ele quebra ou trava.
+// Guarda as respostas por pergunta, para não repetir checagens.
+
+import { useEffect, useReducer } from 'preact/hooks'
+import type { EntradaDicionario } from './tipos'
+import type { Formula } from '../logica/ast'
+import { resumo } from '../logica/resumo'
+import { guardarZ3, lerZ3Guardados, PREFIXO_CHAVE_Z3 } from '../motor/bancoProvas'
+import { analisar, nao, nomesNumericos, relevantes } from '../motor/motor'
+import { TEMPO_Z3_MS, type RespostaComNucleo, type ResultadoZ3 } from '../motor/z3'
+import type { PedidoZ3, RespostaZ3 } from '../motor/z3worker'
+import { gravarConfig, lerConfig } from './db'
+
+export type StatusZ3 = 'desligado' | 'carregando' | 'pronto' | 'erro'
+
+export interface Confirmacao {
+  estado: 'rodando' | 'feito' | 'erro'
+  resultado?: ResultadoZ3
+  ms?: number
+  erro?: string
+  /** o tempo que o Z3 teve (um "não sei" com pouco tempo pode ser tentado de novo com mais) */
+  tempoMs?: number
+  /** sem modelo, com as notas marcadas: as que a prova usou */
+  nucleo?: number[] | null
+}
+
+/** Pode haver Z3 neste ambiente? Se não, por quê. */
+export function disponibilidadeZ3(): { ok: true } | { ok: false; motivo: string; recarregar?: boolean } {
+  if (__MODO_ARQUIVO__) return { ok: false, motivo: 'O Z3 não cabe no arquivo único (35 MB). Use a versão instalada (PWA).' }
+  if (typeof window === 'undefined' || !location.protocol.startsWith('http'))
+    return { ok: false, motivo: 'O Z3 só funciona no app aberto pelo endereço (http/https).' }
+  if (typeof SharedArrayBuffer === 'undefined' || !crossOriginIsolated) {
+    const controlado = !!navigator.serviceWorker?.controller
+    return controlado
+      ? { ok: false, motivo: 'Falta recarregar a página uma vez para ativar o modo que o Z3 exige.', recarregar: true }
+      : { ok: false, motivo: 'Este navegador ainda não está pronto para o Z3. Abra o app instalado ou recarregue a página.', recarregar: true }
+  }
+  return { ok: true }
+}
+
+const url = (f: string) => new URL(`./z3/${f}`, location.href).href
+
+/** o worker do Z3 é trocado por um novo depois de tantas checagens (solta a memória presa) */
+export const RECICLAR_Z3_A_CADA = 100
+/** sem resposta depois do dobro do prazo da checagem e mais isto: o Z3 travou (ele às vezes ignora o prazo), e o worker é trocado */
+const FOLGA_VIGIA_MS = 15_000
+
+type Retorno = RespostaComNucleo | { erro: string }
+
+/** a checagem foi interrompida para atender antes uma mais importante (será tentada de novo depois) */
+class Interrompida extends Error {}
+
+/**
+ * A vez de cada checagem: uma pergunta (alguém espera a resposta) passa na
+ * frente de uma confirmação que a tela mostra, que passa na frente das de
+ * fundo (a reação em cadeia, as checagens em lote do segundo modelo).
+ */
+export const PRIORIDADE = { fundo: 0, tela: 1, pergunta: 2 } as const
+export type Prioridade = (typeof PRIORIDADE)[keyof typeof PRIORIDADE]
+
+class EstadoZ3 {
+  /** o usuário quer usar o Z3 (fica gravado) */
+  ativo = false
+  status: StatusZ3 = 'desligado'
+  erro: string | null = null
+  /** download para uso offline: bytes já baixados / total */
+  download: { feito: number; total: number } | null = null
+  guardado = false
+  /** checagens feitas e quantas vezes o worker foi trocado (para mostrar na tela) */
+  checagens = 0
+  reinicios = 0
+  private trabalhador: Worker | null = null
+  private carregando: Promise<void> | null = null
+  private checagensNoWorker = 0
+  private esperando = new Map<number, (r: Retorno) => void>()
+  private proximoId = 0
+  private confirmacoes = new Map<string, Confirmacao>()
+  /**
+   * Uma checagem por vez, numa fila por prioridade (PRIORIDADE): a de cima
+   * passa na frente, e interrompe uma de baixo que já esteja rodando (a
+   * reação em cadeia pode insistir minutos numa só).
+   */
+  private filas: (() => Promise<void>)[][] = [[], [], []]
+  private girando = false
+  private emCurso: { prioridade: Prioridade } | null = null
+  /** a checagem em curso cedeu a vez a uma mais importante */
+  private interrompida = false
+  private ouvintes = new Set<() => void>()
+
+  assinar(fn: () => void) {
+    this.ouvintes.add(fn)
+    return () => {
+      this.ouvintes.delete(fn)
+    }
+  }
+  private avisar() {
+    this.ouvintes.forEach((f) => f())
+  }
+
+  async carregarConfig() {
+    try {
+      this.ativo = !!(await lerConfig<boolean>('z3'))
+    } catch {
+      /* sem banco */
+    }
+    await this.conferirGuardado()
+    this.avisar()
+  }
+
+  async definirAtivo(v: boolean) {
+    this.ativo = v
+    void gravarConfig('z3', v).catch(() => {})
+    this.avisar()
+    if (v && disponibilidadeZ3().ok) await this.carregar().catch(() => {})
+  }
+
+  /** O Z3 já está no cache do aparelho? */
+  async conferirGuardado() {
+    try {
+      const nomes = await caches.keys()
+      for (const n of nomes.filter((k) => k.startsWith('caderno-z3-'))) {
+        const c = await caches.open(n)
+        if (await c.match(url('z3-built.wasm'))) this.guardado = true
+      }
+    } catch {
+      /* sem Cache API */
+    }
+  }
+
+  /** Baixa os arquivos do Z3 (passam pelo service worker, que os guarda). */
+  async baixarParaOffline() {
+    try {
+      this.erro = null
+      await fetch(url('z3-built.js'))
+      const r = await fetch(url('z3-built.wasm'))
+      if (!r.ok || !r.body) throw new Error(`falha ao baixar (${r.status})`)
+      const total = Number(r.headers.get('content-length')) || 35_000_000
+      this.download = { feito: 0, total }
+      const leitor = r.body.getReader()
+      for (;;) {
+        const { done, value } = await leitor.read()
+        if (done) break
+        this.download = { feito: this.download.feito + value.length, total }
+        this.avisar()
+      }
+      this.download = null
+      await this.conferirGuardado()
+    } catch (e) {
+      this.download = null
+      this.erro = (e as Error).message
+    }
+    this.avisar()
+  }
+
+  /** Liga o worker do Z3 (se ainda não há um) e espera o Z3 ficar pronto nele. */
+  carregar(): Promise<void> {
+    if (this.carregando) return this.carregando
+    // trocar o worker não muda o que a tela mostra: só a primeira carga aparece
+    if (this.status !== 'pronto') {
+      this.status = 'carregando'
+      this.erro = null
+      this.avisar()
+    }
+    let w: Worker
+    try {
+      // no arquivo único não há Z3 (o worker nem chega a ser criado)
+      if (__MODO_ARQUIVO__) throw new Error('indisponível no arquivo único')
+      w = new Worker(new URL('../motor/z3worker.ts', import.meta.url), { type: 'module', name: 'z3' })
+    } catch (e) {
+      return Promise.reject(this.falhouAoCarregar(e as Error))
+    }
+    this.trabalhador = w
+    this.checagensNoWorker = 0
+    this.carregando = new Promise<void>((ok, falha) => {
+      w.onmessage = (e: MessageEvent<RespostaZ3>) => {
+        const m = e.data
+        if (m.tipo === 'pronto') return ok()
+        if (m.tipo === 'erro') return falha(new Error(m.msg))
+        const fim = this.esperando.get(m.id)
+        this.esperando.delete(m.id)
+        fim?.(m.tipo === 'resultado' ? { resultado: m.resultado, nucleo: m.nucleo } : { erro: m.msg })
+      }
+      // o worker caiu (ex.: faltou memória): as checagens em curso falham e o próximo uso cria outro
+      w.onerror = (e) => {
+        e.preventDefault()
+        falha(new Error(e.message || 'o Z3 parou'))
+        if (this.trabalhador === w) this.descartar(e.message || 'o Z3 parou (memória?)')
+      }
+      w.postMessage({ tipo: 'iniciar', base: url('') } satisfies PedidoZ3)
+    }).then(
+      () => {
+        if (this.status !== 'pronto') {
+          this.status = 'pronto'
+          void this.conferirGuardado().then(() => this.avisar())
+          this.avisar()
+        }
+      },
+      (e) => {
+        if (this.trabalhador === w) this.descartar()
+        throw this.falhouAoCarregar(e as Error)
+      },
+    )
+    return this.carregando
+  }
+
+  private falhouAoCarregar(e: Error): Error {
+    this.status = 'erro'
+    this.erro = e.message
+    this.carregando = null
+    this.avisar()
+    return e
+  }
+
+  /** Joga fora o worker do Z3 (e toda a memória dele); o próximo uso cria outro. */
+  private descartar(motivo = 'o Z3 foi reiniciado') {
+    this.trabalhador?.terminate()
+    if (this.trabalhador) this.reinicios++
+    this.trabalhador = null
+    this.carregando = null
+    for (const fim of this.esperando.values()) fim({ erro: motivo })
+    this.esperando.clear()
+  }
+
+  /**
+   * Uma checagem no worker do Z3. Troca o worker antes, se ele já fez muitas;
+   * se a checagem falhar (o Z3 quebrou ou travou), tenta mais uma vez num worker novo.
+   */
+  private async checar(formulas: Formula[], tempoMs: number, numericos: Set<string>, grupos?: (number | null)[], tentativa = 0): Promise<RespostaComNucleo> {
+    if (this.checagensNoWorker >= RECICLAR_Z3_A_CADA) this.descartar()
+    await this.carregar()
+    // chegou uma mais importante enquanto o Z3 carregava: esta cede a vez antes de começar
+    if (this.emCurso && this.temMaisImportante(this.emCurso.prioridade)) {
+      this.interrompida = true
+      throw new Interrompida('cedeu a vez')
+    }
+    const w = this.trabalhador!
+    this.checagensNoWorker++
+    this.checagens++
+    const id = ++this.proximoId
+    const r = await new Promise<Retorno>((ok) => {
+      const vigia = setTimeout(() => {
+        if (this.esperando.has(id) && this.trabalhador === w) this.descartar('o Z3 não respondeu (travou) e foi reiniciado')
+      }, 2 * tempoMs + FOLGA_VIGIA_MS)
+      this.esperando.set(id, (x) => {
+        clearTimeout(vigia)
+        ok(x)
+      })
+      w.postMessage({ tipo: 'checar', id, formulas, tempoMs, numericos: [...numericos], ...(grupos ? { grupos } : {}) } satisfies PedidoZ3)
+    })
+    if ('resultado' in r) return r
+    if (this.interrompida) throw new Interrompida(r.erro)
+    // depois de uma falha o Z3 pode ter ficado num estado ruim: worker novo
+    if (this.trabalhador === w) this.descartar()
+    if (tentativa === 0) return this.checar(formulas, tempoMs, numericos, grupos, 1)
+    throw new Error(r.erro)
+  }
+
+  private temMaisImportante(p: Prioridade) {
+    return this.filas.some((f, i) => i > p && f.length > 0)
+  }
+
+  /** Põe a checagem na fila; uma mais importante interrompe a que está rodando (que é pedida de novo depois). */
+  private enfileirar(tarefa: () => Promise<void>, prioridade: Prioridade) {
+    this.filas[prioridade].push(tarefa)
+    // (só com a checagem já no worker: interromper o Z3 carregando deixaria a fila esperando para sempre)
+    if (this.emCurso && this.emCurso.prioridade < prioridade && !this.interrompida && this.esperando.size > 0) {
+      this.interrompida = true
+      this.descartar('interrompido para atender antes uma checagem mais importante')
+    }
+    void this.girar()
+  }
+
+  private async girar() {
+    if (this.girando) return
+    this.girando = true
+    try {
+      for (;;) {
+        const prioridade = ([2, 1, 0] as const).find((p) => this.filas[p].length > 0)
+        if (prioridade === undefined) break
+        const tarefa = this.filas[prioridade].shift()!
+        this.emCurso = { prioridade }
+        this.interrompida = false
+        try {
+          await tarefa()
+        } catch {
+          /* cada tarefa guarda o próprio erro */
+        }
+        this.emCurso = null
+      }
+    } finally {
+      this.girando = false
+    }
+  }
+
+  /** Traz do banco de provas as respostas do Z3 já guardadas no aparelho. */
+  async carregarGuardados() {
+    try {
+      for (const r of await lerZ3Guardados())
+        if (!this.confirmacoes.has(r.chave)) this.confirmacoes.set(r.chave, { estado: 'feito', resultado: r.resultado, ms: r.ms, nucleo: r.nucleo })
+      this.avisar()
+    } catch {
+      /* sem banco */
+    }
+  }
+
+  /** Esquece as respostas (o banco de provas foi apagado). */
+  esquecerTudo() {
+    this.confirmacoes.clear()
+    this.avisar()
+  }
+
+  /** Espera a checagem terminar (devolve na hora se já terminou ou nunca foi pedida). */
+  esperar(chave: string): Promise<Confirmacao | undefined> {
+    return new Promise((ok) => {
+      let sair: (() => void) | null = null
+      const ver = () => {
+        const c = this.confirmacoes.get(chave)
+        if (c && c.estado === 'rodando') return false
+        sair?.()
+        ok(c)
+        return true
+      }
+      if (!ver()) sair = this.assinar(() => void ver())
+    })
+  }
+
+  /**
+   * O conjunto de fórmulas (já prontas, do motor) não tem modelo de nenhum
+   * tamanho? Usado pelo aprofundamento: o que o Z3 prova não precisa ser
+   * reconferido com mais objetos. Resposta guardada como as outras.
+   */
+  async provarFormulas(
+    formulas: Formula[],
+    dicionario: EntradaDicionario[],
+    tempoMs = TEMPO_APROFUNDAR_MS,
+    /** de qual nota vem cada fórmula: com isso, a resposta traz o núcleo (as notas que a prova usou) */
+    grupos?: (number | null)[],
+    /** a vez dela na fila (uma pergunta passa na frente do resto) */
+    prioridade: Prioridade = PRIORIDADE.fundo,
+  ): Promise<RespostaComNucleo | null> {
+    const texto = JSON.stringify(formulas, (k, v) => (k === 'pos' || k === 'end' ? undefined : v))
+    const chave = `${PREFIXO_CHAVE_Z3}${resumo(`formulas:${texto}${grupos ? `|grupos:${JSON.stringify(grupos)}` : ''}`)}`
+    const ja = this.confirmacoes.get(chave)
+    // "não sei" com menos tempo do que agora: tenta de novo, com o tempo maior (modo de horas)
+    const deNovo = ja?.estado === 'feito' && ja.resultado === 'unknown' && (ja.tempoMs ?? TEMPO_APROFUNDAR_MS) < tempoMs
+    if (!ja || deNovo) {
+      this.confirmacoes.set(chave, { estado: 'rodando' })
+      this.enfileirar(async () => {
+        const ini = Date.now()
+        try {
+          const { resultado, nucleo } = await this.checar(formulas, tempoMs, nomesNumericos(dicionario), grupos)
+          this.confirmacoes.set(chave, { estado: 'feito', resultado, ms: Date.now() - ini, tempoMs, nucleo })
+          if (resultado !== 'unknown') guardarZ3({ chave, resultado, ms: Date.now() - ini, ...(nucleo ? { nucleo } : {}) })
+        } catch (e) {
+          // interrompida: fica como se nunca tivesse sido pedida (o próximo pedido tenta de novo)
+          if (e instanceof Interrompida || this.interrompida) this.confirmacoes.delete(chave)
+          else this.confirmacoes.set(chave, { estado: 'erro', erro: (e as Error).message })
+        }
+        this.avisar()
+      }, prioridade)
+    }
+    const c = await this.esperar(chave)
+    return c?.resultado ? { resultado: c.resultado, nucleo: c.nucleo ?? null } : null
+  }
+
+  /** Resultado já calculado (ou em cálculo) para esta checagem. */
+  consulta(chave: string): Confirmacao | undefined {
+    return this.confirmacoes.get(chave)
+  }
+
+  /**
+   * Checa no Z3 se `formulas` (mais ¬negar, se dado) têm modelo. Uma checagem
+   * por vez; o resultado fica guardado pela chave.
+   */
+  /**
+   * `soRelevantes`: só as fórmulas ligadas por nomes à negada (ou a `foco`),
+   * para o Z3 não se perder em leis que não têm nada a ver.
+   */
+  confirmar(
+    chave: string,
+    formulas: string[],
+    dicionario: EntradaDicionario[],
+    negar?: string,
+    soRelevantes = false,
+    foco?: string,
+    /** uma confirmação que a tela mostra passa na frente das de fundo; as em lote vão como de fundo */
+    prioridade: Prioridade = PRIORIDADE.tela,
+  ) {
+    if (this.confirmacoes.has(chave)) return
+    this.confirmacoes.set(chave, { estado: 'rodando' })
+    this.avisar()
+    this.enfileirar(async () => {
+      const ini = Date.now()
+      try {
+        let prontas = analisar(formulas, dicionario, true)
+        const [phi] = negar !== undefined ? analisar([negar], dicionario, true) : []
+        if (negar !== undefined && !phi) throw new Error('fórmula inválida')
+        const [centro] = phi ? [phi] : foco !== undefined ? analisar([foco], dicionario, true) : []
+        if (centro && soRelevantes) prontas = relevantes(prontas, centro)
+        const fs = prontas.map((x) => x.expandida)
+        if (phi) fs.push(nao(phi.expandida))
+        const { resultado } = await this.checar(fs, TEMPO_Z3_MS, nomesNumericos(dicionario))
+        this.confirmacoes.set(chave, { estado: 'feito', resultado, ms: Date.now() - ini })
+        // fica no banco de provas (não precisa provar de novo noutro dia)
+        if (resultado !== 'unknown') guardarZ3({ chave, resultado, ms: Date.now() - ini })
+      } catch (e) {
+        this.confirmacoes.set(chave, { estado: 'erro', erro: (e as Error).message })
+      }
+      this.avisar()
+    }, prioridade)
+  }
+}
+
+/** tempo do Z3 para cada conclusão do aprofundamento (o motor finito segue trabalhando enquanto isso) */
+const TEMPO_APROFUNDAR_MS = 10_000
+
+export const z3 = new EstadoZ3()
+
+export function useZ3(): EstadoZ3 {
+  const [, forcar] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => z3.assinar(() => forcar(undefined)), [])
+  return z3
+}
+
+/** Chave de uma checagem do Z3: fórmulas, fórmula negada e as fichas (tipo, aridade, número), resumidas. */
+export const chaveZ3 = (formulas: string[], negar: string | null, dic: EntradaDicionario[]) =>
+  `${PREFIXO_CHAVE_Z3}${resumo(JSON.stringify([formulas, negar, dic.map((e) => [e.simbolo, e.tipo, e.aridade, !!e.numerico, e.argumentos ?? null])]))}`

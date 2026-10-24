@@ -1,0 +1,62 @@
+# Proposta para a EXPORTACAO NOVA. Nao aplicada ao historico congelado.
+# Ignore nao remove arquivos ja rastreados; usar selecao explicita antes do commit.
+node_modules/
+dist/
+dist-*/
+servidor/dist/
+target/
+coverage/
+.vite/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+
+# Dados locais, credenciais e ferramentas pessoais
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_ed25519
+.npmrc
+.pypirc
+.netrc
+privado/
+importar/
+src/dados/cifrado/
+.aws/
+.codex/
+.agents/
+.claude/
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+
+# Evidencias brutas, executaveis, dados de bancada e entregas duplicadas
+evidencias/
+tmp/
+output/
+entrega-f*/
+fase3-independente/
+*.exe
+*.dll
+*.bin
+*.zip
+*.7z
+*.log
+Cargo.lock
+public/z3/
+public/caderno-logico.html
+
+# Repositorios/exportacoes aninhados; nao copiar seus .git
+cosmos-software-public-v1/
+cosmos-exportacao-limpa/
+
+# Manter workflows fora da exportacao inicial; rever destinos/permissoes antes.
+.github/workflows/

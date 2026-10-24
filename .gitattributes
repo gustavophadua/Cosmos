@@ -1,0 +1,36 @@
+# provas e problemas da t1: o SHA-256 de cada arquivo está em certificados.json,
+# então as linhas terminam em LF em todo sistema
+especificacao/provas-t1/** text eol=lf
+# a implementação independente (do GPT) fica byte a byte como ele a entregou, com as linhas em CRLF: assim o SHA-256
+# de cada arquivo é o mesmo que ele publicou
+especificacao/provas-t1/independente/** -text
+# os registros de exemplo do formato aberto: os arquivos dos certificados têm o SHA-256 no registro
+especificacao/registros-v1/** text eol=lf
+
+# Selagem P1: preservar os bytes auditados também no checkout Windows/Linux.
+# config.ts contém CRLF; api-node.ts/servidor.ts v2 têm terminadores mistos.
+# -text evita que Git altere os SHA-256 ao adicionar ou extrair esses arquivos.
+package.json -text
+package-lock.json -text
+src/dados/cadeia-F0-F4.json -text
+src/dados/cadeia-outras-F5-F8.json -text
+src/dados/elos-assinados.json -text
+src/dados/selo-publico.json -text
+src/integracoes/contratos.ts -text
+src/integracoes/politica.ts -text
+src/interfaces/config.ts -text
+src/ui/icons/cosmos-moeda-oficial.png -text
+src/v2/api-node.ts -text
+src/v2/servidor.ts -text
+# OTS assina os bytes do alvo: CRLF de checkout invalidaria o vínculo histórico.
+public/cosmos-502426c-resumo.txt -text
+public/cosmos-502426c-resumo.txt.ots -text
+scripts/verificar-p1-selada.mjs text eol=lf
+scripts/validar-p1-ci.mjs text eol=lf
+evidencias/p1-groq-sha256-esperados.json text eol=lf
+# Referência CPU Fase 4: entrada e artefatos com digest sobre bytes exatos.
+src/fase4/entrada-4-pombos-3-caixas.smt2 -text
+evidencias/fase4-cpu-referencia/** -text
+# B GPU: preservar fontes, lock e pacote binário com hashes sobre bytes exatos.
+fase4-b-gpu/** -text
+evidencias/fase4-b-gpu-pacote/** -text

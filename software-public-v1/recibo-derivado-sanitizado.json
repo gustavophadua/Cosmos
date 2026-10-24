@@ -1,0 +1,55 @@
+{
+  "tipo": "derivado-sanitizado-v1",
+  "origem": "aacecce9f606fe73789fbd74135fc01abd5ea356",
+  "fonte": {
+    "arquivo": "evidencias/fase4-b-5p4c-recibo-final.json",
+    "sha256": "8897c35930655ec53a4d46b140abef0bf3377b847c74de8b6f50d53a7c366f0b",
+    "natureza": "recibo local posterior ao commit; nao alegado como blob nesse commit"
+  },
+  "estado": "conferencia-historica-instancia-fixa-5p4c",
+  "ci": {
+    "runId": 40129844631,
+    "conclusion": "success"
+  },
+  "gpu": {
+    "tipo": "IntegratedGpu",
+    "backend": "Vulkan"
+  },
+  "instancia": {
+    "variaveis": 20,
+    "clausulas": 75,
+    "atribuicoes": 1048576,
+    "grupos": 16384,
+    "invocacoesPorGrupo": 64
+  },
+  "prova": {
+    "bytes": 29073,
+    "resolucoes": 203,
+    "sha256": "235013e58aa06eece569b5c1395995ae78f1dfb3a52443a6a9f6f0cc2d757adf"
+  },
+  "checker": {
+    "nome": "Carcara",
+    "versao": "1.1.0",
+    "sha256": "fcd06852931d36b13e6d3f7965c81a068f5cfe2f3c5e7da2d91af500f8f1bfda",
+    "resultado": "valid",
+    "exitCode": 0
+  },
+  "negativos": {
+    "aletheRecusados": 3,
+    "testemunhosRecusados": 4
+  },
+  "validacaoHistorica": {
+    "vitest": 1035,
+    "arquivosVitest": 66,
+    "node": 29,
+    "naga": 1,
+    "layoutBytes": 616,
+    "pinsPreservados": 13
+  },
+  "limites": [
+    "Derivado sem assinatura nova; nao substitui o original.",
+    "Resultados historicos; sem nova execucao GPU ou Carcara.",
+    "Instancia fixa; identificacao operacional, nao atestacao criptografica.",
+    "Hash nao disponibiliza dados nem comprova treinamento."
+  ]
+}

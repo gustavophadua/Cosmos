@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Cosmos - registros verificáveis, certificados e ofertas em simulação local" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="application-name" content="Cosmos" />
+    <meta name="apple-mobile-web-app-title" content="Cosmos" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta property="og:title" content="Cosmos - Hub de conhecimento" />
+    <meta property="og:description" content="Registros verificáveis e simulação local de ofertas" />
+    <meta property="og:image" content="https://onethink-stack.github.io/cosmos/pwa-512x512.png" />
+    <meta property="og:type" content="website" />
+    <title>Cosmos - Hub de conhecimento</title>
+    <link rel="icon" type="image/x-icon" href="./favicon.ico?v=cosm-oficial" />
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png?v=cosm-oficial" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=cosmos-final" />
+    <link rel="manifest" href="/cosmos/manifest.webmanifest?v=white-final" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script>
+      // Se o app não conseguir abrir, mostra o motivo e um jeito de recomeçar
+      // (em vez de tela vazia). As notas ficam: só o cache do app é limpo.
+      ;(function () {
+        var erros = []
+        function mostrar() {
+          var app = document.getElementById('app')
+          if (!app || app.childElementCount) return
+          app.innerHTML =
+            '<div style="max-width:40rem;margin:2rem auto;padding:1rem;font:16px system-ui,sans-serif;color:#222;background:#fff;border-radius:8px">' +
+            '<h2 style="margin-top:0">O Cosmos não conseguiu abrir</h2>' +
+            '<p>Suas notas continuam guardadas neste aparelho. Tente recarregar limpando a versão antiga do app:</p>' +
+            '<p><button id="limpar-cache" style="font:inherit;padding:.6rem 1rem">Recarregar limpando o cache</button></p>' +
+            '<details><summary>Detalhes do erro</summary><pre id="detalhe-erro" style="white-space:pre-wrap;font-size:13px"></pre></details></div>'
+          document.getElementById('detalhe-erro').textContent = (erros.join('\n') || 'o app não iniciou') + '\n\n' + navigator.userAgent
+          document.getElementById('limpar-cache').onclick = function () {
+            var p = []
+            if (navigator.serviceWorker) p.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister() })) }))
+            if (window.caches) p.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k) })) }))
+            Promise.all(p).then(function () { location.reload() }, function () { location.reload() })
+          }
+        }
+        window.addEventListener('error', function (e) {
+          erros.push(e.message || (e.target && (e.target.src || e.target.href) ? 'falhou ao carregar ' + (e.target.src || e.target.href) : 'erro'))
+          setTimeout(mostrar, 500)
+        }, true)
+        window.addEventListener('unhandledrejection', function (e) {
+          erros.push(String(e.reason && (e.reason.stack || e.reason.message) || e.reason))
+          setTimeout(mostrar, 500)
+        })
+        window.addEventListener('load', function () { setTimeout(mostrar, 4000) })
+      })()
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
