@@ -59,7 +59,7 @@ describe('Ciclo Conversa → fonte → rascunho → evidência → verificação
     parar()
   })
 
-  it('a verificação aceita as nove fontes públicas por integridade e autoria, e nunca afirma a verdade nem o Bitcoin', async () => {
+  it('a verificação aceita as nove fontes públicas por integridade e autoria, e nunca afirma a verdade', async () => {
     for (const r of REGISTROS_PUBLICOS) {
       const v = await verificarFonte({ id: r.id, hash: r.hash })
       expect(v.aceita, r.id).toBe(true)
@@ -67,7 +67,7 @@ describe('Ciclo Conversa → fonte → rascunho → evidência → verificação
       expect(por['Hash anotado']).toBe('confere')
       expect(por['Integridade · SHA-256']).toBe('confere')
       expect(por['Autoria · Ed25519']).toBe('confere')
-      expect(por['Timestamp · Bitcoin']).toBe('pendente')
+      expect(por['Timestamp · Bitcoin']).toBe('externo')
       expect(por['Conteúdo']).toBe('nao_provado')
       for (const c of v.conferencias) { expect(c.fonte.length).toBeGreaterThan(0); expect(c.limite.length).toBeGreaterThan(0) }
     }

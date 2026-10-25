@@ -61,6 +61,75 @@ def inspect(proof, target, verify=False):
                 result['erro'] = 'Bitcoin Core indisponível ou atestação não verificável'
     return result
 
+# Cabeçalhos públicos: sem nó Bitcoin próprio, o cabeçalho do bloco é buscado em fontes independentes e só vale
+# quando pelo menos duas concordam em tudo: o hash do bloco, a prova de trabalho e a raiz Merkle da atestação.
+FONTES_PUBLICAS = ('https://mempool.space/api', 'https://blockstream.info/api', 'blockchain.info')
+
+def _get(url, timeout=30):
+    request = urllib.request.Request(url, headers={'User-Agent': 'cosmos-ots-verificador'})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read(1024 * 1024).decode().strip()
+
+def _cabecalho(fonte, height):
+    if fonte == 'blockchain.info':
+        blocks = json.loads(_get('https://blockchain.info/block-height/%d?format=json' % height))['blocks']
+        b = [x for x in blocks if x.get('main_chain')][0]
+        raw = (b['ver'].to_bytes(4, 'little') + bytes.fromhex(b['prev_block'])[::-1] + bytes.fromhex(b['mrkl_root'])[::-1]
+               + b['time'].to_bytes(4, 'little') + b['bits'].to_bytes(4, 'little') + b['nonce'].to_bytes(4, 'little'))
+        return b['hash'], raw, int(_get('https://blockchain.info/q/getblockcount'))
+    block_hash = _get('%s/block-height/%d' % (fonte, height))
+    return block_hash, bytes.fromhex(_get('%s/block/%s/header' % (fonte, block_hash))), int(_get('%s/blocks/tip/height' % fonte))
+
+def verify_public(proof, target, minimo=2, tentativas=3):
+    from bitcoin.core import CBlockHeader
+    import datetime, time
+    result = inspect(proof, target)
+    detached = DetachedTimestampFile.deserialize(BytesDeserializationContext(proof))
+    vistas = set()
+    for msg, att in detached.timestamp.all_attestations():
+        if not isinstance(att, BitcoinBlockHeaderAttestation) or (att.height, msg) in vistas:
+            continue
+        vistas.add((att.height, msg))
+        acordos, fontes = {}, {}
+        for fonte in FONTES_PUBLICAS:
+            nome = urllib.parse.urlparse(fonte).hostname or fonte
+            for tentativa in range(tentativas):
+                try:
+                    block_hash, raw, tip = _cabecalho(fonte, att.height)
+                    header = CBlockHeader.deserialize(raw)
+                    if header.GetHash()[::-1].hex() != block_hash:
+                        raise ValueError('hash do cabeçalho diverge do bloco informado')
+                    exp, mant = header.nBits >> 24, header.nBits & 0xffffff
+                    if int.from_bytes(header.GetHash(), 'little') > mant * (1 << (8 * (exp - 3))):
+                        raise ValueError('prova de trabalho inválida')
+                    att.verify_against_blockheader(msg, header)
+                    fontes[nome] = dict(bloco=block_hash, confirmacoes=tip - att.height + 1)
+                    acordos.setdefault((block_hash, header.nTime), []).append(nome)
+                    break
+                except Exception as exc:
+                    fontes[nome] = dict(erro=type(exc).__name__)
+                    time.sleep(2 * (tentativa + 1))
+        if not acordos:
+            continue
+        (block_hash, tempo), quem = max(acordos.items(), key=lambda kv: len(kv[1]))
+        confirmacoes = min(fontes[n]['confirmacoes'] for n in quem)
+        if len(quem) < minimo or len(acordos) > 1:
+            result['erro'] = 'Fontes públicas insuficientes ou divergentes para o bloco %d' % att.height
+            continue
+        if confirmacoes < 6:
+            result['erro'] = 'Aguardando seis confirmações Bitcoin'
+            continue
+        result.update(estado='confirmado_bitcoin', confirmacaoVerificada=True, fonte='cabecalhos-publicos',
+                      fontes=sorted(quem), altura=att.height, bloco=block_hash, confirmacoes=confirmacoes,
+                      tempo_bloco_utc=datetime.datetime.fromtimestamp(tempo, datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      sha256_prova=hashlib.sha256(proof).hexdigest(),
+                      conferido_em_utc=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      limite='Cabeçalho conferido em fontes públicas independentes, não num nó Bitcoin próprio. '
+                             'Prova que o resumo existia antes do bloco; não prova a verdade das afirmações.')
+        result.pop('erro', None)
+        break
+    return result
+
 CALENDARS = ('https://alice.btc.calendar.opentimestamps.org', 'https://bob.btc.calendar.opentimestamps.org')
 def save(detached):
     ctx = BytesSerializationContext()
@@ -110,6 +179,11 @@ if __name__ == '__main__':
             if not PROOF.exists():
                 stamp(value)
             result = inspect(PROOF.read_bytes(), value)
+        elif mode == 'verify-publico':
+            result = verify_public(PROOF.read_bytes(), TARGET.read_bytes())
+            if not result.get('confirmacaoVerificada'):
+                print(json.dumps(result, ensure_ascii=True))
+                sys.exit(1)
         elif mode in ('upgrade', 'verify'):
             if mode == 'upgrade':
                 upgrade()

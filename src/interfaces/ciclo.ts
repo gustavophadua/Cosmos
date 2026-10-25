@@ -1,6 +1,7 @@
 import { PACOTE_COSMOS } from '../dados/pacoteCosmos'
 import { verificarSelosCosmos } from '../motor/cadeiaCosmos'
 import type { RascunhoLocal } from '../local/dados'
+import carimbo from '../dados/carimbo-bitcoin.json'
 import { REGISTROS_PUBLICOS, type RegistroPublico } from '../v3/catalogo'
 
 /*
@@ -42,7 +43,8 @@ export function proximoIdRascunho(lista: readonly { id: string }[]): string {
   return `D${String(maior + 1).padStart(2, '0')}`
 }
 
-export type Estado = 'confere' | 'diverge' | 'ausente' | 'pendente' | 'nao_provado'
+// externo: conferido fora deste aparelho (pelo verificador público), com o limite dito
+export type Estado = 'confere' | 'diverge' | 'ausente' | 'pendente' | 'externo' | 'nao_provado'
 export interface Conferencia { etapa: string; estado: Estado; fato: string; fonte: string; limite: string }
 export interface VerificacaoFonte { fonte: ReferenciaFonte; conferencias: Conferencia[]; aceita: boolean }
 
@@ -67,7 +69,7 @@ export async function verificarFonte(ref: ReferenciaFonte): Promise<VerificacaoF
   const assinatura: Conferencia = selos.assinatura === 'valida'
     ? { etapa: 'Autoria · Ed25519', estado: 'confere', fato: 'A assinatura do selo 502426c sobre esse hash vale para a chave pública publicada.', fonte: 'elos-assinados.json + selo-publico.json', limite: 'Autoria prova quem assinou, não que o conteúdo é verdadeiro.' }
     : { etapa: 'Autoria · Ed25519', estado: selos.assinatura === 'ausente' ? 'ausente' : 'diverge', fato: selos.assinatura === 'ausente' ? 'Não há elo assinado para essa fase.' : 'A assinatura não confere.', fonte: 'elos-assinados.json + selo-publico.json', limite: 'Sem assinatura válida, a autoria não está demonstrada.' }
-  const tempo: Conferencia = { etapa: 'Timestamp · Bitcoin', estado: 'pendente', fato: 'O carimbo OpenTimestamps está pendente; nenhuma confirmação Bitcoin foi verificada aqui.', fonte: 'pacote público (carimbo_ots)', limite: 'Uma data declarada não é uma confirmação na blockchain.' }
+  const tempo: Conferencia = { etapa: 'Timestamp · Bitcoin', estado: 'externo', fato: `O resumo da cadeia, que inclui ${ref.id}, está ancorado no bloco Bitcoin ${carimbo.altura} (${carimbo.tempo_bloco_utc.replace('T', ' ').replace('Z', ' UTC')}).`, fonte: 'prova OpenTimestamps conferida pelo verificador público em cabeçalhos de fontes públicas', limite: 'Conferido pela CI, não neste aparelho, e sem nó Bitcoin próprio. Prova que o registro existia antes dessa data, não que é verdadeiro.' }
   const conteudo: Conferencia = { etapa: 'Conteúdo', estado: 'nao_provado', fato: 'Nenhuma prova formal da afirmação foi conferida.', fonte: 'ficha v1 (prova formal não aplicável)', limite: 'A verdade da fórmula continua em aberto.' }
   const aceita = anotado.estado === 'confere' && integridade.estado === 'confere' && assinatura.estado === 'confere'
   return { fonte: ref, aceita, conferencias: [anotado, integridade, assinatura, tempo, conteudo] }

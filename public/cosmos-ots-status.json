@@ -1,10 +1,22 @@
 {
-  "estado": "enviado_calendario",
+  "estado": "confirmado_bitcoin",
   "vinculoValido": true,
   "sha256_alvo": "02d262a9de3a63e32353a9c3a6f30fb9073a2e3481ed678ad25ae2185792330d",
   "calendarios": [
     "https://alice.btc.calendar.opentimestamps.org",
     "https://bob.btc.calendar.opentimestamps.org"
   ],
-  "confirmacaoVerificada": false
+  "confirmacaoVerificada": true,
+  "fonte": "cabecalhos-publicos",
+  "fontes": [
+    "blockstream.info",
+    "mempool.space"
+  ],
+  "altura": 972669,
+  "bloco": "000000000000000000013e06d5d6132520a564b0ccc148b5fd6b9c3e5d13b24e",
+  "confirmacoes": 369,
+  "tempo_bloco_utc": "2026-10-22T23:08:46Z",
+  "sha256_prova": "a8a06b96a007c2c35c4d5b900dd90e097ba4e108c45c37130e558d003fcd4d4b",
+  "conferido_em_utc": "2026-10-25T07:35:24Z",
+  "limite": "Cabe\u00e7alho conferido em fontes p\u00fablicas independentes, n\u00e3o num n\u00f3 Bitcoin pr\u00f3prio. Prova que o resumo existia antes do bloco; n\u00e3o prova a verdade das afirma\u00e7\u00f5es."
 }

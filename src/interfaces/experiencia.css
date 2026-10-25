@@ -174,6 +174,7 @@
   .labs-fontes-conferidas [data-estado=confere] dt::before { content:'✓'; color:#15803d; }
   .labs-fontes-conferidas [data-estado=diverge] dt::before,.labs-fontes-conferidas [data-estado=ausente] dt::before { content:'✕'; color:#b42318; }
   .labs-fontes-conferidas [data-estado=pendente] dt::before { content:'…'; color:#b54708; }
+  .labs-fontes-conferidas [data-estado=externo] dt::before { content:'↗'; color:#315fd6; }
   .labs-fontes-conferidas [data-estado=nao_provado] dt::before { content:'?'; color:var(--muted); }
   .labs-fontes-conferidas dd { margin:0; display:grid; gap:2px; }
   .labs-fontes-conferidas dd b { font-weight:500; }

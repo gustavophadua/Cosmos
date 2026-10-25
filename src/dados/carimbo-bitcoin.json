@@ -1,0 +1,17 @@
+{
+  "formato": "cosmos-carimbo-bitcoin-v1",
+  "alvo": "public/cosmos-502426c-resumo.txt",
+  "sha256_alvo": "02d262a9de3a63e32353a9c3a6f30fb9073a2e3481ed678ad25ae2185792330d",
+  "resumo_cadeia": "4bd9026dd6ed7ea5b637788081bf553475977b22e772fc4c4dc0e550e59656ff",
+  "prova": "public/cosmos-502426c-resumo.txt.ots",
+  "sha256_prova": "a8a06b96a007c2c35c4d5b900dd90e097ba4e108c45c37130e558d003fcd4d4b",
+  "prova_calendario_original": {
+    "arquivo": "public/cosmos-502426c-resumo.txt.calendario.ots",
+    "sha256": "a8d2c0b56fe95c661ea10ac13c3818da48f0d8cee56709a8188336af427952de"
+  },
+  "altura": 972669,
+  "bloco": "000000000000000000013e06d5d6132520a564b0ccc148b5fd6b9c3e5d13b24e",
+  "tempo_bloco_utc": "2026-10-22T23:08:46Z",
+  "conferencia": "Verificador público (CI) a cada publicação: a prova OTS contra o cabeçalho do bloco em pelo menos duas fontes públicas (mempool.space, blockstream.info, blockchain.info), com hash do bloco, prova de trabalho e raiz Merkle.",
+  "limite": "Sem nó Bitcoin próprio. Prova que o resumo da cadeia existia antes do bloco; não prova a verdade das afirmações."
+}

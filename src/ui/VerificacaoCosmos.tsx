@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { conferirFaseCosmos, verificarHashTeoria, verificarSelosCosmos, type ResultadoVerificacao } from '../motor/cadeiaCosmos'
 import { PACOTE_COSMOS } from '../dados/pacoteCosmos'
+import carimbo from '../dados/carimbo-bitcoin.json'
 import { add, mul, qsqrt2, toString } from '../motor/qsqrt2'
 import { conferirElosCosmos, type ConferenciaElosCosmos } from '../motor/elosCosmos'
 import elos from '../dados/elos-assinados.json'
@@ -54,7 +55,7 @@ export function VerificacaoCosmos({ fase }: { fase: Record<string, unknown> }) {
       <div><dt>Integridade · SHA-256</dt><dd>{selos.integridade}</dd></div>
       <div><dt>Autoria · Ed25519</dt><dd>{selos.assinatura}</dd></div>
       <div><dt>Prova formal</dt><dd>não aplicável à ficha v1</dd></div>
-      <div><dt>Timestamp · Bitcoin</dt><dd>{selos.timestamp}</dd></div>
+      <div><dt>Timestamp · Bitcoin</dt><dd>{selos.timestamp === 'pendente' ? <>bloco {carimbo.altura} ({carimbo.tempo_bloco_utc.slice(0, 10)}) · <a href="https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml" target="_blank" rel="noopener">conferido pelo verificador público</a>; o pacote v1 continua “pendente” por desenho</> : selos.timestamp}</dd></div>
       <div><dt>Conclusão sobre conteúdo</dt><dd>{selos.conclusao}</dd></div>
     </dl>}
     <p>{conferencia.valida ? '✓ Metadados válidos' : '✕ Metadados inválidos'} · {conferencia.campos13Validos ? '13 campos conferidos' : 'campos divergentes'}</p>

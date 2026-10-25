@@ -8,6 +8,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import pacote from '../src/dados/elos-assinados.json'
+import carimbo from '../src/dados/carimbo-bitcoin.json'
 import { PACOTE_COSMOS } from '../src/dados/pacoteCosmos'
 import { conferirElosCosmos } from '../src/motor/elosCosmos'
 import { conferirCadeia } from '../src/motor/cadeiaPessoal'
@@ -33,6 +34,8 @@ const RESUMO_CADEIA = '4bd9026dd6ed7ea5b637788081bf553475977b22e772fc4c4dc0e550e
 const ALVO_OTS = '02d262a9de3a63e32353a9c3a6f30fb9073a2e3481ed678ad25ae2185792330d'
 const RAIZ_CHECKPOINT = '842ecb720637b4477272c892bd4d542376a52cf1e73e9e14b62c95cfc73e841c'
 const PUBKEY_SELO = '6e97907683718d984dd96bd156ecd3c504bf35c513e1cf1d842f4bc9241b7382'
+// a prova como saiu dos calendários em 2026, antes da confirmação; preservada byte a byte
+const PROVA_CALENDARIO_ORIGINAL = 'a8d2c0b56fe95c661ea10ac13c3818da48f0d8cee56709a8188336af427952de'
 
 const sha256 = (caminho: string) => createHash('sha256').update(readFileSync(caminho)).digest('hex')
 // o dist só existe depois do build; na CI do verificador ele é exigido (VERIFICADOR_EXIGE_DIST=1)
@@ -85,14 +88,20 @@ describe('Verificador público · Cosmos 502426c', () => {
     linhas.push(`| Checkpoint Merkle | raiz ${RAIZ_CHECKPOINT.slice(0, 16)}… · 9 inclusões e ${checkpoint.continuidade.length} continuidades conferem · publicação independente: ${checkpoint.publicacao_independente} |`)
   })
 
-  it('o alvo do carimbo Bitcoin é o resumo da cadeia, e a confirmação não é presumida', () => {
+  it('o carimbo Bitcoin: o alvo é o resumo da cadeia, e o registro do site bate com a prova e com o status', () => {
     expect(sha256('public/cosmos-502426c-resumo.txt')).toBe(ALVO_OTS)
     expect(readFileSync('public/cosmos-502426c-resumo.txt', 'utf8').trim()).toBe(RESUMO_CADEIA)
+    expect(carimbo.sha256_alvo).toBe(ALVO_OTS)
+    expect(carimbo.resumo_cadeia).toBe(RESUMO_CADEIA)
+    // a prova atualizada e a original dos calendários, preservada com outro nome
+    expect(sha256(carimbo.prova)).toBe(carimbo.sha256_prova)
+    expect(sha256(carimbo.prova_calendario_original.arquivo)).toBe(PROVA_CALENDARIO_ORIGINAL)
+    expect(carimbo.prova_calendario_original.sha256).toBe(PROVA_CALENDARIO_ORIGINAL)
     const ots = JSON.parse(readFileSync('public/cosmos-ots-status.json', 'utf8'))
-    expect(ots.sha256_alvo).toBe(ALVO_OTS)
-    expect(typeof ots.confirmacaoVerificada).toBe('boolean')
+    expect(ots).toMatchObject({ estado: 'confirmado_bitcoin', confirmacaoVerificada: true, sha256_alvo: ALVO_OTS, altura: carimbo.altura, bloco: carimbo.bloco, tempo_bloco_utc: carimbo.tempo_bloco_utc, sha256_prova: carimbo.sha256_prova })
+    // o pacote v1 continua como foi congelado: a confirmação vive na prova à parte, não no pacote
     expect(PACOTE_COSMOS.carimbo_ots).toBe('pendente')
-    linhas.push(`| Carimbo OpenTimestamps | alvo ${ALVO_OTS.slice(0, 16)}… confere · confirmação Bitcoin: ${ots.confirmacaoVerificada ? 'declarada no status (conferir com o cliente OTS)' : 'pendente'} |`)
+    linhas.push(`| Carimbo OpenTimestamps | alvo ${ALVO_OTS.slice(0, 16)}… · bloco ${carimbo.altura} (${carimbo.tempo_bloco_utc}); a conferência contra os cabeçalhos está na parte "carimbo" |`)
   })
 
   afterAll(() => {

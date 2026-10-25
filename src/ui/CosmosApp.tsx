@@ -5,6 +5,7 @@ import { OutrasFases } from './OutrasFases'
 import { MODULOS_V3 } from '../v3/catalogo'
 import { Hub, Indice, ModuloPublico } from './v3/Terminal'
 import { CAMINHO_LOGO } from './logo'
+import carimbo from '../dados/carimbo-bitcoin.json'
 import { LaboratorioV4 } from './v4/Laboratorio'
 
 /** Entrada v3 isolada: dados públicos, sem carregar motor ou banco privado legado. */
@@ -40,7 +41,7 @@ export function CosmosApp() {
           {rota.tela === 'outras' ? <OutrasFases /> : <CadeiaFases />}
         </> : modulo ? <ModuloPublico modulo={modulo} /> : <Indice />}
       </main>
-      <footer class="v3-footer"><span>Σ COSMOS <b>502426c</b></span><span>OTS pendente <i>·</i> âncora externa pendente</span><span><a href="https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml" target="_blank" rel="noopener">Verificação pública ↗</a></span><span><a href="https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md" target="_blank" rel="noopener">AGPL-3.0+ / CC BY 4.0</a></span></footer>
+      <footer class="v3-footer"><span>Σ COSMOS <b>502426c</b></span><span>Bitcoin · bloco {carimbo.altura} <i>·</i> âncora externa pendente</span><span><a href="https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml" target="_blank" rel="noopener">Verificação pública ↗</a></span><span><a href="https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md" target="_blank" rel="noopener">AGPL-3.0+ / CC BY 4.0</a></span></footer>
     </div>
   </div>
 }
