@@ -89,6 +89,19 @@ jobs:
           open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write('\n'.join(linhas + [f'- {e}' for e in erros]) + '\n')
           if erros: sys.exit('\n'.join(erros))
           PY
+      - name: Âncora do checkpoint (a raiz Merkle no OpenTimestamps)
+        env:
+          COSMOS_OTS_ALVO: public/cosmos-checkpoint-raiz.txt
+        run: |
+          python scripts/cosmos-ots.py estado | tee "$RUNNER_TEMP/ancora.json"
+          python - "$RUNNER_TEMP/ancora.json" <<'PY'
+          import json, os, sys
+          r = json.load(open(sys.argv[1], encoding='utf-8'))
+          if not r.get('vinculoValido'): sys.exit('a prova OTS do checkpoint não é da raiz publicada')
+          linha = (f"bloco {r['altura']} ({r['tempo_bloco_utc']}), conferido em {', '.join(r['fontes'])}" if r.get('confirmacaoVerificada')
+                   else 'enviada aos calendários; a confirmação no Bitcoin ainda não está na prova' + (f" ({r['erro']})" if r.get('erro') else ''))
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(f"\n**Âncora do checkpoint** (raiz `{r['sha256_alvo'][:16]}…`): {linha}\n")
+          PY
 
   cadeias:
     # as cadeias pessoais publicadas em cadeias/: cada registro revelado é aberto com certificado (tradução t1 pelo Z3 e

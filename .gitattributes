@@ -37,3 +37,6 @@ fase4-b-gpu/** -text
 evidencias/fase4-b-gpu-pacote/** -text
 # o pacote publico 5p4c: os bytes exatos que os SHA-256 de hashes.json e do verificador fixam
 software-public-v1/** -text
+# a raiz do checkpoint e a prova OTS dela: os bytes exatos que o carimbo prende
+public/cosmos-checkpoint-raiz.txt -text
+public/cosmos-checkpoint-raiz.txt.ots -text

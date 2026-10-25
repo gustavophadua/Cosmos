@@ -35,5 +35,6 @@ resultados esperados, a Fase 3 pode ser dada como pronta e o resumo das três ca
 
 - **Moeda de teste.** O plano põe uma moeda de teste nos três notebooks antes de qualquer público, sem venda, sem
   promessa de lucro e sem custódia. As regras dela (quanto existe, quem recebe, quando destrava) são decisão do dono
-  do projeto e ainda não foram tomadas; nada aqui emite moeda.
+  do projeto e ainda não foram tomadas; nada aqui emite moeda. As regras recomendadas estão em
+  `especificacao/moeda-teste.md`.
 - **Identidade.** Uma chave não prova quem é a pessoa por trás dela (Fase 6).

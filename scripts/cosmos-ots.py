@@ -11,7 +11,9 @@ from opentimestamps.core.op import OpSHA256, OpAppend
 from opentimestamps.calendar import RemoteCalendar
 from opentimestamps.core.notary import PendingAttestation, BitcoinBlockHeaderAttestation
 
-TARGET = ROOT / 'public' / 'cosmos-502426c-resumo.txt'
+TARGET_PRINCIPAL = ROOT / 'public' / 'cosmos-502426c-resumo.txt'
+# outro alvo (por exemplo, a raiz do checkpoint) pelo ambiente; o status público só se grava para o alvo principal
+TARGET = Path(os.environ['COSMOS_OTS_ALVO']).resolve() if os.environ.get('COSMOS_OTS_ALVO') else TARGET_PRINCIPAL
 PROOF = Path(str(TARGET) + '.ots')
 
 def inspect(proof, target, verify=False):
@@ -179,6 +181,17 @@ if __name__ == '__main__':
             if not PROOF.exists():
                 stamp(value)
             result = inspect(PROOF.read_bytes(), value)
+        elif mode == 'carimbar':
+            # carimba um alvo que já existe, se ele ainda não tem prova; nunca troca uma prova existente
+            if not PROOF.exists():
+                stamp(TARGET.read_bytes())
+            result = inspect(PROOF.read_bytes(), TARGET.read_bytes())
+        elif mode == 'estado':
+            # o estado da prova; com atestação Bitcoin, a conferência pelos cabeçalhos públicos
+            proof, target = PROOF.read_bytes(), TARGET.read_bytes()
+            detached = DetachedTimestampFile.deserialize(BytesDeserializationContext(proof))
+            tem_bitcoin = any(isinstance(att, BitcoinBlockHeaderAttestation) for _, att in detached.timestamp.all_attestations())
+            result = verify_public(proof, target) if tem_bitcoin else inspect(proof, target)
         elif mode == 'verify-publico':
             result = verify_public(PROOF.read_bytes(), TARGET.read_bytes())
             if not result.get('confirmacaoVerificada'):
@@ -197,7 +210,7 @@ if __name__ == '__main__':
         else:
             raise ValueError('Operação desconhecida')
         print(json.dumps(result, ensure_ascii=True))
-        if mode != 'inspect':
+        if mode not in ('inspect', 'estado', 'carimbar') and TARGET == TARGET_PRINCIPAL:
             (ROOT / 'public/cosmos-ots-status.json').write_text(json.dumps(result, indent=2) + '\n')
     except Exception as exc:
         print(json.dumps({'erro': str(exc)}, ensure_ascii=True))

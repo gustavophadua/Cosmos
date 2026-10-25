@@ -85,6 +85,9 @@ describe('Verificador público · Cosmos 502426c', () => {
     expect(checkpoint.inclusao).toHaveLength(9)
     for (const { indice, prova } of checkpoint.inclusao) expect(await verificarInclusao(folhas[indice], indice, 9, prova, RAIZ_CHECKPOINT), `inclusão ${indice}`).toBe(true)
     for (const { anterior, prova } of checkpoint.continuidade) expect(await verificarConsistencia(anterior.tamanho, 9, anterior.raiz, RAIZ_CHECKPOINT, prova), `continuidade ${anterior.tamanho}`).toBe(true)
+    // a âncora externa: a raiz num arquivo de texto, carimbado no OpenTimestamps (a parte carimbo confere a prova)
+    expect(readFileSync('public/cosmos-checkpoint-raiz.txt', 'utf8')).toBe(`cosmos-v1-502426c 9 ${RAIZ_CHECKPOINT}\n`)
+    expect(existsSync('public/cosmos-checkpoint-raiz.txt.ots')).toBe(true)
     linhas.push(`| Checkpoint Merkle | raiz ${RAIZ_CHECKPOINT.slice(0, 16)}… · 9 inclusões e ${checkpoint.continuidade.length} continuidades conferem · publicação independente: ${checkpoint.publicacao_independente} |`)
   })
 

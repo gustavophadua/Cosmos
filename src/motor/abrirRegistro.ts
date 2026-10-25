@@ -23,6 +23,8 @@ export interface Ferramentas {
   traduzir: (fs: Formula[], numericos: Set<string>) => string
   /** o cvc5 no problema completo: o veredito e, no unsat, a prova Alethe (só os comandos) */
   refutar: (problema: string) => Promise<{ veredito: 'unsat' | 'sat' | 'unknown'; prova?: string }>
+  /** o modelo exato (modelo-exato-t1-v1) de um conjunto com números, pelo Z3; null se não sai certificado */
+  modeloExato?: (fs: Formula[], numericos: Set<string>) => Promise<unknown | null>
 }
 export type Abertura =
   | { estado: 'aberto'; registro: Record<string, unknown>; arquivos: Record<string, string> }
@@ -61,7 +63,7 @@ const cabecalho = (titulo: string, textos: string[]) => [`; ${titulo}`, ...texto
 /**
  * Abre o registro: monta o certificado que a afirmação pede (seção 5 de registros-v1.md) e o registro aberto, com os
  * arquivos do certificado em `arquivos/<base>-...`. Se o solucionador mostra que a afirmação não vale, diz isso; se não
- * consegue decidir (ou o modelo pede números exatos, que este gerador ainda não faz), fica pendente.
+ * consegue decidir, fica pendente.
  */
 export async function abrirRegistro(fechado: Record<string, unknown>, r: RevelacaoDeRegistro, base: string, f: Ferramentas): Promise<Abertura> {
   const erro = await conferirRevelacaoDoRegistro(fechado, r)
@@ -79,10 +81,13 @@ export async function abrirRegistro(fechado: Record<string, unknown>, r: Revelac
     arquivos[caminho] = texto
     return { arquivo: caminho, sha256: await sha256(texto) }
   }
-  const modelo = (fs: Formula[]): unknown | null => {
+  // sem números, o modelo finito do motor; com números, o modelo exato tirado do Z3 (quando a ferramenta vem)
+  const modelo = async (fs: Formula[]): Promise<unknown | null> => {
+    if (comNumeros(fs)) return f.modeloExato ? f.modeloExato(fs, numericos) : null
     const b = buscarModelo(fs, BUSCA)
     return b.status === 'modelo' ? certificadoDoModelo(b.modelo, fs) : null
   }
+  const semExato = (fs: Formula[]) => comNumeros(fs) && !f.modeloExato
   const refutacao = async (nome: string, fs: Formula[], textos: string[]) => {
     const problema = cabecalho(`${base}: ${nome}`, textos) + f.traduzir(fs, numericos) + '\n(check-sat)\n'
     const res = await f.refutar(problema)
@@ -97,28 +102,28 @@ export async function abrirRegistro(fechado: Record<string, unknown>, r: Revelac
     if (ref.veredito === 'sat') return { estado: 'nao-se-sustenta', detalhe: `o cvc5 acha modelo para as premissas e ${negada ? 'a negação da fórmula' : 'a fórmula'}: a afirmação "${afirmacao}" não vale` }
     if (!ref.arquivos) {
       // com quantificador, o cvc5 costuma dar unknown no lugar de sat: um modelo do conjunto achado pelo motor mostra que a afirmação não vale
-      if (!comNumeros(conjunto) && modelo(conjunto)) return { estado: 'nao-se-sustenta', detalhe: `o motor acha um modelo das premissas com ${negada ? 'a negação da fórmula' : 'a fórmula'}: a afirmação "${afirmacao}" não vale` }
+      if (await modelo(conjunto)) return { estado: 'nao-se-sustenta', detalhe: `o motor acha um modelo das premissas com ${negada ? 'a negação da fórmula' : 'a fórmula'}: a afirmação "${afirmacao}" não vale` }
       return { estado: 'pendente', detalhe: 'o cvc5 não decidiu a refutação no prazo' }
     }
     if (premissas.length) {
-      if (comNumeros(premissas)) return { estado: 'pendente', detalhe: 'o modelo das premissas pede números exatos, que este gerador ainda não faz' }
-      const m = modelo(premissas)
+      if (semExato(premissas)) return { estado: 'pendente', detalhe: 'o modelo das premissas pede números exatos, e o gerador está sem o Z3' }
+      const m = await modelo(premissas)
       if (m) Object.assign(certificado, { refutacao: ref.arquivos, modeloDasPremissas: m })
       else {
         const vazio = await refutacao('vazio', premissas, r.teoria.premissas)
-        if (!vazio.arquivos) return { estado: 'pendente', detalhe: 'sem modelo das premissas até 5 objetos, e o cvc5 não provou que elas são inconsistentes' }
+        if (!vazio.arquivos) return { estado: 'pendente', detalhe: 'sem modelo das premissas (até 5 objetos, ou o exato pelo Z3), e o cvc5 não provou que elas são inconsistentes' }
         Object.assign(certificado, { vazio: vazio.arquivos })
         for (const k of Object.keys(arquivos)) if (k.includes('-refutacao.')) delete arquivos[k]
       }
     } else Object.assign(certificado, { refutacao: ref.arquivos })
   } else {
-    if (comNumeros(conjunto)) return { estado: 'pendente', detalhe: 'o modelo pede números exatos, que este gerador ainda não faz' }
-    const m = modelo(conjunto)
+    if (semExato(conjunto)) return { estado: 'pendente', detalhe: 'o modelo pede números exatos, e o gerador está sem o Z3' }
+    const m = await modelo(conjunto)
     if (!m) {
       const ref = await refutacao('refutacao', conjunto, textos)
       return ref.veredito === 'unsat'
         ? { estado: 'nao-se-sustenta', detalhe: `o cvc5 refuta o conjunto: a afirmação "${afirmacao}" não vale` }
-        : { estado: 'pendente', detalhe: 'sem modelo até 5 objetos e 3 mundos' }
+        : { estado: 'pendente', detalhe: comNumeros(conjunto) ? 'o Z3 não deu modelo exato com testemunhas' : 'sem modelo até 5 objetos e 3 mundos' }
     }
     certificado.modelo = m
   }

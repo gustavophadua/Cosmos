@@ -3,8 +3,8 @@
     "indice": 0,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "8deaf055ce7b1b5490c7b4d8819f88364d60577a738bbc08aa9e79071f4f439b",
-      "sal": "1d2953683c4735fbb208c49050f95cc48ba237b408a0676516985ea5462e2c8a",
+      "compromisso": "5e123a97d92c1de1bbc41aa57af2794768953c2ce3a3f92ac01df350fed2b155",
+      "sal": "712c35111443570261702ed15e3a523fd686be59f463900ea071d04dc947fe98",
       "formula": "Q(a)",
       "formaCanonica": "(Q a)",
       "teoria": {
@@ -38,8 +38,8 @@
     "indice": 1,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "d85245839f9e5d8b82e75d4506551568df86ca68c85da3d7a46f989d2e57ca2d",
-      "sal": "d08ca34c9543dc73d6657f432af50a408fec7fa4120d73d01c135a106d7bf4ed",
+      "compromisso": "3933d68387698b9e806f5c0b54001fb0a6501463118934c4f8e64bd52b400d5d",
+      "sal": "941e6930f3c570a74eeb919e876d078d1dec73d33870895bc5195f9ef6d8ab43",
       "formula": "P(a)",
       "formaCanonica": "(P a)",
       "teoria": {
@@ -73,8 +73,8 @@
     "indice": 2,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "399f5e0bd0742fdcddc5141926f5c6c5af32b428c097ff5efa05e5cc530e8d04",
-      "sal": "64e84c63f7519cf8dceea551071301f844cd9b4e24e07ee1ee6c7d1561e489fb",
+      "compromisso": "8c0da58629b25fd8187f3e86518969058f0ae288c582048bf0b85edf4f96da7b",
+      "sal": "ce27cc04ef0a70be9202cf6c7daee34029fbea8d76c9ee43afcb8c00f072448b",
       "formula": "Q(a)",
       "formaCanonica": "(Q a)",
       "teoria": {
@@ -107,8 +107,8 @@
     "indice": 3,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "7d564301aeca9ec6aeb99d9dc0b49bd60fbb0aa04500803ef053b102f7ff715d",
-      "sal": "c2edfbfa405f61039cce506f6e8621f1637326ae8d3d33b15b85d31b661bdcab",
+      "compromisso": "5c4a56faf55cc2d6c45c8e7c7cb68d21939ff75402a679ee2added0012ab9bdb",
+      "sal": "b7612e3460ba44180b46844d4b400a730073325d8f824108e43d0f8f6c956d68",
       "formula": "P(a)",
       "formaCanonica": "(P a)",
       "teoria": {
@@ -141,8 +141,8 @@
     "indice": 4,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "def32f25b30f30015d8fc39bb0324ece27e9d729a07853c27f48e4d515c1bb32",
-      "sal": "2d705a64bdc46fe315b7ba80d61843e09801a377f029b7397c4575903db9e963",
+      "compromisso": "432a934bbbf38d7a3c938e57085b40fa3c0b31e2d4cc32aabb5c7dff636728db",
+      "sal": "13224793f25f22b93790fcc133ad4ec7860fa67bc7ca8125d8ee6e20e6f51168",
       "formula": "Q(b)",
       "formaCanonica": "(Q b)",
       "teoria": {
@@ -181,8 +181,8 @@
     "indice": 5,
     "revelacao": {
       "formato": "cosmos-revelacao-v1",
-      "compromisso": "5dc58d100611c56ab2272f2508a3d3539faa55547ff131edf5c88ac40dfa3e13",
-      "sal": "cc453cd20638af48ead99df78c14337d89f5c111cea4a874eb090c5ef02c084e",
+      "compromisso": "ccc1e9ab731da6ef5a6167ea9bd1772ac5cf623abc06b89113cc58a105970ddb",
+      "sal": "a526e6f839a044744559fff099643bc71a75df537436183bebbf9eb38a04d89e",
       "formula": "n > 2 ∧ n < 3",
       "formaCanonica": "(∧ (> n 2) (< n 3))",
       "teoria": {

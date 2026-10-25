@@ -47,6 +47,7 @@ describe('Cadeias publicadas em cadeias/', () => {
   it.runIf(!!SAIDA && !!CVC5)('abre os registros revelados com certificado e confere pela conferência do Caderno', async () => {
     const { init, killThreads } = await import('z3-solver')
     const { problemaSmt } = await import('../src/motor/z3')
+    const { modeloExatoPeloZ3 } = await import('../src/motor/z3Modelo')
     const api = await init()
     const tmp = mkdtempSync(join(tmpdir(), 'cosmos-cvc5-'))
     try {
@@ -63,13 +64,14 @@ describe('Cadeias publicadas em cadeias/', () => {
         return /\b(hole|trust)\b/.test(prova) ? { veredito: 'unknown' as const } : { veredito: 'unsat' as const, prova }
       }
       const traduzir = (fs: Formula[], numericos: Set<string>) => problemaSmt(api, fs, numericos)
+      const modeloExato = async (fs: Formula[], numericos: Set<string>) => { const e = await modeloExatoPeloZ3(api, fs, numericos); return 'modelo' in e ? e.modelo : null }
       for (const pasta of pastas) {
         const elos = JSON.parse(readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')).elos as { registroTexto: string }[]
         const arquivoRev = join(RAIZ, pasta, 'revelacoes.json')
         const reveladas: Revelada[] = existsSync(arquivoRev) ? JSON.parse(readFileSync(arquivoRev, 'utf8')) : []
         const resultados = []
         for (const { indice, revelacao } of reveladas) {
-          const a = await abrirRegistro(JSON.parse(elos[indice].registroTexto), revelacao, `E${indice}`, { traduzir, refutar })
+          const a = await abrirRegistro(JSON.parse(elos[indice].registroTexto), revelacao, `E${indice}`, { traduzir, refutar, modeloExato })
           if (a.estado !== 'aberto') { resultados.push({ indice, estado: a.estado, detalhe: a.detalhe }); continue }
           for (const [caminho, conteudo] of Object.entries(a.arquivos)) { const destino = join(SAIDA!, pasta, caminho); mkdirSync(dirname(destino), { recursive: true }); writeFileSync(destino, conteudo) }
           const c = await conferirRegistro(a.registro, { ler, arquivo: (p) => (a.arquivos[p] === undefined ? null : new TextEncoder().encode(a.arquivos[p])), traduzir })
