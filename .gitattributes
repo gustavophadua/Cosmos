@@ -35,3 +35,5 @@ evidencias/fase4-cpu-referencia/** -text
 # B GPU: preservar fontes, lock e pacote binário com hashes sobre bytes exatos.
 fase4-b-gpu/** -text
 evidencias/fase4-b-gpu-pacote/** -text
+# o pacote publico 5p4c: os bytes exatos que os SHA-256 de hashes.json e do verificador fixam
+software-public-v1/** -text

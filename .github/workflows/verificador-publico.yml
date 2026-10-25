@@ -6,6 +6,9 @@
 #   provas: as provas Alethe pelo Carcara, compilado do código-fonte num commit fixo, com os estragos e os ataques; o
 #           vínculo fórmula-problema pela implementação independente (escrita pelo GPT só pela especificação); os
 #           modelos; os registros de exemplo; e o lote cego 1, com 62 registros (especificacao/provas-t1/conferir.py).
+#           E a prova pública 5p4c (software-public-v1/) por dois Carcaras independentes, com estragos
+#           (scripts/conferir-5p4c.py); a saída da GPU não está no pacote, e nada aqui atesta hardware.
+#   carimbo: a prova OpenTimestamps contra o cabeçalho do bloco Bitcoin em fontes públicas.
 #
 # Integridade e autoria não comprovam a verdade das afirmações; o carimbo Bitcoin só conta confirmado por um cliente OTS.
 name: Verificador público
@@ -128,3 +131,14 @@ jobs:
       # o próprio conferir.py escreve o relatório no resumo da execução
       - name: Conferir as provas, os estragos, o vínculo e o lote cego 1
         run: ~/venv/bin/python especificacao/provas-t1/conferir.py --carcara ~/.cargo/bin/carcara
+      # o segundo Carcara, independente da compilação acima: o binário oficial da release 1.1.0, com o SHA-256 fixado
+      # na passagem de 25/10/2026 (Apêndice C)
+      - name: Carcara oficial 1.1.0 (binário da release, hash fixado)
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 60 \
+            -o "$RUNNER_TEMP/carcara-linux" https://github.com/ufmg-smite/carcara/releases/download/carcara-1.1.0/carcara-linux
+          printf '%s  %s\n' fcd06852931d36b13e6d3f7965c81a068f5cfe2f3c5e7da2d91af500f8f1bfda "$RUNNER_TEMP/carcara-linux" | sha256sum --check --strict
+          chmod u+x "$RUNNER_TEMP/carcara-linux"
+      - name: Conferir a prova pública 5p4c pelos dois Carcaras, com estragos
+        run: python3 scripts/conferir-5p4c.py compilado="$HOME/.cargo/bin/carcara" oficial="$RUNNER_TEMP/carcara-linux"
