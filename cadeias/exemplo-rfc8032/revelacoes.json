@@ -1,0 +1,203 @@
+[
+  {
+    "indice": 0,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "8deaf055ce7b1b5490c7b4d8819f88364d60577a738bbc08aa9e79071f4f439b",
+      "sal": "1d2953683c4735fbb208c49050f95cc48ba237b408a0676516985ea5462e2c8a",
+      "formula": "Q(a)",
+      "formaCanonica": "(Q a)",
+      "teoria": {
+        "nome": "Todo P é Q, e a é P",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "P(a)"
+        ],
+        "hash": "99d84e53cec18e7b9d812e406ea518ff7ed076f41bcfc23ec8655cd4b5cd4b16"
+      }
+    }
+  },
+  {
+    "indice": 1,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "d85245839f9e5d8b82e75d4506551568df86ca68c85da3d7a46f989d2e57ca2d",
+      "sal": "d08ca34c9543dc73d6657f432af50a408fec7fa4120d73d01c135a106d7bf4ed",
+      "formula": "P(a)",
+      "formaCanonica": "(P a)",
+      "teoria": {
+        "nome": "Todo P é Q, e a não é Q",
+        "fichas": [
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "¬Q(a)"
+        ],
+        "hash": "3f80f3e2d1fd5bbadf5eca7b8af126062fd58c7461662b719f8397f5b5367bea"
+      }
+    }
+  },
+  {
+    "indice": 2,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "399f5e0bd0742fdcddc5141926f5c6c5af32b428c097ff5efa05e5cc530e8d04",
+      "sal": "64e84c63f7519cf8dceea551071301f844cd9b4e24e07ee1ee6c7d1561e489fb",
+      "formula": "Q(a)",
+      "formaCanonica": "(Q a)",
+      "teoria": {
+        "nome": "Todo P é Q",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))"
+        ],
+        "hash": "a2d9de15b78e754e180e7ad5d039942257f7d3dc64ffb034dce7743e50f8593c"
+      }
+    }
+  },
+  {
+    "indice": 3,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "7d564301aeca9ec6aeb99d9dc0b49bd60fbb0aa04500803ef053b102f7ff715d",
+      "sal": "c2edfbfa405f61039cce506f6e8621f1637326ae8d3d33b15b85d31b661bdcab",
+      "formula": "P(a)",
+      "formaCanonica": "(P a)",
+      "teoria": {
+        "nome": "Todo P é Q",
+        "fichas": [
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))"
+        ],
+        "hash": "a2d9de15b78e754e180e7ad5d039942257f7d3dc64ffb034dce7743e50f8593c"
+      }
+    }
+  },
+  {
+    "indice": 4,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "def32f25b30f30015d8fc39bb0324ece27e9d729a07853c27f48e4d515c1bb32",
+      "sal": "2d705a64bdc46fe315b7ba80d61843e09801a377f029b7397c4575903db9e963",
+      "formula": "Q(b)",
+      "formaCanonica": "(Q b)",
+      "teoria": {
+        "nome": "Todo P é Q, e a é P",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "b",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "P(a)"
+        ],
+        "hash": "006f447c61fcf5bc57e353ba3ed8c7100f1fa7bb5fa6ce0d67795b736b8be0b0"
+      }
+    }
+  },
+  {
+    "indice": 5,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "5dc58d100611c56ab2272f2508a3d3539faa55547ff131edf5c88ac40dfa3e13",
+      "sal": "cc453cd20638af48ead99df78c14337d89f5c111cea4a874eb090c5ef02c084e",
+      "formula": "n > 2 ∧ n < 3",
+      "formaCanonica": "(∧ (> n 2) (< n 3))",
+      "teoria": {
+        "nome": "Números",
+        "fichas": [
+          {
+            "simbolo": "n",
+            "tipo": "constante",
+            "aridade": 0,
+            "numerico": true
+          }
+        ],
+        "premissas": [],
+        "hash": "627b3930fec9f982af5169db1e5826cea4481c0e66b4aabcc9b6d8d2a22f8d84"
+      }
+    }
+  }
+]

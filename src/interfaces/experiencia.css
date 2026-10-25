@@ -214,6 +214,7 @@
   .cadeia-recebido[data-veredito=recusada],.cadeia-recebido[data-relacao=encurtada],.cadeia-recebido[data-relacao=bifurcada] { border-color:#f4c7c3; background:#fef3f2; }
   .cadeia-receber details { margin-top:12px; font-size:12px; }
   .cadeia-receber ul { margin:8px 0 0; padding-left:18px; }
+  .cadeia-receber p a { color:#315fd6; text-decoration:underline; text-underline-offset:3px; }
   @media(max-width:800px) { .cadeia-resumo { grid-template-columns:1fr; } .cadeia-elos li { grid-template-columns:32px minmax(0,1fr); } .cadeia-elos li code { grid-column:2; } }
   @media(max-width:600px) { .labs-sections { grid-template-columns:repeat(5,minmax(0,1fr)); } }
 }

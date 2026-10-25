@@ -75,7 +75,7 @@ export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; domini
 
   const painelReceber = <section className="labs-surface cadeia-receber">
     <h3>Conferir uma cadeia recebida</h3>
-    <p>Abra o arquivo de cadeia que veio de outro aparelho. A conferência refaz cada elo (C1–C8) e compara com a versão que este aparelho já tinha da mesma chave. Não usa chave nenhuma.</p>
+    <p>Abra o arquivo de cadeia que veio de outro aparelho. A conferência refaz cada elo (C1–C8) e compara com a versão que este aparelho já tinha da mesma chave. Não usa chave nenhuma. <a href="https://github.com/gustavophadua/Cosmos/blob/main/especificacao/teste-3-notebooks.md" target="_blank" rel="noopener">Roteiro do teste com três computadores ↗</a></p>
     <label className="cadeia-arquivo"><span>Escolher arquivo .json</span><input type="file" accept="application/json,.json" disabled={ocupado} onChange={e => { receberArquivo(e.target.files?.[0]); e.target.value = '' }} /></label>
     {recebido && <div className="cadeia-recebido" data-veredito={recebido.conferencia.veredito} data-relacao={recebido.relacao ?? ''} role="status">
       <strong>{recebido.nome}: {recebido.conferencia.veredito === 'aceita' ? `aceita · ${recebido.conferencia.resumos.length} elo(s)` : `recusada (${recebido.conferencia.motivo}${recebido.conferencia.elo !== null ? `, elo ${recebido.conferencia.elo}` : ''})`}</strong>

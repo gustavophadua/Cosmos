@@ -90,6 +90,55 @@ jobs:
           if erros: sys.exit('\n'.join(erros))
           PY
 
+  cadeias:
+    # as cadeias pessoais publicadas em cadeias/: cada registro revelado é aberto com certificado (tradução t1 pelo Z3 e
+    # prova pelo cvc5 1.4.2, ou modelo finito pelo motor), conferido pelo Caderno e depois, de forma independente, pela
+    # conferência de registros-v1 (registros.py) e pelo leitor do GPT, com as provas no Carcara oficial
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+      - run: npm ci
+      - name: cvc5 1.4.2 (binário da release, hash fixado)
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 120 \
+            -o "$RUNNER_TEMP/cvc5.zip" https://github.com/cvc5/cvc5/releases/download/cvc5-1.4.2/cvc5-Linux-x86_64-static.zip
+          printf '%s  %s\n' 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8 "$RUNNER_TEMP/cvc5.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
+          echo "CVC5=$(find "$RUNNER_TEMP/cvc5" -type f -name cvc5 -perm -u+x | head -1)" >> "$GITHUB_ENV"
+      - name: Carcara oficial 1.1.0 (binário da release, hash fixado)
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 60 \
+            -o "$RUNNER_TEMP/carcara-linux" https://github.com/ufmg-smite/carcara/releases/download/carcara-1.1.0/carcara-linux
+          printf '%s  %s\n' fcd06852931d36b13e6d3f7965c81a068f5cfe2f3c5e7da2d91af500f8f1bfda "$RUNNER_TEMP/carcara-linux" | sha256sum --check --strict
+          chmod u+x "$RUNNER_TEMP/carcara-linux"
+      - name: SymPy
+        run: |
+          python3 -m venv ~/venv
+          ~/venv/bin/pip install --require-hashes --only-binary :all: --no-deps -r especificacao/provas-t1/requisitos.txt
+      - name: Abrir os registros revelados e conferir pelo Caderno
+        env:
+          CADEIAS_SAIDA: ${{ runner.temp }}/cadeias
+        run: |
+          "$CVC5" --version | head -1
+          npx vitest run testes/cadeias-publicadas.test.ts
+      - name: Conferência independente (registros.py, leitor do GPT, Carcara)
+        run: ~/venv/bin/python scripts/conferir-cadeias.py --carcara "$RUNNER_TEMP/carcara-linux" --saida "$RUNNER_TEMP/cadeias"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: registros-abertos-${{ github.sha }}
+          path: ${{ runner.temp }}/cadeias
+          if-no-files-found: ignore
+
   provas:
     # o sistema, o Rust e o commit do Carcara ficam fixos: o mesmo commit compilado por outro Rust, ou noutro sistema,
     # não é a mesma compilação (o commit é o da versão em desenvolvimento: a que o cvc5 1.4.2 indica, 394edbb, não
