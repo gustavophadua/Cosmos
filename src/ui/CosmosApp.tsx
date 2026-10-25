@@ -40,7 +40,7 @@ export function CosmosApp() {
           {rota.tela === 'outras' ? <OutrasFases /> : <CadeiaFases />}
         </> : modulo ? <ModuloPublico modulo={modulo} /> : <Indice />}
       </main>
-      <footer class="v3-footer"><span>Σ COSMOS <b>502426c</b></span><span>OTS pendente <i>·</i> âncora externa pendente</span><span><a href="https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md" target="_blank" rel="noopener">AGPL-3.0+ / CC BY 4.0</a></span></footer>
+      <footer class="v3-footer"><span>Σ COSMOS <b>502426c</b></span><span>OTS pendente <i>·</i> âncora externa pendente</span><span><a href="https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml" target="_blank" rel="noopener">Verificação pública ↗</a></span><span><a href="https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md" target="_blank" rel="noopener">AGPL-3.0+ / CC BY 4.0</a></span></footer>
     </div>
   </div>
 }

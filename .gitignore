@@ -58,6 +58,7 @@ public/caderno-logico.html
 cosmos-software-public-v1/
 cosmos-exportacao-limpa/
 
-# Somente o workflow Pages revisado para este repositorio.
+# Somente os workflows revisados para este repositorio: o Pages e o verificador publico (so leitura, sem segredos).
 .github/workflows/*
 !.github/workflows/pages.yml
+!.github/workflows/verificador-publico.yml

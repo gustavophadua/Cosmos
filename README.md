@@ -1,6 +1,12 @@
 # Cosmos
 
+[![Verificador público](https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml/badge.svg)](https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml)
+
 Aplicacao local para consulta, registro e verificacao de conhecimento. Interfaces `#/i-ai`, `#/lab`, `#/terminal` e configuracoes locais de integracao. Terminal e carteira usam simulacao sem valor financeiro; nao ha mercado publico ou consenso distribuido.
+
+## Verificador publico
+
+A cada mudanca no `main`, o fluxo [Verificador publico](https://github.com/gustavophadua/Cosmos/actions/workflows/verificador-publico.yml) confere, numa maquina do GitHub: os 13 arquivos protegidos pelos bytes exatos; a cadeia F0-F8 (C1-C8), o hash recalculado e a assinatura Ed25519 de cada fase; o checkpoint Merkle e o alvo do carimbo OpenTimestamps (`testes/verificador-publico.test.ts`); e as provas Alethe pelo Carcara em commit fixo, com estragos, ataques, o vinculo pela implementacao independente e o lote cego 1 de 62 registros (`especificacao/provas-t1/conferir.py`). Integridade e autoria nao comprovam a verdade das afirmacoes; o carimbo Bitcoin so conta confirmado por um cliente OTS.
 
 ## Desenvolvimento
 

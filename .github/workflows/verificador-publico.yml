@@ -1,0 +1,89 @@
+# O verificador público do Cosmos 502426c, numa máquina do GitHub, a cada mudança no main (ou quando alguém pede, em
+# Actions → Verificador público → Run workflow). Qualquer pessoa pode refazer os mesmos passos a partir do repositório.
+#
+#   cadeia: os 13 arquivos protegidos pelos bytes exatos, a cadeia F0–F8 (C1–C8), o hash e a assinatura Ed25519 de
+#           cada fase, o checkpoint Merkle e o alvo do carimbo OpenTimestamps (testes/verificador-publico.test.ts).
+#   provas: as provas Alethe pelo Carcara, compilado do código-fonte num commit fixo, com os estragos e os ataques; o
+#           vínculo fórmula-problema pela implementação independente (escrita pelo GPT só pela especificação); os
+#           modelos; os registros de exemplo; e o lote cego 1, com 62 registros (especificacao/provas-t1/conferir.py).
+#
+# Integridade e autoria não comprovam a verdade das afirmações; o carimbo Bitcoin só conta confirmado por um cliente OTS.
+name: Verificador público
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verificador-publico-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cadeia:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.14.0'
+          cache: npm
+      - run: npm ci
+      # o build regenera dist/cosmos-502426c.json, o 13º arquivo protegido
+      - run: npm run build
+      - name: Conferir cadeia, selo, checkpoint e arquivos protegidos
+        env:
+          VERIFICADOR_EXIGE_DIST: '1'
+          VERIFICADOR_RELATORIO: ${{ runner.temp }}/cadeia.md
+        run: |
+          npx vitest run testes/verificador-publico.test.ts
+          echo "Commit conferido: \`$GITHUB_SHA\`" >> "$RUNNER_TEMP/cadeia.md"
+          cat "$RUNNER_TEMP/cadeia.md" >> "$GITHUB_STEP_SUMMARY"
+
+  provas:
+    # o sistema, o Rust e o commit do Carcara ficam fixos: o mesmo commit compilado por outro Rust, ou noutro sistema,
+    # não é a mesma compilação (o commit é o da versão em desenvolvimento: a que o cvc5 1.4.2 indica, 394edbb, não
+    # conhece as regras de aritmética não linear la_mult_sign e la_mult_abs_comparison)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARCARA_COMMIT: 20bf49c5ce31089ac83118574c888669355aaae1
+      RUST_VERSAO: 1.99.1
+      SISTEMA: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Rust
+        run: rustup toolchain install "$RUST_VERSAO" --profile minimal && rustup default "$RUST_VERSAO" && rustc --version
+      - name: m4, que a GMP do Carcara precisa para compilar
+        run: sudo apt-get update && sudo apt-get install -y m4
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: cache
+        with:
+          path: ~/.cargo/bin/carcara
+          key: carcara-${{ env.CARCARA_COMMIT }}-rust-${{ env.RUST_VERSAO }}-${{ env.SISTEMA }}
+      - name: Compilar o Carcara
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked --git https://github.com/ufmg-smite/carcara.git --rev "$CARCARA_COMMIT" carcara
+      # guardado logo depois de compilar: fica guardado mesmo que a conferência falhe
+      - uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ~/.cargo/bin/carcara
+          key: carcara-${{ env.CARCARA_COMMIT }}-rust-${{ env.RUST_VERSAO }}-${{ env.SISTEMA }}
+      # o SymPy e o mpmath, com os hashes de requisitos.txt, para a conferência independente dos modelos exatos
+      # (num bloco: sem aspas, o ": " de :all: faria o YAML ler outra coisa)
+      - name: SymPy
+        run: |
+          python3 -m venv ~/venv
+          ~/venv/bin/pip install --require-hashes --only-binary :all: --no-deps -r especificacao/provas-t1/requisitos.txt
+      # o próprio conferir.py escreve o relatório no resumo da execução
+      - name: Conferir as provas, os estragos, o vínculo e o lote cego 1
+        run: ~/venv/bin/python especificacao/provas-t1/conferir.py --carcara ~/.cargo/bin/carcara
