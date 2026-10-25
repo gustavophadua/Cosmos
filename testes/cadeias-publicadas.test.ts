@@ -44,6 +44,19 @@ describe('Cadeias publicadas em cadeias/', () => {
     })
   }
 
+  // o resumo carimbado no Bitcoin do teste real com três notebooks: cada linha é a cabeça de uma cadeia publicada
+  it('o resumo do teste com três notebooks bate com as cadeias publicadas', async () => {
+    const [titulo, ...linhas] = readFileSync('public/cosmos-fase3-resumo.txt', 'utf8').split('\n').filter(Boolean)
+    expect(titulo).toBe('cosmos-fase3-teste-3-notebooks 2026-10-25')
+    expect(linhas.map((l) => l.split(' ')[0])).toEqual(['teste-3-notebooks-a-principal', 'teste-3-notebooks-a', 'teste-3-notebooks-b', 'teste-3-notebooks-c'])
+    for (const linha of linhas) {
+      const [pasta, chave, elos, cabeca] = linha.split(' ')
+      const texto = readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')
+      const c = await conferirCadeiaTexto(texto)
+      expect([JSON.parse(texto).chave, String(c.resumos.length), c.cabeca], pasta).toEqual([chave, elos, cabeca])
+    }
+  })
+
   it.runIf(!!SAIDA && !!CVC5)('abre os registros revelados com certificado e confere pela conferência do Caderno', async () => {
     const { init, killThreads } = await import('z3-solver')
     const { problemaSmt } = await import('../src/motor/z3')

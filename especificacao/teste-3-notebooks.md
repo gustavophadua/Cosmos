@@ -49,6 +49,13 @@ pendrive. Chaves (começo): A `c39ce485…`, B `d84233c1…`, C `36fe5abf…`. A
 A cadeia publicada para o G03 é a segunda história da chave de A (a do navegador em que a chave foi restaurada): o elo 0
 afirma que `Q(b)` é consistente e o elo 1 afirma, de propósito, que `Q(b)` segue de `∀x (P(x) ⟹ Q(x))` e `P(a)`.
 
+As cadeias principais dos três notebooks também ficam publicadas, sem revelações: `cadeias/teste-3-notebooks-a-principal/`
+(3 registros), `cadeias/teste-3-notebooks-b/` (2) e `cadeias/teste-3-notebooks-c/` (1). O resumo
+`public/cosmos-fase3-resumo.txt` traz, para cada uma das quatro cadeias, a chave, o número de registros e a cabeça
+(C1–C8); a CI confere que ele bate com as cadeias publicadas. O resumo foi enviado aos calendários do OpenTimestamps em
+25/10/2026 (`public/cosmos-fase3-resumo.txt.ots`, SHA-256 do resumo `929a947c…`); a confirmação num bloco do Bitcoin
+vem algumas horas depois e é registrada à parte, como a âncora do checkpoint.
+
 ## O que este roteiro não cobre
 
 - **Moeda de teste.** O plano põe uma moeda de teste nos três notebooks antes de qualquer público, sem venda, sem
