@@ -181,3 +181,39 @@
   .labs-fontes-conferidas dd small { color:var(--muted); font-size:11px; }
   @media(max-width:600px) { .labs-fontes-conferidas dl>div { grid-template-columns:1fr; gap:2px; } }
 }
+
+/* Fase 3: a cadeia pessoal no Labs. */
+@scope (.labs-app) {
+  .cadeia-pessoal { display:grid; gap:16px; margin-bottom:24px; }
+  :scope[data-section=cadeia] .account-banner,:scope[data-section=cadeia] .labs-page-heading>.product-button { display:none; }
+  .cadeia-pessoal .labs-surface { padding:18px; }
+  .cadeia-pessoal h3 { margin:0 0 8px; font-size:15px; }
+  .cadeia-pessoal p { font-size:13px; line-height:1.6; color:var(--muted); margin:0 0 12px; }
+  .cadeia-pessoal .labs-result { margin:0; }
+  .cadeia-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:end; }
+  .cadeia-form label { display:grid; gap:6px; font-size:12px; font-weight:500; }
+  .cadeia-form label small { font-weight:400; color:var(--muted); }
+  .cadeia-form select,.cadeia-form textarea { border:1px solid var(--p-line); border-radius:6px; background:#fff; color:var(--text); padding:8px 10px; font:13px Inter,'Segoe UI',Arial,sans-serif; }
+  .cadeia-form textarea { resize:vertical; min-height:64px; }
+  .cadeia-largo,.cadeia-previa { grid-column:1/-1; }
+  .cadeia-previa { margin:0!important; font-size:12px!important; padding:8px 10px; border-radius:6px; background:#f3f6ff; color:#315fd6!important; }
+  .cadeia-previa.has-conflict { background:#fef3f2; color:#b42318!important; }
+  .cadeia-resumo { display:grid; grid-template-columns:1fr 1fr auto; gap:16px; align-items:start; }
+  .cadeia-resumo>div { display:grid; gap:4px; min-width:0; }
+  .cadeia-resumo .labs-eyebrow { margin:0; }
+  .cadeia-resumo code { font:12px/1.5 'JetBrains Mono',monospace; overflow-wrap:anywhere; }
+  .cadeia-resumo small { color:var(--muted); font-size:11px; }
+  .cadeia-acoes { display:flex; flex-direction:column; gap:6px; }
+  .cadeia-elos { list-style:none; margin:0 0 8px; padding:0; display:grid; gap:6px; }
+  .cadeia-elos li { display:grid; grid-template-columns:40px minmax(0,1fr) auto auto; gap:10px; align-items:center; padding:8px 10px; border:1px solid #eef0f4; border-radius:6px; font-size:12px; }
+  .cadeia-elos code { font:11px 'JetBrains Mono',monospace; color:var(--muted); }
+  .cadeia-arquivo { display:inline-flex; align-items:center; gap:10px; padding:8px 12px; border:1px dashed var(--p-line); border-radius:8px; font-size:13px; cursor:pointer; }
+  .cadeia-arquivo input { max-width:220px; font-size:12px; }
+  .cadeia-recebido { margin-top:12px; padding:10px 12px; border-radius:8px; border:1px solid #c7dbc9; background:#f2faf3; font-size:13px; }
+  .cadeia-recebido p { margin:4px 0 0!important; }
+  .cadeia-recebido[data-veredito=recusada],.cadeia-recebido[data-relacao=encurtada],.cadeia-recebido[data-relacao=bifurcada] { border-color:#f4c7c3; background:#fef3f2; }
+  .cadeia-receber details { margin-top:12px; font-size:12px; }
+  .cadeia-receber ul { margin:8px 0 0; padding-left:18px; }
+  @media(max-width:800px) { .cadeia-resumo { grid-template-columns:1fr; } .cadeia-elos li { grid-template-columns:32px minmax(0,1fr); } .cadeia-elos li code { grid-column:2; } }
+  @media(max-width:600px) { .labs-sections { grid-template-columns:repeat(5,minmax(0,1fr)); } }
+}

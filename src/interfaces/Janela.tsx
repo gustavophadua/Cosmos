@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-export type NomeIcone = 'chat' | 'book' | 'tools' | 'settings' | 'file' | 'shield' | 'paperclip' | 'send' | 'grid' | 'flask' | 'chart' | 'user' | 'plug'
+export type NomeIcone = 'chat' | 'book' | 'tools' | 'settings' | 'file' | 'shield' | 'paperclip' | 'send' | 'grid' | 'flask' | 'chart' | 'user' | 'plug' | 'link'
 
 export function Icone({ nome }: { nome: NomeIcone }) {
   const caminhos = {
@@ -16,6 +16,7 @@ export function Icone({ nome }: { nome: NomeIcone }) {
     chart: 'M4 20h16M7 16V9m0 0V6m0 3h0m5 9v-5m0 0V5m5 11v-3m0 0V8',
     user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8c1-4 4-6 7-6s6 2 7 6',
     plug: 'M9 3v5m6-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v4',
+    link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
   }
   return <svg className="cosmos-line-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={caminhos[nome]} /></svg>
 }
