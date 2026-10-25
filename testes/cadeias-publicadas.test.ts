@@ -55,8 +55,9 @@ describe('Cadeias publicadas em cadeias/', () => {
         const r = spawnSync(CVC5!, [...OPCOES_CVC5, arq], { encoding: 'utf8', timeout: 60_000, maxBuffer: 16 * 1024 * 1024 })
         const saida = r.stdout ?? ''
         if (saida.startsWith('sat')) return { veredito: 'sat' as const }
-        if (!saida.startsWith('unsat\n')) return { veredito: 'unknown' as const }
-        const { corpo } = extrairCorpoCvc5(Buffer.from(saida.slice('unsat\n'.length)))
+        const unsat = /^unsat\r?\n/.exec(saida)
+        if (!unsat) return { veredito: 'unknown' as const }
+        const { corpo } = extrairCorpoCvc5(Buffer.from(saida.slice(unsat[0].length).replace(/\r\n/g, '\n')))
         const prova = corpo.toString('utf8')
         // sem passo hole nem trust: uma prova com lacuna não é certificado
         return /\b(hole|trust)\b/.test(prova) ? { veredito: 'unknown' as const } : { veredito: 'unsat' as const, prova }

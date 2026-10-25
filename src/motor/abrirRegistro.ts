@@ -95,7 +95,11 @@ export async function abrirRegistro(fechado: Record<string, unknown>, r: Revelac
   if (afirmacao === 'segue' || afirmacao === 'contradiz') {
     const ref = await refutacao('refutacao', conjunto, textos)
     if (ref.veredito === 'sat') return { estado: 'nao-se-sustenta', detalhe: `o cvc5 acha modelo para as premissas e ${negada ? 'a negação da fórmula' : 'a fórmula'}: a afirmação "${afirmacao}" não vale` }
-    if (!ref.arquivos) return { estado: 'pendente', detalhe: 'o cvc5 não decidiu a refutação no prazo' }
+    if (!ref.arquivos) {
+      // com quantificador, o cvc5 costuma dar unknown no lugar de sat: um modelo do conjunto achado pelo motor mostra que a afirmação não vale
+      if (!comNumeros(conjunto) && modelo(conjunto)) return { estado: 'nao-se-sustenta', detalhe: `o motor acha um modelo das premissas com ${negada ? 'a negação da fórmula' : 'a fórmula'}: a afirmação "${afirmacao}" não vale` }
+      return { estado: 'pendente', detalhe: 'o cvc5 não decidiu a refutação no prazo' }
+    }
     if (premissas.length) {
       if (comNumeros(premissas)) return { estado: 'pendente', detalhe: 'o modelo das premissas pede números exatos, que este gerador ainda não faz' }
       const m = modelo(premissas)

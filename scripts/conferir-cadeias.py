@@ -26,8 +26,17 @@ def main():
     if sys.flags.optimize:
         sys.exit('não roda com python -O: a conferência independente usa assert')
 
+    def anotar(nivel, titulo, texto):
+        if os.environ.get('GITHUB_ACTIONS'):
+            print(f'::{nivel} title={titulo}::' + texto.replace('%', '%25').replace('\r', '').replace('\n', '%0A'), flush=True)
+
     def provar(prova, problema):
-        v = conferir.conferir(args.carcara, prova, problema, conferir.REGRAS_CONFIADAS)[0]
+        v, modo, motivo, motivo_rup = conferir.conferir(args.carcara, prova, problema, conferir.REGRAS_CONFIADAS)
+        nome = os.path.basename(prova)
+        if v == 'valid':
+            anotar('notice', f'Carcara {nome}', f'valid ({modo})')
+        else:
+            anotar('error', f'Carcara {nome}', f'{v}: pivôs: {motivo[:400]} | RUP: {motivo_rup[:400]}')
         return None if v == 'tempo esgotado' else v == 'valid'
 
     falhas, linhas, contagem = [], [], {'aceito': 0, 'pendente': 0, 'nao-se-sustenta': 0}
@@ -51,6 +60,7 @@ def main():
                 contagem['aceito'] += 1
             else:
                 falhas.append(f'{rotulo}: verificador {motivo or "aceito"} {detalhe} {pendencias}; leitor do GPT {gpt}')
+                anotar('error', f'Registro {rotulo}', falhas[-1][:900])
             cert = ', '.join(r['certificado'].keys())
             linhas.append(f'| {rotulo} | {r["afirmacao"]} ({r["tipo"]}) | {cert} | {"aceito" if ok_ver else f"{motivo} {pendencias}"} · GPT: {gpt[0]} | {r["formula"]} |')
     texto = '\n'.join(['## Verificador público · cadeias publicadas (registros abertos)', '',
