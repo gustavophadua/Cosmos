@@ -210,6 +210,9 @@ jobs:
           python3 -m venv ~/venv
           ~/venv/bin/pip install --require-hashes --only-binary :all: --no-deps -r especificacao/provas-t1/requisitos.txt
       # o próprio conferir.py escreve o relatório no resumo da execução
+      # a leitura do veredito: "valid" só sozinho e com código 0 (Carcaras falsos com cada saída problemática)
+      - name: Leitura estrita do veredito do Carcara
+        run: python3 scripts/testar-veredito-carcara.py
       - name: Conferir as provas, os estragos, o vínculo e o lote cego 1
         run: ~/venv/bin/python especificacao/provas-t1/conferir.py --carcara ~/.cargo/bin/carcara
       # o segundo Carcara, independente da compilação acima: o binário oficial da release 1.1.0, com o SHA-256 fixado

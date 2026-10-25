@@ -356,7 +356,16 @@ def carcara(caminho, prova, problema, regras, extra=()):
         return 'tempo esgotado', ''
     saida = r.stdout.strip().splitlines()
     motivo = ' '.join(ANSI.sub('', r.stderr).split())
-    return (saida[0].strip() if saida else 'erro'), motivo
+    if not saida:
+        return 'erro', motivo
+    veredito = saida[0].strip()
+    # o veredito é a primeira linha e mais nenhuma: outra linha com um veredito deixa a saída ambígua, e "valid" só vale
+    # quando o processo termina com código 0 (sem sinal, sem falha depois de escrever)
+    if any(linha.strip() in ('valid', 'holey', 'invalid') for linha in saida[1:]):
+        return 'erro', f'saída ambígua: {" | ".join(l.strip() for l in saida[:3])}. {motivo}'
+    if veredito == 'valid' and r.returncode != 0:
+        return 'erro', f'"valid" com código de saída {r.returncode}. {motivo}'
+    return veredito, motivo
 
 
 def curto(motivo, n=400):
@@ -457,7 +466,8 @@ def main():
         try:
             r = subprocess.run([args.carcara, '--version'], capture_output=True, text=True, timeout=60)
             versao = ' '.join((r.stdout or r.stderr).split())[:200] or f'saiu com {r.returncode}'
-            anotacao('notice', 'Carcara', '; '.join([versao, *ambiente(), *versao_do_sympy()]))
+            # o recibo registra os bytes do executável que rodou de fato (o cache é identificado só pelo nome do commit)
+            anotacao('notice', 'Carcara', '; '.join([versao, f'SHA-256 do executável {sha256(__import__("shutil").which(args.carcara) or args.carcara)}', *ambiente(), *versao_do_sympy()]))
         except OSError as erro:
             anotacao('error', 'Carcara', f'não deu para rodar {args.carcara}: {erro}')
             raise

@@ -72,12 +72,18 @@ describe('Cadeias publicadas em cadeias/', () => {
         const resultados = []
         for (const { indice, revelacao } of reveladas) {
           const a = await abrirRegistro(JSON.parse(elos[indice].registroTexto), revelacao, `E${indice}`, { traduzir, refutar, modeloExato })
-          if (a.estado !== 'aberto') { resultados.push({ indice, estado: a.estado, detalhe: a.detalhe }); continue }
-          for (const [caminho, conteudo] of Object.entries(a.arquivos)) { const destino = join(SAIDA!, pasta, caminho); mkdirSync(dirname(destino), { recursive: true }); writeFileSync(destino, conteudo) }
-          const c = await conferirRegistro(a.registro, { ler, arquivo: (p) => (a.arquivos[p] === undefined ? null : new TextEncoder().encode(a.arquivos[p])), traduzir })
+          if (a.estado === 'pendente') { resultados.push({ indice, estado: a.estado, detalhe: a.detalhe }); continue }
+          // o registro aberto, ou, quando a afirmação não vale, o contra-registro que mostra isso: os dois com certificado
+          const { registro, arquivos } = a.estado === 'aberto' ? a : a.contra
+          for (const [caminho, conteudo] of Object.entries(arquivos)) { const destino = join(SAIDA!, pasta, caminho); mkdirSync(dirname(destino), { recursive: true }); writeFileSync(destino, conteudo) }
+          const c = await conferirRegistro(registro, { ler, arquivo: (p) => (arquivos[p] === undefined ? null : new TextEncoder().encode(arquivos[p])), traduzir })
           expect(c.motivo, `${pasta}, elo ${indice}: ${c.detalhe}`).toBeNull()
-          resultados.push({ indice, estado: 'aberto', provasParaOCarcara: c.provasSemConferir, registro: a.registro })
+          resultados.push(a.estado === 'aberto'
+            ? { indice, estado: 'aberto', provasParaOCarcara: c.provasSemConferir, registro }
+            : { indice, estado: 'nao-se-sustenta', detalhe: a.detalhe, provasParaOCarcara: c.provasSemConferir, contra: registro })
         }
+        // a cadeia de exemplo tem resposta conhecida: quatro abertos, um falso de propósito (G03) e um com números
+        if (pasta === 'exemplo-rfc8032') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:aberto', '2:aberto', '3:aberto', '4:nao-se-sustenta', '5:aberto'])
         mkdirSync(join(SAIDA!, pasta), { recursive: true })
         writeFileSync(join(SAIDA!, pasta, 'registros.json'), JSON.stringify({ pasta, resultados }, null, 2))
       }

@@ -14,6 +14,8 @@ Em Labs > Minha cadeia: a chave Ed25519 fica no navegador sem poder ser exportad
 
 Publicar uma cadeia: copiar o `cadeia.json` exportado e, se quiser abrir registros, o `revelacoes.json` para `cadeias/<nome>/`. A parte `cadeias` do verificador publico abre cada registro revelado com certificado (traducao t1 pelo Z3 e prova pelo cvc5 1.4.2, modelo finito, ou modelo exato pelo Z3 quando ha numeros) e o confere de forma independente (registros.py, leitor do GPT, Carcara do commit fixo 20bf49c, com as regras RARE auditadas). A revelacao torna publicos a formula e as premissas. `cadeias/exemplo-rfc8032/` e um exemplo assinado com a chave de teste da RFC 8032, que nao e de ninguem. Roteiro do teste com tres computadores (G01-G06): `especificacao/teste-3-notebooks.md`.
 
+Quando um registro revelado nao se sustenta, a CI certifica a afirmacao contraria (segue <-> nao segue, contradiz <-> consistente) e publica esse contra-registro, que as mesmas conferencias independentes conferem; sem ele, o resultado fica como diagnostico do produtor, nao como refutacao. O veredito do Carcara so vale como `valid` sozinho e com codigo de saida 0 (`scripts/testar-veredito-carcara.py`), e os recibos trazem o SHA-256 do executavel que rodou.
+
 ## Desenvolvimento
 
 Node 22.14.0. Instale dependencias com `npm ci`. Execute `npm run typecheck`, `npm test -- --maxWorkers=1` e `npm run build`. `npm run dev` abre o ambiente de desenvolvimento; a base do site publico e `/Cosmos/`. Integracoes locais: `node scripts/integracoes-p0.mjs`. Credenciais de provedor somente no processo servidor, nunca em VITE_*, navegador ou Git. Nenhuma credencial acompanha este repositorio.

@@ -84,7 +84,8 @@ def main():
                     recusados += 1
                 else:
                     falhas.append(f'{rotulo}: o estrago "{nome}" deu {s!r} (código {c})')
-            linhas.append(f'| Carcara {rotulo} ({versao}) | prova: {saida} · estragos recusados: {recusados} de {len(estragos)} |')
+            executavel = sha(open(binario, 'rb').read())
+            linhas.append(f'| Carcara {rotulo} ({versao}; executável `{executavel[:16]}…`) | prova: {saida} · estragos recusados: {recusados} de {len(estragos)} |')
 
     texto = '\n'.join(['## Verificador público · prova 5p4c (software-public-v1)', '', '| Conferência | Resultado |', '| --- | --- |', *linhas,
                        f'| Saída da GPU | não distribuída: só {SAIDA_GPU[0]} bytes e o SHA-256 `{SAIDA_GPU[1][:16]}…` |', '',

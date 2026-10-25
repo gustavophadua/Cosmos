@@ -10,7 +10,7 @@ Para cada registro aberto em PASTA/<cadeia>/registros.json (gerado por testes/ca
 Os registros que o gerador deixou pendentes ou que não se sustentam são listados como tal, sem contar como aceitos.
 Sai com código 1 se um registro aberto for recusado por qualquer uma das duas conferências.
 """
-import argparse, json, os, sys
+import argparse, json, os, shutil, sys
 
 ESPEC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'especificacao', 'provas-t1')
 sys.path.insert(0, ESPEC)
@@ -39,6 +39,8 @@ def main():
             anotar('error', f'Carcara {nome}', f'{v}: pivôs: {motivo[:400]} | RUP: {motivo_rup[:400]}')
         return None if v == 'tempo esgotado' else v == 'valid'
 
+    # o recibo registra os bytes do executável que rodou de fato (o cache é identificado só pelo nome do commit)
+    executavel = conferir.sha256(shutil.which(args.carcara) or args.carcara) if os.path.exists(shutil.which(args.carcara) or args.carcara) else 'indisponível'
     falhas, linhas, contagem = [], [], {'aceito': 0, 'pendente': 0, 'nao-se-sustenta': 0}
     for pasta in sorted(os.listdir(args.saida)):
         arquivo = os.path.join(args.saida, pasta, 'registros.json')
@@ -47,26 +49,29 @@ def main():
         raiz = os.path.join(args.saida, pasta)
         for item in json.load(open(arquivo, encoding='utf-8'))['resultados']:
             rotulo = f'{pasta} · elo {item["indice"]}'
-            if item['estado'] != 'aberto':
-                contagem[item['estado']] = contagem.get(item['estado'], 0) + 1
-                linhas.append(f'| {rotulo} | {item["estado"]} | — | — | {item.get("detalhe", "")} |')
+            if item['estado'] == 'pendente':
+                contagem['pendente'] += 1
+                linhas.append(f'| {rotulo} | pendente | — | — | {item.get("detalhe", "")} |')
                 continue
-            r = item['registro']
+            # aberto: confere o registro; não se sustenta: confere o contra-registro (a afirmação contrária com certificado)
+            r = item['registro'] if item['estado'] == 'aberto' else item['contra']
             motivo, detalhe, pendencias = registros.conferir_registro(r, provar, raiz)
             gpt = registros.no_leitor_do_gpt({'registro': r}, provar, raiz)
             ok_ver = motivo is None and not pendencias
             ok_gpt = gpt[0] == 'aceito'
             if ok_ver and ok_gpt:
-                contagem['aceito'] += 1
+                contagem['aceito' if item['estado'] == 'aberto' else 'nao-se-sustenta'] += 1
             else:
-                falhas.append(f'{rotulo}: verificador {motivo or "aceito"} {detalhe} {pendencias}; leitor do GPT {gpt}')
+                falhas.append(f'{rotulo} ({item["estado"]}): verificador {motivo or "aceito"} {detalhe} {pendencias}; leitor do GPT {gpt}')
                 anotar('error', f'Registro {rotulo}', falhas[-1][:900])
             cert = ', '.join(r['certificado'].keys())
-            linhas.append(f'| {rotulo} | {r["afirmacao"]} ({r["tipo"]}) | {cert} | {"aceito" if ok_ver else f"{motivo} {pendencias}"} · GPT: {gpt[0]} | {r["formula"]} |')
+            como = r['afirmacao'] if item['estado'] == 'aberto' else f'não se sustenta; contra-registro {r["afirmacao"]}'
+            linhas.append(f'| {rotulo} | {como} ({r["tipo"]}) | {cert} | {"aceito" if ok_ver else f"{motivo} {pendencias}"} · GPT: {gpt[0]} | {r["formula"]} |')
     texto = '\n'.join(['## Verificador público · cadeias publicadas (registros abertos)', '',
                        '| Registro | Afirmação | Certificado | Conferência independente | Fórmula / detalhe |', '| --- | --- | --- | --- | --- |', *linhas, '',
+                       f"Carcara: SHA-256 do executável `{executavel}`; regras RARE `{conferir.sha256(conferir.REGRAS_CONFIADAS)}`.", '',
                        f"Aceitos pelas duas conferências: {contagem['aceito']}; pendentes no gerador: {contagem.get('pendente', 0)}; "
-                       f"que não se sustentam: {contagem.get('nao-se-sustenta', 0)}.",
+                       f"que não se sustentam, com o contra-registro aceito pelas duas: {contagem['nao-se-sustenta']}.",
                        'O certificado confere a afirmação sobre a fórmula e a teoria (segue, contradiz, não segue, consistente); '
                        'não diz que as premissas são verdadeiras no mundo.', '', *[f'- FALHA: {f}' for f in falhas], ''])
     print(texto)
