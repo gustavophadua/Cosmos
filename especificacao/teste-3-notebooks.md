@@ -34,7 +34,6 @@ resultados esperados, a Fase 3 pode ser dada como pronta e o resumo das três ca
 ## O que este roteiro não cobre
 
 - **Moeda de teste.** O plano põe uma moeda de teste nos três notebooks antes de qualquer público, sem venda, sem
-  promessa de lucro e sem custódia. As regras dela (quanto existe, quem recebe, quando destrava) são decisão do dono
-  do projeto e ainda não foram tomadas; nada aqui emite moeda. As regras recomendadas estão em
-  `especificacao/moeda-teste.md`.
+  promessa de lucro e sem custódia. As regras foram decididas em 25/10/2026
+  (`especificacao/moeda-teste.md`); este roteiro não emite moeda: a rede de teste é um passo seguinte.
 - **Identidade.** Uma chave não prova quem é a pessoa por trás dela (Fase 6).

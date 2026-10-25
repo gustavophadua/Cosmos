@@ -37,7 +37,7 @@ export function CosmosApp() {
       <header class="v3-topbar"><div>COSMOS <span>/</span> {hub ? 'HUB' : rota.tela === 'laboratorio' ? 'LABORATÓRIO V4' : modulo?.nome ?? 'Índice'}</div><div class="v3-top-actions"><span class="v3-demo-tag">PRÉVIA LOCAL</span><span class="v3-network"><i /> rede não conectada</span><a href="#/backup">↗ Exportar</a></div></header>
       <main class="v3-main">
         {rota.tela === 'laboratorio' ? <LaboratorioV4 /> : hub ? <Hub /> : rota.tela === 'indice' ? <Indice /> : rota.tela === 'cadeia' || rota.tela === 'outras' ? <>
-          <div class="v3-heading"><div><p class="v3-eyebrow">REGISTROS HISTÓRICOS · V1</p><h1>Cadeia pessoal<span>.</span></h1><p>Fases originais, sem migração ou alteração de hashes.</p></div><a class="v3-button" href="#/certificados">Conferência de certificados ↗</a></div>
+          <div class="v3-heading"><div><p class="v3-eyebrow">REGISTROS HISTÓRICOS · V1</p><h1>Cadeia histórica<span>.</span></h1><p>Os nove marcos F0–F8 do projeto, assinados pelo selo 502426c, sem migração ou alteração de hashes. Não são as fases do plano nem uma cadeia pessoal: a sua fica em Labs → Minha cadeia.</p></div><a class="v3-button" href="#/certificados">Conferência de certificados ↗</a></div>
           {rota.tela === 'outras' ? <OutrasFases /> : <CadeiaFases />}
         </> : modulo ? <ModuloPublico modulo={modulo} /> : <Indice />}
       </main>

@@ -5,7 +5,7 @@ export const MODULOS_V3 = [
   { tela: 'perguntar', numero: '02', nome: 'Perguntar', descricao: 'Encontre registros antes de formular uma nova pergunta.', simbolo: '?', grupo: 'Conhecimento' },
   { tela: 'dicionario', numero: '03', nome: 'Dicionário', descricao: 'Vocabulário, símbolos e versões semânticas.', simbolo: '∀', grupo: 'Conhecimento' },
   { tela: 'contradicoes', numero: '04', nome: 'Contradições', descricao: 'Separe conflito declarado de refutação conferida.', simbolo: '⊥', grupo: 'Verificação' },
-  { tela: 'cadeia', numero: '05', nome: 'Cadeia pessoal', descricao: 'Nove fases históricas, hashes e assinaturas.', simbolo: '↗', grupo: 'Verificação' },
+  { tela: 'cadeia', numero: '05', nome: 'Cadeia histórica', descricao: 'Os nove marcos F0–F8 do selo 502426c: hashes e assinaturas.', simbolo: '↗', grupo: 'Verificação' },
   { tela: 'mundo', numero: '06', nome: 'Mundo', descricao: 'Topologia da rede e critérios dos três nós.', simbolo: '◎', grupo: 'Rede' },
   { tela: 'verdades', numero: '07', nome: 'Evidências', descricao: 'Integridade não substitui prova da afirmação.', simbolo: '◇', grupo: 'Verificação' },
   { tela: 'cacar', numero: '08', nome: 'Caçar falhas', descricao: 'Cenários adversariais e critérios de recusa.', simbolo: '⌁', grupo: 'Verificação' },

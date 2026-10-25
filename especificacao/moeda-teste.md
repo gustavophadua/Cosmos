@@ -1,8 +1,8 @@
-# Moeda de teste — regras recomendadas (proposta para decisão)
+# Moeda de teste — regras recomendadas e decididas
 
 Este documento reúne o que é recomendado para a moeda de teste do Cosmos, a partir do plano do estudo I-AI, do que a
 rede local de teste já faz (`src/v4/localnet.ts`) e de fontes públicas sobre testnets e sobre a regulação no Brasil.
-**Não é parecer jurídico.** As regras abaixo são uma proposta: quem decide é o dono do projeto, e nada aqui emite moeda.
+**Não é parecer jurídico.** O dono do projeto aceitou as recomendações em 25/10/2026 (seção Decisão); nada aqui emite moeda por si só.
 
 ## O que já existe
 
@@ -46,17 +46,22 @@ rede local de teste já faz (`src/v4/localnet.ts`) e de fontes públicas sobre t
 10. **Antes de qualquer moeda real**, um parecer jurídico (CVM, Banco Central e tributário). Emitir para o público com
     expectativa de valor, ou oferecer troca ou custódia, muda a natureza do projeto.
 
-## O que falta o dono decidir
+## Decisão (25/10/2026)
 
-| Ponto | Proposta | Decisão |
-| --- | --- | --- |
-| Gênese | zero (tudo por registro aceito) ou 1.000 unidades de teste por participante | |
-| Recompensa por registro aceito | 10 unidades | |
-| Teto por chave | 100 unidades por semana | |
-| Trava | 30 dias | |
-| Queima | 5% por pagamento | |
-| Prazo da rede de teste | 90 dias, depois zerada | |
-| Participantes | os três notebooks; depois convidados nominais | |
+O dono do projeto ficou com as regras recomendadas acima e com estes valores para a primeira rede de teste
+(`cosmos-teste-1`). Elas valem para os três notebooks; mudar qualquer uma é uma versão nova da rede de teste.
+
+| Ponto | Valor decidido |
+| --- | --- |
+| Unidade | `UNIDADE-TESTE-SEM-VALOR` ("unidade de teste"), sem valor, sem venda, sem troca |
+| Gênese | 100 unidades de teste por participante, para testar pagamentos desde o início |
+| Recompensa por registro aceito pelo verificador público | 10 unidades |
+| Teto por chave | 100 unidades por semana |
+| Pagamento por pedido de certificado | em unidades de teste, com queima de 5% |
+| Trava | 30 dias antes de transferir o que foi recebido |
+| Prazo da rede de teste | 90 dias; depois é zerada, sem migrar saldo |
+| Participantes | os três notebooks (o próprio dono); depois, convidados nominais |
+| Promessa | nenhuma: saldo de teste não vira moeda real nem dá direito a nada |
 
 ## Fontes
 
