@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { PACOTE_COSMOS } from '../dados/pacoteCosmos'
 import { conferirElosCosmos } from '../motor/elosCosmos'
+import ancora from '../dados/ancora-checkpoint.json'
 import { raizMerkle, avaliarCheckpoint, provaConsistencia, type Checkpoint } from '../v2/transparencia'
 
 export function CheckpointCosmos() {
@@ -27,6 +28,6 @@ export function CheckpointCosmos() {
     return()=>{ativo=false}
   },[])
   return <p class="cosmos-escopos" role={['rollback','bifurcada','continuidade_invalida'].includes(estado)?'alert':'status'}>
-    Checkpoint: {estado} · raiz enviada ao OpenTimestamps (<a href="./cosmos-checkpoint-raiz.txt.ots" download>prova</a>) · <a href="./cosmos-checkpoint-v1.json" download>arquivo para publicação independente</a>
+    Checkpoint: {estado} · raiz no Bitcoin, bloco {ancora.altura} ({ancora.tempo_bloco_utc.slice(0, 10)}, <a href="./cosmos-checkpoint-raiz.txt.ots" download>prova OTS</a>, conferida pelo verificador público) · <a href="./cosmos-checkpoint-v1.json" download>arquivo para publicação independente</a>
   </p>
 }

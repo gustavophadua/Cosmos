@@ -65,24 +65,41 @@ def inspect(proof, target, verify=False):
 
 # Cabeçalhos públicos: sem nó Bitcoin próprio, o cabeçalho do bloco é buscado em fontes independentes e só vale
 # quando pelo menos duas concordam em tudo: o hash do bloco, a prova de trabalho e a raiz Merkle da atestação.
-FONTES_PUBLICAS = ('https://mempool.space/api', 'https://blockstream.info/api', 'blockchain.info')
+FONTES_PUBLICAS = ('https://mempool.space/api', 'https://blockstream.info/api', 'blockcypher')
 
-def _get(url, timeout=30):
+def _get(url, timeout=20):
     request = urllib.request.Request(url, headers={'User-Agent': 'cosmos-ots-verificador'})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return response.read(1024 * 1024).decode().strip()
 
-def _cabecalho(fonte, height):
-    if fonte == 'blockchain.info':
-        blocks = json.loads(_get('https://blockchain.info/block-height/%d?format=json' % height))['blocks']
-        b = [x for x in blocks if x.get('main_chain')][0]
+def _cabecalho_sem_prazo(fonte, height):
+    if fonte == 'blockcypher':
+        # a BlockCypher dá os campos do cabeçalho (não os 80 bytes): o cabeçalho é remontado a partir deles
+        import datetime
+        b = json.loads(_get('https://api.blockcypher.com/v1/btc/main/blocks/%d?txstart=0&limit=1' % height))
+        tempo = int(datetime.datetime.strptime(b['time'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc).timestamp())
         raw = (b['ver'].to_bytes(4, 'little') + bytes.fromhex(b['prev_block'])[::-1] + bytes.fromhex(b['mrkl_root'])[::-1]
-               + b['time'].to_bytes(4, 'little') + b['bits'].to_bytes(4, 'little') + b['nonce'].to_bytes(4, 'little'))
-        return b['hash'], raw, int(_get('https://blockchain.info/q/getblockcount'))
+               + tempo.to_bytes(4, 'little') + b['bits'].to_bytes(4, 'little') + b['nonce'].to_bytes(4, 'little'))
+        return b['hash'], raw, int(json.loads(_get('https://api.blockcypher.com/v1/btc/main'))['height'])
     block_hash = _get('%s/block-height/%d' % (fonte, height))
     return block_hash, bytes.fromhex(_get('%s/block/%s/header' % (fonte, block_hash))), int(_get('%s/blocks/tip/height' % fonte))
 
-def verify_public(proof, target, minimo=2, tentativas=3):
+def _cabecalho(fonte, height, prazo=45):
+    # um prazo para a fonte inteira: o timeout do urlopen vale por operação de rede, e uma fonte fora do ar travava minutos
+    import threading
+    saida = {}
+    def rodar():
+        try:
+            saida['ok'] = _cabecalho_sem_prazo(fonte, height)
+        except Exception as exc:
+            saida['erro'] = exc
+    t = threading.Thread(target=rodar, daemon=True)
+    t.start(); t.join(prazo)
+    if 'ok' in saida:
+        return saida['ok']
+    raise saida.get('erro') or TimeoutError('a fonte não respondeu em %d s' % prazo)
+
+def verify_public(proof, target, minimo=2, tentativas=2):
     from bitcoin.core import CBlockHeader
     import datetime, time
     result = inspect(proof, target)
@@ -111,6 +128,9 @@ def verify_public(proof, target, minimo=2, tentativas=3):
                 except Exception as exc:
                     fontes[nome] = dict(erro=type(exc).__name__)
                     time.sleep(2 * (tentativa + 1))
+            # duas fontes concordando bastam: cada cabeçalho já passou pela prova de trabalho e pela raiz Merkle
+            if len(acordos) == 1 and len(next(iter(acordos.values()))) >= minimo:
+                break
         if not acordos:
             continue
         (block_hash, tempo), quem = max(acordos.items(), key=lambda kv: len(kv[1]))

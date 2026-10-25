@@ -40,3 +40,4 @@ software-public-v1/** -text
 # a raiz do checkpoint e a prova OTS dela: os bytes exatos que o carimbo prende
 public/cosmos-checkpoint-raiz.txt -text
 public/cosmos-checkpoint-raiz.txt.ots -text
+public/cosmos-checkpoint-raiz.txt.calendario.ots -text

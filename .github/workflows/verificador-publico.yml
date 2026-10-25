@@ -96,11 +96,20 @@ jobs:
           python scripts/cosmos-ots.py estado | tee "$RUNNER_TEMP/ancora.json"
           python - "$RUNNER_TEMP/ancora.json" <<'PY'
           import json, os, sys
+          import hashlib
           r = json.load(open(sys.argv[1], encoding='utf-8'))
-          if not r.get('vinculoValido'): sys.exit('a prova OTS do checkpoint não é da raiz publicada')
-          linha = (f"bloco {r['altura']} ({r['tempo_bloco_utc']}), conferido em {', '.join(r['fontes'])}" if r.get('confirmacaoVerificada')
-                   else 'enviada aos calendários; a confirmação no Bitcoin ainda não está na prova' + (f" ({r['erro']})" if r.get('erro') else ''))
-          open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(f"\n**Âncora do checkpoint** (raiz `{r['sha256_alvo'][:16]}…`): {linha}\n")
+          c = json.load(open('src/dados/ancora-checkpoint.json', encoding='utf-8'))
+          sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
+          erros = []
+          if not r.get('vinculoValido'): erros.append('a prova OTS do checkpoint não é da raiz publicada')
+          if not r.get('confirmacaoVerificada'): erros.append(f"confirmação não verificada: {r.get('erro', '')}")
+          for campo in ('altura', 'bloco', 'tempo_bloco_utc', 'sha256_alvo', 'sha256_prova'):
+              if r.get(campo) != c[campo]: erros.append(f'{campo}: conferido {r.get(campo)!r}, registrado {c[campo]!r}')
+          if sha(c['prova_calendario_original']['arquivo']) != c['prova_calendario_original']['sha256']: erros.append('a prova original dos calendários foi alterada')
+          if open(c['alvo'], encoding='ascii').read() != f"cosmos-v1-502426c 9 {c['raiz']}\n": erros.append('o alvo não é a raiz do checkpoint')
+          linha = f"bloco {r.get('altura')} ({r.get('tempo_bloco_utc')}), conferido em {', '.join(r.get('fontes', []))}; igual ao registrado no site: {'sim' if not erros else 'NÃO'}"
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(f"\n**Âncora do checkpoint** (raiz `{c['raiz'][:16]}…`): {linha}\n" + ''.join(f'- {e}\n' for e in erros))
+          if erros: sys.exit('\n'.join(erros))
           PY
 
   cadeias:

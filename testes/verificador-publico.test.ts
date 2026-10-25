@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto'
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import pacote from '../src/dados/elos-assinados.json'
 import carimbo from '../src/dados/carimbo-bitcoin.json'
+import ancora from '../src/dados/ancora-checkpoint.json'
 import { PACOTE_COSMOS } from '../src/dados/pacoteCosmos'
 import { conferirElosCosmos } from '../src/motor/elosCosmos'
 import { conferirCadeia } from '../src/motor/cadeiaPessoal'
@@ -87,8 +88,11 @@ describe('Verificador público · Cosmos 502426c', () => {
     for (const { anterior, prova } of checkpoint.continuidade) expect(await verificarConsistencia(anterior.tamanho, 9, anterior.raiz, RAIZ_CHECKPOINT, prova), `continuidade ${anterior.tamanho}`).toBe(true)
     // a âncora externa: a raiz num arquivo de texto, carimbado no OpenTimestamps (a parte carimbo confere a prova)
     expect(readFileSync('public/cosmos-checkpoint-raiz.txt', 'utf8')).toBe(`cosmos-v1-502426c 9 ${RAIZ_CHECKPOINT}\n`)
-    expect(existsSync('public/cosmos-checkpoint-raiz.txt.ots')).toBe(true)
-    linhas.push(`| Checkpoint Merkle | raiz ${RAIZ_CHECKPOINT.slice(0, 16)}… · 9 inclusões e ${checkpoint.continuidade.length} continuidades conferem · publicação independente: ${checkpoint.publicacao_independente} |`)
+    expect(ancora.raiz).toBe(RAIZ_CHECKPOINT)
+    expect(sha256(ancora.alvo)).toBe(ancora.sha256_alvo)
+    expect(sha256(ancora.prova)).toBe(ancora.sha256_prova)
+    expect(sha256(ancora.prova_calendario_original.arquivo)).toBe(ancora.prova_calendario_original.sha256)
+    linhas.push(`| Checkpoint Merkle | raiz ${RAIZ_CHECKPOINT.slice(0, 16)}… · 9 inclusões e ${checkpoint.continuidade.length} continuidades conferem · âncora: bloco ${ancora.altura} (${ancora.tempo_bloco_utc}), conferida na parte carimbo |`)
   })
 
   it('o carimbo Bitcoin: o alvo é o resumo da cadeia, e o registro do site bate com a prova e com o status', () => {

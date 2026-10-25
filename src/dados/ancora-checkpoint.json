@@ -1,0 +1,16 @@
+{
+  "formato": "cosmos-ancora-checkpoint-v1",
+  "alvo": "public/cosmos-checkpoint-raiz.txt",
+  "sha256_alvo": "9400a8b43e4a7a7d064ea3a9eba3ba8cf94241cb8a37f80d54e3c1644b584f60",
+  "raiz": "842ecb720637b4477272c892bd4d542376a52cf1e73e9e14b62c95cfc73e841c",
+  "prova": "public/cosmos-checkpoint-raiz.txt.ots",
+  "sha256_prova": "9efb39d591a003b155521c9c080d269c453252fd18050f6cacbda44cc0953221",
+  "prova_calendario_original": {
+    "arquivo": "public/cosmos-checkpoint-raiz.txt.calendario.ots",
+    "sha256": "fdf5021d5e9443b62b359152a7012dc208ac3bbb08d98cbb370122b059f37b21"
+  },
+  "altura": 973050,
+  "bloco": "0000000000000000000029fde3d981dc0a634d0a36c2b6482355e9947b87f4ff",
+  "tempo_bloco_utc": "2026-10-25T09:22:12Z",
+  "limite": "Sem nó Bitcoin próprio. Prova que a raiz Merkle do checkpoint (log cosmos-v1-502426c, 9 elos) existia antes do bloco."
+}
