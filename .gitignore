@@ -58,5 +58,6 @@ public/caderno-logico.html
 cosmos-software-public-v1/
 cosmos-exportacao-limpa/
 
-# Manter workflows fora da exportacao inicial; rever destinos/permissoes antes.
-.github/workflows/
+# Somente o workflow Pages revisado para este repositorio.
+.github/workflows/*
+!.github/workflows/pages.yml

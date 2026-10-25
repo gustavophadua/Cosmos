@@ -41,7 +41,7 @@ function conferirManifestCosmos(): Plugin {
     buildStart() {
       const alternativo = JSON.parse(readFileSync(new URL('./public/manifest.json', import.meta.url), 'utf8'))
       if (JSON.stringify(alternativo) !== JSON.stringify(MANIFEST_COSMOS)) throw new Error('manifest.json diverge do manifest.webmanifest canônico.')
-      if (MANIFEST_COSMOS.name !== 'Cosmos' || MANIFEST_COSMOS.short_name !== 'Cosmos' || MANIFEST_COSMOS.id !== '/cosmos/' || MANIFEST_COSMOS.scope !== '/cosmos/' || MANIFEST_COSMOS.start_url !== '/cosmos/') throw new Error('Manifest Cosmos com nome ou caminhos incorretos.')
+      if (MANIFEST_COSMOS.name !== 'Cosmos' || MANIFEST_COSMOS.short_name !== 'Cosmos' || MANIFEST_COSMOS.id !== '/Cosmos/' || MANIFEST_COSMOS.scope !== '/Cosmos/' || MANIFEST_COSMOS.start_url !== '/Cosmos/') throw new Error('Manifest Cosmos com nome ou caminhos incorretos.')
       if (MANIFEST_COSMOS.theme_color !== '#ffffff' || MANIFEST_COSMOS.background_color !== '#ffffff') throw new Error('Manifest Cosmos deve usar fundo e tema brancos.')
     },
   }
@@ -243,7 +243,7 @@ function semLinksExternos(): Plugin {
 export default defineConfig(({ mode }) => {
   const arquivo = mode === 'arquivo'
   return {
-    base: arquivo ? './' : '/cosmos/',
+    base: arquivo ? './' : '/Cosmos/',
     envDir: false,
     envPrefix: [],
     plugins: [preact({ reactAliasesEnabled: false, exclude: /src[\\/]interfaces[\\/]/ }), tailwindcss(), conferirManifestCosmos(), avisosDeLicenca(arquivo), somenteRuntimeV3(arquivo), ...(arquivo ? [semLinksExternos(), viteSingleFile()] : [exportarCosmos(), serviceWorker()])],

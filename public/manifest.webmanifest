@@ -4,9 +4,9 @@
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
   "display": "standalone",
-  "start_url": "/cosmos/",
-  "scope": "/cosmos/",
-  "id": "/cosmos/",
+  "start_url": "/Cosmos/",
+  "scope": "/Cosmos/",
+  "id": "/Cosmos/",
   "icons": [
     {
       "src": "pwa-192x192.png",
