@@ -84,6 +84,8 @@ describe('Cadeias publicadas em cadeias/', () => {
         }
         // a cadeia de exemplo tem resposta conhecida: quatro abertos, um falso de propósito (G03) e um com números
         if (pasta === 'exemplo-rfc8032') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:aberto', '2:aberto', '3:aberto', '4:nao-se-sustenta', '5:aberto'])
+        // o G03 do teste real com três notebooks (25/10/2026): o notebook A afirmou que Q(b) segue de ∀x (P(x) ⟹ Q(x)) e P(a)
+        if (pasta === 'teste-3-notebooks-a') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:nao-se-sustenta'])
         mkdirSync(join(SAIDA!, pasta), { recursive: true })
         writeFileSync(join(SAIDA!, pasta, 'registros.json'), JSON.stringify({ pasta, resultados }, null, 2))
       }

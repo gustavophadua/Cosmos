@@ -1,0 +1,69 @@
+[
+  {
+    "indice": 0,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "517ad8a625ad52fa2d005648b2a7f5adc9f21d40aaa01d30bbf453374a7126a1",
+      "sal": "126cee118d6872a374c6eceb265fe077d690dfc0e318bbab13dd81c290952aba",
+      "formula": "Q(b)",
+      "formaCanonica": "(Q b)",
+      "teoria": {
+        "nome": "Minha teoria v1",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "b",
+            "tipo": "constante",
+            "aridade": 0
+          }
+        ],
+        "premissas": [],
+        "hash": "e9047b2e070b42f78ac07d64d464107ff65c97bf160c0c0861c0a6f93cd100ae"
+      }
+    }
+  },
+  {
+    "indice": 1,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "946fd31556a195e4236992d90c9d6aaef7d41a7ea574cd39a08338a68ceb0048",
+      "sal": "d2ec983ec82b81b55f6b909f3095e3199b155b1153f36792f9d0515665ed85b0",
+      "formula": "Q(b)",
+      "formaCanonica": "(Q b)",
+      "teoria": {
+        "nome": "Minha teoria v1",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "b",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "P(a)"
+        ],
+        "hash": "006f447c61fcf5bc57e353ba3ed8c7100f1fa7bb5fa6ce0d67795b736b8be0b0"
+      }
+    }
+  }
+]

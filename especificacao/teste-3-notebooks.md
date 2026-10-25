@@ -31,6 +31,24 @@ Todos em **Conferir uma cadeia recebida**, no computador que recebe.
 Para cada teste, anotar o computador, a mensagem que apareceu e o horário. Fotos da tela bastam. Com os seis
 resultados esperados, a Fase 3 pode ser dada como pronta e o resumo das três cadeias pode ser carimbado no Bitcoin.
 
+## Resultado de 25/10/2026
+
+Feito pelo operador com três notebooks Windows, cada um rodando o Cosmos pelo `localhost`, com os arquivos levados por
+pendrive. Chaves (começo): A `c39ce485…`, B `d84233c1…`, C `36fe5abf…`. As fotos da tela ficam com o operador.
+
+| Teste | Onde | Mensagem que apareceu |
+| --- | --- | --- |
+| G06 · Três notebooks | A, B e C | "aceita" e "Cadeia nova para este aparelho"; cada um guardou as cadeias dos outros dois |
+| G02 · Pedido duplicado | B, com a cadeia de A | "Igual à versão que este aparelho já tinha" |
+| G01 · Fórmula alterada | B, com a cadeia de A alterada (`proposta` → `Proposta`) | "recusada (C8, elo 0): uma assinatura não vale" |
+| G04 · Nó desligado | C, com a cadeia de A de 3 registros | "aceita · 3 elo(s)", "Extensão da versão conhecida" |
+| G05 · Encurtada | C, com a cadeia antiga de A | "ALTERAÇÃO: a versão recebida é mais curta do que a conhecida" |
+| G05 · Bifurcada | B e C, com a chave de A restaurada noutro navegador | "ALTERAÇÃO: a mesma chave assinou duas histórias diferentes"; conflito guardado |
+| G03 · Conclusão falsa | `cadeias/teste-3-notebooks-a/` | o verificador público abre o elo 1 como "não se sustenta", com o contra-registro |
+
+A cadeia publicada para o G03 é a segunda história da chave de A (a do navegador em que a chave foi restaurada): o elo 0
+afirma que `Q(b)` é consistente e o elo 1 afirma, de propósito, que `Q(b)` segue de `∀x (P(x) ⟹ Q(x))` e `P(a)`.
+
 ## O que este roteiro não cobre
 
 - **Moeda de teste.** O plano põe uma moeda de teste nos três notebooks antes de qualquer público, sem venda, sem
