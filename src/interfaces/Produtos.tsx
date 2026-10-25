@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { niveisBookDemo, consultarCatalogoLocal } from './dados'
+import { pesquisarPublicos, REGISTROS_PUBLICOS } from '../v3/catalogo'
 import { Labs } from './Labs'
 import { Integracoes } from './Integracoes'
 import { ContaApp, CarteiraLocal, useContaLocal } from './Conta'
@@ -24,8 +25,22 @@ const reduzMovimento = () => window.matchMedia?.('(prefers-reduced-motion: reduc
 function Turno({ conversa, novo }: { conversa: Conversa; novo: boolean }) {
   return <section className="iai-turno" data-id={conversa.id} data-novo={novo ? '' : undefined}>
     <div className="iai-question">{conversa.pergunta}</div>
-    <div className="iai-answer"><span className="iai-answer-avatar" aria-hidden="true">C</span><div><small><strong>Cosmos</strong><span className="iai-message-context">Catálogo local</span></small><p>{conversa.resposta}</p><a className="iai-source-card" href="#/cadeia"><span><Icone nome="file" /></span><span><strong>Catálogo local</strong><small>9 registros públicos</small></span><span aria-hidden="true">›</span></a></div></div>
+    <div className="iai-answer"><span className="iai-answer-avatar" aria-hidden="true">C</span><div><small><strong>Cosmos</strong><span className="iai-message-context">Catálogo local</span></small><p>{conversa.resposta}</p><Fontes pergunta={conversa.pergunta} /></div></div>
   </section>
+}
+
+// as fontes da resposta: cada registro público encontrado, com o hash e o caminho para virar rascunho no Labs
+function Fontes({ pergunta }: { pergunta: string }) {
+  const fontes = pesquisarPublicos(pergunta.trim().slice(0, 2000)).slice(0, 9)
+  if (!fontes.length) return <a className="iai-source-card" href="#/cadeia"><span><Icone nome="file" /></span><span><strong>Catálogo local</strong><small>{REGISTROS_PUBLICOS.length} registros públicos</small></span><span aria-hidden="true">›</span></a>
+  return <div className="iai-fontes" aria-label="Fontes encontradas no catálogo">
+    {fontes.map(f => <div className="iai-fonte" key={f.id}>
+      <span className="iai-fonte-id">{f.id}</span>
+      <div className="iai-fonte-dados"><strong>{f.titulo}</strong><small>{f.dominio} · estado declarado: {f.estado}</small><code title={f.hash}>sha256:{f.hash.slice(0, 16)}…</code></div>
+      <div className="iai-fonte-acoes"><a href={`#/lab?secao=rascunhos&fonte=${f.id}`}>Levar ao Labs</a><a href="#/cadeia">Ver na cadeia</a></div>
+    </div>)}
+    <p className="iai-fonte-limite">Hash e autoria não comprovam a verdade do conteúdo. No Labs, a verificação confere o hash e a assinatura do selo.</p>
+  </div>
 }
 
 function IAI() {

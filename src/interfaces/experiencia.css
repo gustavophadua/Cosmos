@@ -132,3 +132,51 @@
     .exchange-top>nav>button { white-space:nowrap; }
   }
 }
+
+/* O ciclo: as fontes da Conversa e a conferência delas no Labs. */
+@scope (.iai-app.reference-app) {
+  .iai-fontes { display:grid; gap:8px; margin-top:4px; max-width:560px; }
+  .iai-fonte { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--p-line); border-radius:10px; background:var(--p-side); }
+  .iai-fonte-id { display:grid; place-items:center; min-width:36px; height:36px; border-radius:8px; background:#e3ebff; color:#315fd6; font:600 13px/1 'JetBrains Mono',monospace; }
+  .iai-fonte-dados { display:grid; gap:2px; min-width:0; }
+  .iai-fonte-dados strong { font-size:14px; }
+  .iai-fonte-dados small { color:var(--muted); font-size:12px; }
+  .iai-fonte-dados code { color:var(--muted); font:11px/1.4 'JetBrains Mono',monospace; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .iai-fonte-acoes { display:flex; flex-direction:column; gap:4px; align-items:flex-end; }
+  .iai-answer .iai-fonte-acoes a { font-size:12px; text-decoration:none; white-space:nowrap; padding:4px 10px; border-radius:6px; }
+  .iai-answer .iai-fonte-acoes a:first-child { background:#315fd6; color:#fff; }
+  .iai-answer .iai-fonte-acoes a:last-child { color:var(--muted); }
+  .iai-answer .iai-fonte-acoes a:hover { filter:brightness(.95); text-decoration:underline; }
+  .iai-fonte-limite { margin:4px 0 0!important; font-size:12px!important; line-height:1.5!important; color:var(--muted); }
+  :scope.iai-dark .iai-fonte-id { background:#2a3550; color:#a9c1ff; }
+  @media(max-width:520px) { .iai-fonte { grid-template-columns:auto minmax(0,1fr); } .iai-fonte-acoes { grid-column:1/-1; flex-direction:row; justify-content:flex-end; } }
+}
+
+@scope (.labs-app) {
+  .labs-fonte { display:grid; gap:6px; padding:12px 14px; margin:0 0 16px; border:1px solid #dbe5fb; border-radius:8px; background:#f3f6ff; }
+  .labs-fonte .labs-inspector-label { margin:0; }
+  .labs-fonte strong { font-size:14px; }
+  .labs-fonte code { font:11px/1.5 'JetBrains Mono',monospace; color:var(--muted); overflow-wrap:anywhere; }
+  .labs-fonte p { margin:0; font-size:12px!important; }
+  .labs-fonte a { font-size:12px; color:#315fd6; text-decoration:underline; text-underline-offset:3px; }
+  .labs-com-fonte { color:#315fd6; font-size:11px; }
+  .labs-fontes-conferidas { display:grid; gap:12px; margin-top:16px; }
+  .labs-fontes-conferidas>h3 { margin:0; font-size:14px; }
+  .labs-fontes-conferidas>h3 span { color:var(--muted); font-weight:400; margin-left:6px; }
+  .labs-fontes-conferidas article { border:1px solid var(--p-line); border-radius:8px; background:#fff; overflow:hidden; }
+  .labs-fontes-conferidas article>header { display:flex; justify-content:space-between; gap:12px; padding:10px 14px; background:#f5f6f8; font-size:13px; }
+  .labs-fontes-conferidas article[data-aceita=true]>header span { color:#15803d; }
+  .labs-fontes-conferidas article[data-aceita=false]>header span { color:#b42318; }
+  .labs-fontes-conferidas dl { margin:0; }
+  .labs-fontes-conferidas dl>div { display:grid; grid-template-columns:150px minmax(0,1fr); gap:10px; padding:9px 14px; border-top:1px solid #eef0f4; font-size:12px; }
+  .labs-fontes-conferidas dt { color:var(--muted); }
+  .labs-fontes-conferidas dt::before { content:'•'; margin-right:6px; }
+  .labs-fontes-conferidas [data-estado=confere] dt::before { content:'✓'; color:#15803d; }
+  .labs-fontes-conferidas [data-estado=diverge] dt::before,.labs-fontes-conferidas [data-estado=ausente] dt::before { content:'✕'; color:#b42318; }
+  .labs-fontes-conferidas [data-estado=pendente] dt::before { content:'…'; color:#b54708; }
+  .labs-fontes-conferidas [data-estado=nao_provado] dt::before { content:'?'; color:var(--muted); }
+  .labs-fontes-conferidas dd { margin:0; display:grid; gap:2px; }
+  .labs-fontes-conferidas dd b { font-weight:500; }
+  .labs-fontes-conferidas dd small { color:var(--muted); font-size:11px; }
+  @media(max-width:600px) { .labs-fontes-conferidas dl>div { grid-template-columns:1fr; gap:2px; } }
+}
