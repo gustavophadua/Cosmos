@@ -93,9 +93,14 @@ jobs:
   cadeias:
     # as cadeias pessoais publicadas em cadeias/: cada registro revelado é aberto com certificado (tradução t1 pelo Z3 e
     # prova pelo cvc5 1.4.2, ou modelo finito pelo motor), conferido pelo Caderno e depois, de forma independente, pela
-    # conferência de registros-v1 (registros.py) e pelo leitor do GPT, com as provas no Carcara oficial
-    runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    # conferência de registros-v1 (registros.py) e pelo leitor do GPT, com as provas no Carcara do commit fixo (o mesmo
+    # da parte provas: a release 1.1.0 não tem --rare-file nem --rup-resolution, que a conferência usa)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CARCARA_COMMIT: 20bf49c5ce31089ac83118574c888669355aaae1
+      RUST_VERSAO: 1.99.1
+      SISTEMA: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -113,13 +118,18 @@ jobs:
           printf '%s  %s\n' 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8 "$RUNNER_TEMP/cvc5.zip" | sha256sum --check --strict
           unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
           echo "CVC5=$(find "$RUNNER_TEMP/cvc5" -type f -name cvc5 -perm -u+x | head -1)" >> "$GITHUB_ENV"
-      - name: Carcara oficial 1.1.0 (binário da release, hash fixado)
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 60 \
-            -o "$RUNNER_TEMP/carcara-linux" https://github.com/ufmg-smite/carcara/releases/download/carcara-1.1.0/carcara-linux
-          printf '%s  %s\n' fcd06852931d36b13e6d3f7965c81a068f5cfe2f3c5e7da2d91af500f8f1bfda "$RUNNER_TEMP/carcara-linux" | sha256sum --check --strict
-          chmod u+x "$RUNNER_TEMP/carcara-linux"
+      - name: Rust
+        run: rustup toolchain install "$RUST_VERSAO" --profile minimal && rustup default "$RUST_VERSAO" && rustc --version
+      - name: m4, que a GMP do Carcara precisa para compilar
+        run: sudo apt-get update && sudo apt-get install -y m4
+      - uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: cache
+        with:
+          path: ~/.cargo/bin/carcara
+          key: carcara-${{ env.CARCARA_COMMIT }}-rust-${{ env.RUST_VERSAO }}-${{ env.SISTEMA }}
+      - name: Compilar o Carcara
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo install --locked --git https://github.com/ufmg-smite/carcara.git --rev "$CARCARA_COMMIT" carcara
       - name: SymPy
         run: |
           python3 -m venv ~/venv
@@ -131,7 +141,7 @@ jobs:
           "$CVC5" --version | head -1
           npx vitest run testes/cadeias-publicadas.test.ts
       - name: Conferência independente (registros.py, leitor do GPT, Carcara)
-        run: ~/venv/bin/python scripts/conferir-cadeias.py --carcara "$RUNNER_TEMP/carcara-linux" --saida "$RUNNER_TEMP/cadeias"
+        run: ~/venv/bin/python scripts/conferir-cadeias.py --carcara ~/.cargo/bin/carcara --saida "$RUNNER_TEMP/cadeias"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
