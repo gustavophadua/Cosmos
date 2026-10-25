@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { rotaProduto, provenanceConfig } from '../src/interfaces/config'
-import { consultarCatalogoLocal, conflitosLiterais, candlesDemo, niveisBookDemo } from '../src/interfaces/dados'
+import { consultarCatalogoLocal, conflitosLiterais, candlesDemo, historicoDemo, PASSO_CANDLE_MS, niveisBookDemo } from '../src/interfaces/dados'
 
 describe('Interfaces separadas: limites dos dados locais', () => {
   it('reconhece as três rotas sem sequestrar cadeia ou laboratório HD', () => {
@@ -37,6 +37,16 @@ describe('Interfaces separadas: limites dos dados locais', () => {
       expect(cs).toEqual(candlesDemo(t))
       expect(cs.at(-1)!.close).toBeCloseTo(19.312)
       for (const c of cs) { expect(c.high).toBeGreaterThanOrEqual(Math.max(c.open, c.close)); expect(c.low).toBeLessThanOrEqual(Math.min(c.open, c.close)); expect(c.volume).toBeGreaterThan(0) }
+    }
+  })
+  it('histórico navegável termina nos mesmos 64 candles e mantém OHLC válido no passado', () => {
+    for (const t of ['1H', '1D', '1W']) {
+      const hs = historicoDemo(t)
+      expect(hs).toHaveLength(320)
+      expect(hs.slice(-64)).toEqual(candlesDemo(t))
+      expect(historicoDemo(t, 10)).toEqual(candlesDemo(t))
+      expect(PASSO_CANDLE_MS[t]).toBeGreaterThan(0)
+      for (const c of hs) { expect(c.high).toBeGreaterThanOrEqual(Math.max(c.open, c.close)); expect(c.low).toBeLessThanOrEqual(Math.min(c.open, c.close)); expect(c.low).toBeGreaterThan(0); expect(c.volume).toBeGreaterThan(0) }
     }
   })
   it('book mantém ordenação, spread positivo e total acumulado em unidades', () => {

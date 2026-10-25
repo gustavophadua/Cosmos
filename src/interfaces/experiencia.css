@@ -1,0 +1,134 @@
+/* Experiência compartilhada: a barra do Cosmos, a moeda 3D, o gráfico navegável e as alturas de tela.
+   Importado por último: nos empates, estas regras vencem as das folhas anteriores (mesma raiz de escopo). */
+:root:has(.iai-app),:root:has(.iai-app) body { height:100%; overflow:hidden; overscroll-behavior:none; }
+
+@scope (.product-root) {
+  :scope { --barra:48px; --abas:0px; box-sizing:border-box; }
+
+  /* A barra: marca, destinos em abas (como o TabsList do shadcn/ui) e, à direita, integrações e conta. */
+  .cosmos-bar { position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:14px; height:var(--barra); min-height:var(--barra); flex-shrink:0; padding:0 max(14px,env(safe-area-inset-right)) 0 max(14px,env(safe-area-inset-left)); background:color-mix(in srgb,var(--p-bg,#fff) 90%,transparent); backdrop-filter:saturate(1.4) blur(10px); border-bottom:1px solid var(--p-line); color:var(--text); font:500 13px/1 Inter,'Segoe UI',Arial,sans-serif; }
+  .cosmos-bar a { display:flex; align-items:center; gap:7px; border-radius:7px; color:var(--muted); white-space:nowrap; transition:color .15s,background-color .15s,box-shadow .15s; }
+  .cosmos-bar a:hover { color:var(--text); }
+  .cosmos-bar a:focus-visible { outline:2px solid var(--p-accent,currentColor); outline-offset:2px; }
+  .cosmos-bar .cosmos-line-icon { width:16px; height:16px; }
+  .cosmos-bar-marca { gap:9px; padding:4px 8px 4px 2px; color:var(--text)!important; font-weight:650; font-size:14px; letter-spacing:-.01em; }
+  .cosmos-bar-destinos { display:flex; gap:2px; padding:3px; border-radius:10px; background:color-mix(in srgb,var(--text) 6%,transparent); }
+  .cosmos-bar-destinos a { height:30px; padding:0 12px; }
+  .cosmos-bar-destinos a[aria-current=page] { color:var(--text); background:var(--p-bg,#fff); box-shadow:0 1px 2px #0000001f,0 0 0 1px color-mix(in srgb,var(--text) 10%,transparent); }
+  .cosmos-bar-extra { margin-left:auto; display:flex; align-items:center; gap:4px; }
+  .cosmos-bar-extra a { height:32px; padding:0 10px; }
+  .cosmos-bar-extra a:hover,.cosmos-bar-extra a[aria-current=page] { background:var(--hover); color:var(--text); }
+  .cosmos-bar-conta b { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--p-accent,#315fd6); color:var(--p-on-accent,#fff); font-size:11px; font-weight:650; }
+  .cosmos-bar-conta span { max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  .cosmos-licenca { color:var(--muted); font-size:11px; line-height:1.5; text-align:center; }
+  .cosmos-licenca a { text-decoration:underline; text-underline-offset:3px; }
+  @media(max-width:1000px) { .cosmos-bar-extra a:not(.cosmos-bar-conta) span { display:none; } }
+  /* Celular: os destinos descem para abas fixas no rodapé; a barra de cima fica só com a marca e a conta. */
+  @media(max-width:760px) {
+    :scope { --barra:46px; --abas:calc(58px + env(safe-area-inset-bottom)); padding-bottom:var(--abas); }
+    .cosmos-bar { backdrop-filter:none; background:var(--p-bg,#fff); }
+    .cosmos-bar-destinos { position:fixed; z-index:70; left:0; right:0; bottom:0; height:var(--abas); display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; padding:4px 6px env(safe-area-inset-bottom); border-radius:0; background:var(--p-bg,#fff); border-top:1px solid var(--p-line); box-shadow:0 -6px 20px #0000000d; }
+    .cosmos-bar-destinos a { height:50px; padding:0; flex-direction:column; justify-content:center; gap:3px; font-size:11px; }
+    .cosmos-bar-destinos a[aria-current=page] { background:transparent; box-shadow:none; font-weight:650; }
+    .cosmos-bar-destinos .cosmos-line-icon { width:44px; height:26px; padding:3px 12px; border-radius:999px; transition:background-color .2s; }
+    .cosmos-bar-destinos a[aria-current=page] .cosmos-line-icon { background:color-mix(in srgb,var(--p-accent,#315fd6) 18%,transparent); color:var(--text); }
+    .cosmos-bar-extra span { display:none; }
+    .cosmos-bar-extra a { width:36px; height:36px; padding:0; justify-content:center; }
+  }
+
+  /* A moeda: duas faces com a imagem oficial, borda dourada em fatias e um brilho que passa. */
+  .moeda-3d { --e:max(2px,calc(var(--t) * .055)); position:relative; display:inline-block; flex-shrink:0; width:var(--t); height:var(--t); perspective:calc(var(--t) * 5); vertical-align:middle; }
+  .moeda-inclina,.moeda-corpo { position:absolute; inset:0; transform-style:preserve-3d; }
+  .moeda-inclina { transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)); transition:transform .3s cubic-bezier(.2,.8,.2,1); }
+  .moeda-face { position:absolute; inset:0; width:100%; height:100%; max-width:none; object-fit:cover; clip-path:circle(48.3% at 50% 50.2%); transform:translateZ(calc(var(--e) / 2 + .3px)) scale(1.035); backface-visibility:hidden; user-select:none; pointer-events:none; }
+  .moeda-verso { transform:rotateY(180deg) translateZ(calc(var(--e) / 2 + .3px)) scale(1.035); }
+  .moeda-borda { position:absolute; inset:.5%; border-radius:50%; background:linear-gradient(90deg,#6b4a10,#c8912a 22%,#f6dc8a 46%,#d9a640 62%,#7a5514); transform:translateZ(calc((var(--k) - .5) * var(--e))); }
+  .moeda-brilho { position:absolute; inset:0; border-radius:50%; overflow:hidden; transform:translateZ(calc(var(--e) / 2 + .6px)); background:linear-gradient(115deg,transparent 38%,#fff8e0a6 50%,transparent 62%) no-repeat; background-size:260% 100%; background-position:160% 0; mix-blend-mode:screen; pointer-events:none; }
+  .moeda-3d[data-gira] { animation:moeda-flutua 5.5s ease-in-out infinite; }
+  .moeda-3d[data-gira] .moeda-corpo { animation:moeda-gira 9s cubic-bezier(.65,0,.35,1) infinite; }
+  .moeda-3d[data-gira] .moeda-brilho,.moeda-3d:hover .moeda-brilho { animation:moeda-brilha 4.5s ease-in-out infinite; }
+  .moeda-3d[data-gira]:hover .moeda-corpo { animation-play-state:paused; }
+  @keyframes moeda-gira { 0%,62% { transform:rotateY(0deg); } 88%,100% { transform:rotateY(360deg); } }
+  @keyframes moeda-flutua { 0%,100% { translate:0 0; } 50% { translate:0 calc(var(--t) * -.05); } }
+  @keyframes moeda-brilha { 0%,55% { background-position:160% 0; } 85%,100% { background-position:-60% 0; } }
+  @media(prefers-reduced-motion:reduce) { .moeda-3d,.moeda-corpo,.moeda-brilho,.moeda-inclina { animation:none!important; transition:none!important; } }
+}
+
+/* Conversa: a tela tem a altura da janela visível, só o fio rola, e o teclado do celular não empurra a página. */
+@scope (.iai-app.reference-app) {
+  :scope { height:100dvh; overflow:hidden; }
+  .iai-body { flex:1; min-height:0; position:relative; }
+  .iai-sidebar,.iai-main { height:auto; min-height:0; }
+  .iai-sidebar { overflow-y:auto; overscroll-behavior:contain; }
+  .iai-content { overscroll-behavior:contain; scrollbar-gutter:stable; }
+  .iai-conversation { margin-bottom:8px; }
+  .iai-turno+.iai-turno { margin-top:40px; padding-top:32px; border-top:1px solid var(--p-line); }
+  .iai-turno[data-novo] { animation:iai-entra .35s cubic-bezier(.2,.8,.2,1); }
+  @keyframes iai-entra { from { opacity:0; translate:0 10px; } }
+  .iai-turno .iai-question { margin-bottom:32px; }
+  .iai-composer textarea { height:27px; min-height:27px; max-height:160px; overflow-y:auto; line-height:1.5; }
+  .iai-composer-area { padding-bottom:max(16px,env(safe-area-inset-bottom)); }
+  .iai-composer-area>p { margin-top:6px; }
+  .iai-mobile-header>span { visibility:hidden; }
+  @media(max-width:760px) { .iai-composer-area { padding-bottom:10px; } .iai-composer-area>.cosmos-licenca { display:none; } }
+  @media(max-width:420px) { .iai-sidebar { position:absolute; top:54px; bottom:0; height:auto; } .iai-turno .iai-question { margin-bottom:24px; } }
+}
+
+/* Labs: a grade usa a altura da barra nova em vez da barra de janela de 34px. */
+@scope (.labs-app.reference-app) {
+  :scope { grid-template-rows:var(--barra) minmax(0,1fr); }
+  .cosmos-bar { grid-column:1/-1; }
+  .labs-inspector { scroll-margin-top:calc(var(--barra) + 12px); }
+  @media(max-width:600px) { :scope { height:auto; min-height:100dvh; } .labs-mobile-navigation:empty { display:none; } }
+}
+
+@scope (.integracoes-app) {
+  .integracoes-shell { min-height:calc(100dvh - var(--barra) - var(--abas)); }
+  .integracoes-brand { display:none; }
+}
+
+@scope (.account-app) {
+  .account-header>a { display:none; }
+  .account-header:not(:has(> :not(a))) { display:none; }
+}
+
+/* Terminal: colunas com a mesma largura, rótulos de demonstração visíveis e o gráfico navegável. */
+@scope (.exchange-app.reference-app) {
+  .cosmos-bar { --p-bg:#111318; }
+  .exchange-right>section,.exchange-left>section { width:100%; }
+  .contract-row>a { white-space:nowrap; }
+  .exchange-wallet-top>div>span { display:block; font-size:10px; letter-spacing:.06em; color:var(--muted); }
+  .exchange-wallet-top .moeda-3d { margin:2px 4px 2px 0; filter:drop-shadow(0 6px 10px #0008); }
+  :scope .chip-demo { display:inline-block; margin-left:8px; padding:2px 6px; border:1px solid #35465f; border-radius:4px; color:#a6c0ff; background:#8aaeff12; font:600 9px/1.4 Inter,'Segoe UI',sans-serif; letter-spacing:.08em; vertical-align:middle; }
+  .price-pair { gap:9px; }
+  .price-pair>.moeda-3d { display:inline-block; }
+  .exchange-price>.chip-demo { margin-left:0; }
+  .market-canvas-wrap { position:relative; }
+  .market-canvas-wrap>canvas { height:340px; cursor:crosshair; touch-action:pan-y; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+  .market-canvas-wrap>canvas[data-arrastando] { cursor:grabbing; }
+  .market-canvas-wrap>canvas:focus-visible { outline:2px solid #8aaeff; outline-offset:-2px; }
+  .chart-legend { position:absolute; top:6px; left:10px; right:76px; z-index:1; display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 12px; pointer-events:none; color:#c9d1df; font:11px/1.4 'JetBrains Mono',monospace; }
+  .chart-legend>span:first-child { color:var(--muted); }
+  .chart-legend b { font-weight:500; color:#4ade80; }
+  .chart-legend b[data-alta=false] { color:#f87171; }
+  .chart-legend small { color:var(--muted); font-size:10px; }
+  .chart-controls { display:flex; align-items:center; gap:10px; padding:6px 8px; border-top:1px solid #252e3b; }
+  .chart-controls>.chart-readout { flex:1; min-width:0; padding:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chart-controls>div { display:flex; gap:2px; flex-shrink:0; }
+  .chart-controls button { min-width:28px; height:26px; padding:0 8px; border-radius:5px; color:#c9d1df; font:13px/1 Inter,'Segoe UI',sans-serif; }
+  .chart-controls button:hover:not(:disabled) { background:#28364d; color:#fff; }
+  .chart-controls button:disabled { opacity:.35; }
+  .chart-controls .chart-now { margin-left:4px; border:1px solid #35465f; font-size:11px; }
+  .exchange-footer>.cosmos-licenca { flex-basis:100%; order:2; }
+  @media(max-width:1100px) { .market-canvas-wrap>canvas { height:320px; } }
+  @media(max-width:760px) {
+    .market-canvas-wrap>canvas { height:300px; }
+    .chart-legend { position:static; padding:6px 8px 2px; font-size:10px; gap:2px 8px; }
+    .chart-controls { flex-wrap:wrap; }
+    .chart-controls>.chart-readout { flex-basis:100%; }
+    .chart-controls>div { width:100%; justify-content:space-between; }
+    .chart-controls button { min-width:44px; height:36px; font-size:15px; }
+    .exchange-top>nav:not(.product-switcher) { overflow-x:auto; scrollbar-width:none; }
+    .exchange-top>nav>button { white-space:nowrap; }
+  }
+}

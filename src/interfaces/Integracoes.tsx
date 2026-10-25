@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { BarraJanela, Icone } from './Janela'
+import { Icone } from './Janela'
+import { BarraCosmos, NotaLicenca } from './Navegacao'
 import { Button } from './ui/button'
 import { FORMATO_CONFIGURACAO_INTEGRACAO, type LimitesIntegracao } from '../integracoes/contratos'
 import { TETOS_P0, validarConfiguracaoIntegracao } from '../integracoes/politica'
@@ -67,7 +68,7 @@ export function Integracoes({ navigation }: { navigation: ReactNode }) {
     catch { setErro('Limites inválidos: use inteiros positivos dentro dos tetos. A saída por pedido não pode exceder o orçamento da sessão.'); return }
     void operar('Salvar', signal => cliente.salvar(proposta, signal))
   }
-  return <div className="product-root integracoes-app reference-app"><BarraJanela />
+  return <div className="product-root integracoes-app reference-app"><BarraCosmos atual="integracoes" />
     <div className="integracoes-shell"><aside className="integracoes-sidebar"><a className="integracoes-brand" href="#/i-ai">Cosmos</a><span>CONFIGURAÇÕES</span><nav aria-label="Configurações Cosmos"><a href="#/integracoes" aria-current="page"><Icone nome="settings" />Integrações</a><a href="#/conta"><Icone nome="shield" />Conta e carteira local</a></nav><div>{navigation}</div></aside>
       <main className="integracoes-main"><header className="integracoes-heading"><div><p>CONFIGURAÇÕES / INTEGRAÇÕES</p><h1>Integrações locais</h1><p>Configure, teste e acompanhe o serviço local. Cada ação tem um resultado explícito.</p></div><span className="integracoes-badge">{provedorSelecionado === 'simulado' ? 'P0 · SOMENTE SIMULAÇÃO' : 'P1 · GROQ REAL'}</span></header><label className="integracoes-provider">Provedor<select value={provedorSelecionado} onChange={e => setProvedorSelecionado(e.target.value)}><option value="simulado">Simulado · P0 sem rede</option><option value="groq">Groq · P1 envio externo explícito</option></select></label>{provedorSelecionado === 'groq' && <GroqIntegracao />}<div hidden={provedorSelecionado !== 'simulado'}>
         <div className="integracoes-status" role="status" aria-live="polite"><i className={snapshot ? 'disponivel' : ''} /><strong>{ocupacao ? `${ocupacao}…` : !snapshot ? 'Serviço local indisponível' : !c ? 'Sem configuração' : !c.habilitada ? 'Desativado' : rotulos[estado!.estado]}</strong><span>{ultimoTeste ? `Último teste: ${new Date(ultimoTeste.executadoEmMs).toLocaleString('pt-BR')}. Resultado daquele instante.` : 'Salvar uma configuração não comprova conexão.'}</span><Button variant="outline" onClick={atualizar} disabled={!!ocupacao}>Atualizar estado</Button></div>
@@ -79,6 +80,6 @@ export function Integracoes({ navigation }: { navigation: ReactNode }) {
         </section><div className="integracoes-secondary"><section className="integracoes-card"><header><Icone nome="shield" /><div><h2>Permissões</h2><p>Restrições aplicadas no backend</p></div></header><ul className="integracoes-permissions"><li><span>Acesso à rede externa</span><b>Bloqueado</b></li><li><span>Fontes privadas</span><b>Bloqueadas</b></li><li><span>Credenciais do provedor</span><b>Não aplicável</b></li><li><span>Token de sessão</span><b>Somente no servidor</b></li><li><span>Carteira / seed</span><b>Fora do escopo</b></li></ul><p>A conta local e as chaves históricas são independentes deste serviço. Não envie seed, senha ou chave privada.</p></section>
           <section className="integracoes-card"><header><Icone nome="file" /><div><h2>Consumo desta sessão</h2><p>Contabilidade simulada · somente memória</p></div></header><dl className="integracoes-details">{[['Pedidos aceitos', snapshot?.consumo.pedidos], ['Execuções ativas', snapshot?.consumo.ativos], ['Unidades reservadas', snapshot?.consumo.unidadesReservadas], ['Unidades debitadas', snapshot?.consumo.unidadesDebitas]].map(([n, v]) => <div key={n}><dt>{n}</dt><dd>{v ?? '—'}</dd></div>)}</dl><p>Mudar a configuração ou desativar não zera o consumo. O teste de conexão não gera conteúdo nem debita unidades.</p></section>
           <section className="integracoes-card integracoes-scope"><h2>O que está conectado?</h2><p>Somente o adaptador simulado. IA remota, mercado real e diretório /comprovados/ permanecem sem configuração. O catálogo RAG padrão está vazio.</p><p>“Conectado · simulado” registra um teste local; não significa provedor real disponível continuamente.</p></section></div></div>
-        </div><footer>Cosmos · serviço local efêmero · P0 e P1 separados · sem operação financeira</footer>
+        </div><footer>Cosmos · serviço local efêmero · P0 e P1 separados · sem operação financeira<NotaLicenca /></footer>
       </main></div></div>
 }

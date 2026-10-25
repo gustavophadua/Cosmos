@@ -7,7 +7,8 @@ import { REGISTROS_PUBLICOS } from '../v3/catalogo'
 import { useContaLocal } from './Conta'
 import { salvarDadosConta } from '../local/conta'
 import { GraficoConvergencia } from './Graficos'
-import { BarraJanela, Icone } from './Janela'
+import { Icone } from './Janela'
+import { BarraCosmos, LICENCAS_URL } from './Navegacao'
 import './labs.css'
 
 type Aba = 'biblioteca' | 'rascunhos' | 'verificacao' | 'referencias'
@@ -62,7 +63,7 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
   }
   const verificar = () => { const conflitos = conflitosLiterais(rascunhos.map(r => r.formula)); setResultado(conflitos); registrar(`Triagem literal: ${conflitos.length} par(es) em ${rascunhos.length} rascunho(s).`) }
 
-  return <div className="product-root labs-app reference-app" data-section={aba}><BarraJanela />
+  return <div className="product-root labs-app reference-app" data-section={aba}><BarraCosmos atual="lab" />
     <aside className="labs-sidebar">
       <a className="labs-brand" href="#/lab">Cosmos <span>Labs</span></a>
       <div className="labs-project"><span className="labs-project-icon">φ</span><div>Espaço de pesquisa<small>Sessão local</small></div></div>
@@ -102,7 +103,7 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
         <details className="labs-surface labs-numerical"><summary>Séries e convergência <span>Referências numéricas</span></summary><div><article><h3>Problema de Basileia</h3><p className="labs-series">∑<sub>n=1</sub><sup>∞</sup> 1/n² = π²/6</p><p>Série convergente de referência.</p></article><article><h3>Curva de convergência ilustrativa</h3><GraficoConvergencia /><p>Exemplo visual. Não representa uma execução do motor.</p></article></div></details>
       </div>}
       <details className="labs-activity"><summary>Atividade desta sessão <span>{log.length} eventos</span></summary><div>{log.length ? log.map((l, i) => <p key={`${i}-${l}`}>{l}</p>) : <p>Nenhuma ação registrada. Consulte uma referência ou crie um rascunho.</p>}</div></details>
-      <footer className="labs-footer"><span>Cosmos Labs</span><span>Dados cifrados no aparelho · sem publicação</span><a href="#/laboratorio">Cofre de teste V4 ↗</a></footer>
+      <footer className="labs-footer"><span>Cosmos Labs</span><span>Dados cifrados no aparelho · sem publicação</span><a href="#/laboratorio">Cofre de teste V4 ↗</a><span>Software livre · <a href={LICENCAS_URL} target="_blank" rel="noopener">AGPL-3.0+ / CC BY 4.0</a></span></footer>
     </main>
   </div>
 }

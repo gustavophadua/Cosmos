@@ -17,16 +17,32 @@ export function conflitosLiterais(formulas: string[]): string[] {
   return [...literais].filter(f => !f.startsWith('¬') && literais.has(`¬${f}`))
 }
 export interface Candle { open: number; close: number; high: number; low: number; volume: number }
-export function candlesDemo(intervalo: string): Candle[] {
-  const offset = intervalo === '1H' ? 0.7 : intervalo === '1W' ? 1.5 : 1
-  const candles = Array.from({ length: 64 }, (_, i) => {
-    const open = 17.3 + i * .031 * offset + Math.sin(i * .59) * .19 + Math.cos(i * .22) * .24
-    const close = open + Math.sin(i * 1.71 + 1) * .15 + .039
-    return { open, close, high: Math.max(open, close) + .045 + (i % 4) * .018, low: Math.min(open, close) - .05 - (i % 3) * .022, volume: 15 + (i * 13 % 51) }
-  })
-  const ajuste = 19.312 - candles.at(-1)!.close
-  return candles.map(c => ({ ...c, open: c.open + ajuste, close: c.close + ajuste, high: c.high + ajuste, low: c.low + ajuste }))
+// o resto positivo: igual a i % n quando i ≥ 0, e sem valores negativos no histórico anterior ao candle 0
+const resto = (i: number, n: number) => ((i % n) + n) % n
+function candleBruto(i: number, offset: number): Candle {
+  const open = 17.3 + i * .031 * offset + Math.sin(i * .59) * .19 + Math.cos(i * .22) * .24
+  const close = open + Math.sin(i * 1.71 + 1) * .15 + .039
+  return { open, close, high: Math.max(open, close) + .045 + resto(i, 4) * .018, low: Math.min(open, close) - .05 - resto(i, 3) * .022, volume: 15 + resto(i * 13, 51) }
 }
+const offsetDe = (intervalo: string) => intervalo === '1H' ? 0.7 : intervalo === '1W' ? 1.5 : 1
+/** Os candles do índice `de` ao 63, deslocados para o último fechar em 19.312. */
+function candlesEntre(intervalo: string, de: number): Candle[] {
+  const offset = offsetDe(intervalo)
+  const ajuste = 19.312 - candleBruto(63, offset).close
+  return Array.from({ length: 64 - de }, (_, k) => {
+    const c = candleBruto(de + k, offset)
+    return { ...c, open: c.open + ajuste, close: c.close + ajuste, high: c.high + ajuste, low: c.low + ajuste }
+  })
+}
+export function candlesDemo(intervalo: string): Candle[] {
+  return candlesEntre(intervalo, 0)
+}
+/** O histórico de demonstração para navegar no gráfico: `quantidade` candles, e os 64 últimos são os de candlesDemo. */
+export function historicoDemo(intervalo: string, quantidade = 320): Candle[] {
+  return candlesEntre(intervalo, 64 - Math.max(64, quantidade))
+}
+/** A duração de um candle de demonstração em cada intervalo do gráfico. */
+export const PASSO_CANDLE_MS: Record<string, number> = { '1H': 60_000, '1D': 20 * 60_000, '1W': 3 * 3_600_000 }
 export const BOOK_DEMO = Array.from({ length: 10 }, (_, i) => ({ ask: (19.314 + i * .002).toFixed(3), bid: (19.308 - i * .002).toFixed(3), size: (145.3 + (i * 237.17) % 1700).toFixed(2), depth: 12 + (i * 17 % 83) }))
 export function niveisBookDemo(lado: 'ask' | 'bid') {
   let total = 0
