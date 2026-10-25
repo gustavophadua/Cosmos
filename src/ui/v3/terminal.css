@@ -24,11 +24,11 @@ main.v3-main{max-width:1700px;width:100%;margin:0 auto;padding:32px 30px 50px;mi
 .v3-simulator{border-top:1px solid #35513e;margin-top:16px;padding-top:20px}.v3-simulator h3{margin:0;font-size:15px}.v3-sim-balances{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0}.v3-sim-balances>div{padding:12px;border:1px solid #314a38;border-radius:4px;background:#0b160e}.v3-sim-balances span{display:block;font-size:8px;color:#8ba996}.v3-sim-balances strong{display:block;font:21px Consolas,monospace;color:#c3f1cc;margin-top:5px}.v3-sim-config{display:flex;gap:12px;align-items:end;margin:17px 0}.v3-sim-config label{font-size:9px;color:#98b3a1}.v3-sim-config input{display:block!important;border:1px solid #3b5743!important;background:#0a140e!important;padding:8px!important;max-width:150px;border-radius:4px;margin-top:5px}.v3-sim-config button{font-size:9px!important}.v3-sim-actions{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:17px}.v3-sim-actions button{font-size:10px!important}.v3-sim-state{font:9px/1.8 Consolas,monospace;color:#badbc4;border-left:2px solid #a5d9b3;padding:7px 11px;margin:12px 0!important}
 
 /* Asset oficial da moeda: imagem integral, sem filtros ou recorte do desenho. */
-.v3-brand-coin{display:block;width:64px;height:64px;object-fit:contain;border-radius:50%}
+.v3-brand-logo{display:block;width:56px;height:56px}
 :scope h1.v3-title-with-coin{display:flex;align-items:center;gap:12px}
 .v3-title-with-coin img{width:48px;height:48px;object-fit:contain;border-radius:50%;flex-shrink:0}
 .v3-title-with-coin>span{margin-left:-12px}
-@media(max-width:850px){.v3-brand-coin{width:44px;height:44px}.v3-title-with-coin img{width:40px;height:40px}}
+@media(max-width:850px){.v3-brand-logo{width:40px;height:40px}.v3-title-with-coin img{width:40px;height:40px}}
 
 
 /* Laboratório v4: formulários locais, sem campos para seed em claro. */

@@ -2,11 +2,15 @@
 import type { InterfaceProduto } from './config'
 import { useContaLocal } from './Conta'
 import { Icone, type NomeIcone } from './Janela'
-import { MoedaCosmos } from './Moeda'
+import { CAMINHO_LOGO } from '../ui/logo'
 
 export type Destino = InterfaceProduto | 'integracoes'
 const PRINCIPAIS: [string, string, NomeIcone][] = [['indice', 'Índice', 'grid'], ['i-ai', 'Conversa', 'chat'], ['lab', 'Labs', 'flask'], ['terminal', 'Terminal', 'chart']]
 export const LICENCAS_URL = 'https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md'
+
+export function LogoCosmos({ tamanho = 26 }: { tamanho?: number }) {
+  return <svg className="cosmos-logo" width={tamanho} height={tamanho} viewBox="0 0 100 100" aria-hidden="true"><path d={CAMINHO_LOGO} fill="currentColor" stroke="currentColor" strokeWidth=".7" strokeLinejoin="round" /></svg>
+}
 
 /**
  * A barra do Cosmos, igual em todas as telas: a marca volta ao hub e os destinos ficam sempre à vista. No celular,
@@ -15,7 +19,7 @@ export const LICENCAS_URL = 'https://github.com/gustavophadua/Cosmos/blob/main/L
 export function BarraCosmos({ atual }: { atual: Destino }) {
   const conta = useContaLocal()
   return <header className="cosmos-bar">
-    <a className="cosmos-bar-marca" href="#/hub" aria-label="Cosmos, ir para o hub"><MoedaCosmos tamanho={24} inclinar /><span>Cosmos</span></a>
+    <a className="cosmos-bar-marca" href="#/hub" aria-label="Cosmos, ir para o hub"><LogoCosmos /><span>Cosmos</span></a>
     <nav className="cosmos-bar-destinos" aria-label="Destinos do Cosmos">
       {PRINCIPAIS.map(([rota, nome, icone]) => <a key={rota} href={`#/${rota}`} aria-current={rota === atual ? 'page' : undefined}><Icone nome={icone} /><span>{nome}</span></a>)}
     </nav>

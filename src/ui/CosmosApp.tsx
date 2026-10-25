@@ -4,7 +4,7 @@ import { CadeiaFases } from './Inicio'
 import { OutrasFases } from './OutrasFases'
 import { MODULOS_V3 } from '../v3/catalogo'
 import { Hub, Indice, ModuloPublico } from './v3/Terminal'
-import moedaCosmos from './icons/cosmos-moeda-oficial.png'
+import { CAMINHO_LOGO } from './logo'
 import { LaboratorioV4 } from './v4/Laboratorio'
 
 /** Entrada v3 isolada: dados públicos, sem carregar motor ou banco privado legado. */
@@ -15,7 +15,7 @@ export function CosmosApp() {
   const hub = rota.tela === 'hub'
   return <div class={`v3-app${hub ? ' terminal-theme' : ''}`}>
     <aside class={`v3-sidebar ${menu ? 'v3-menu-open' : ''}`}>
-      <a class="v3-brand" href="#/lab" aria-label="Cosmos início"><img class="v3-brand-coin" src={moedaCosmos} alt="Moeda oficial COSMOS" width="64" height="64" /><span>COSMOS WORKSPACE</span></a>
+      <a class="v3-brand" href="#/lab" aria-label="Cosmos início"><svg class="v3-brand-logo" viewBox="0 0 100 100" aria-hidden="true"><path d={CAMINHO_LOGO} fill="currentColor" stroke="currentColor" stroke-width=".7" stroke-linejoin="round" /></svg><span>COSMOS WORKSPACE</span></a>
       <button class="v3-menu-toggle" onClick={() => setMenu(!menu)} aria-expanded={menu}>Menu {menu ? '−' : '+'}</button>
       <nav aria-label="Índice Cosmos" onClick={() => setMenu(false)}>
         <a href="#/i-ai"><span>i</span> Cosmos — Conversa</a>
