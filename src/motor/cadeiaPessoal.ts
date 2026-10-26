@@ -16,7 +16,8 @@ export interface Elo {
   assinatura: string
 }
 export interface Cadeia {
-  formato: typeof FORMATO_CADEIA
+  /** cadeia-v1; o livro da moeda de teste usa a mesma estrutura com outro formato */
+  formato: string
   chave: string
   elos: Elo[]
   arquivos?: Record<string, string>
@@ -25,9 +26,13 @@ export interface Cadeia {
 export const paraHex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')).join('')
 export const deHex = (s: string) => Uint8Array.from(s.match(/../g) ?? [], (h) => parseInt(h, 16))
 
-/** O texto que a chave assina: cinco linhas terminadas em LF (seção 2 da especificação). */
-export async function textoDoElo(chave: string, indice: number, anterior: string, registroTexto: string): Promise<string> {
-  const linhas = [FORMATO_CADEIA, `chave ${chave}`, `indice ${indice}`, `anterior ${anterior}`, `registro ${await sha256(registroTexto)}`]
+/**
+ * O texto que a chave assina: cinco linhas terminadas em LF (seção 2 da especificação). A primeira é o formato: o livro
+ * da moeda de teste (src/motor/moedaTeste.ts) usa a mesma estrutura com outro formato, e por isso uma assinatura de um
+ * não vale no outro.
+ */
+export async function textoDoElo(chave: string, indice: number, anterior: string, registroTexto: string, formato: string = FORMATO_CADEIA): Promise<string> {
+  const linhas = [formato, `chave ${chave}`, `indice ${indice}`, `anterior ${anterior}`, `registro ${await sha256(registroTexto)}`]
   return linhas.map((l) => l + '\n').join('')
 }
 
@@ -38,8 +43,9 @@ export async function novoElo(
   anterior: string,
   registroTexto: string,
   assinar: (mensagem: Uint8Array) => Promise<Uint8Array>,
+  formato: string = FORMATO_CADEIA,
 ): Promise<{ elo: Elo; resumo: string }> {
-  const texto = await textoDoElo(chave, indice, anterior, registroTexto)
+  const texto = await textoDoElo(chave, indice, anterior, registroTexto, formato)
   const assinatura = paraHex(await assinar(new TextEncoder().encode(texto)))
   return { elo: { indice, anterior, registroTexto, assinatura }, resumo: await sha256(texto) }
 }
@@ -63,18 +69,18 @@ const ehObjeto = (x: unknown): x is Record<string, unknown> => typeof x === 'obj
 const soEstes = (o: Record<string, unknown>, campos: string[]) => Object.keys(o).every((k) => campos.includes(k))
 
 /** A conferência de uma cadeia escrita como texto JSON (o que chega de fora): a leitura estrita, depois o resto. */
-export async function conferirCadeiaTexto(texto: string): Promise<ConferenciaDaCadeia> {
+export async function conferirCadeiaTexto(texto: string, formato: string = FORMATO_CADEIA): Promise<ConferenciaDaCadeia> {
   let c: unknown
   try {
     c = lerJsonEstrito(texto)
   } catch (erro) {
     return { veredito: 'recusada', motivo: 'C1', elo: null, detalhe: (erro as Error).message, resumos: [], cabeca: null }
   }
-  return conferirCadeia(c)
+  return conferirCadeia(c, formato)
 }
 
-/** A conferência de uma cadeia (seção 4 da especificação). */
-export async function conferirCadeia(c: unknown): Promise<ConferenciaDaCadeia> {
+/** A conferência de uma cadeia (seção 4 da especificação); `formato` só muda para o livro da moeda de teste. */
+export async function conferirCadeia(c: unknown, formato: string = FORMATO_CADEIA): Promise<ConferenciaDaCadeia> {
   const resumos: string[] = []
   const recusa = (motivo: string, elo: number | null, detalhe: string): ConferenciaDaCadeia => ({ veredito: 'recusada', motivo, elo, detalhe, resumos, cabeca: null })
 
@@ -95,7 +101,7 @@ export async function conferirCadeia(c: unknown): Promise<ConferenciaDaCadeia> {
   }
   if ('arquivos' in c && (!ehObjeto(c.arquivos) || !Object.values(c.arquivos).every((v) => typeof v === 'string')))
     return recusa('C1', null, 'arquivos é um objeto de caminho para texto')
-  if (c.formato !== FORMATO_CADEIA) return recusa('C2', null, `formato desconhecido: ${JSON.stringify(c.formato)}`)
+  if (c.formato !== formato) return recusa('C2', null, `formato desconhecido: ${JSON.stringify(c.formato)}`)
 
   // C3: a chave
   const chave = deHex(c.chave)
@@ -115,7 +121,7 @@ export async function conferirCadeia(c: unknown): Promise<ConferenciaDaCadeia> {
     }
     if (!ehObjeto(r) || typeof r.autor !== 'string') return recusa('C6', i, 'o registro não é um objeto com autor')
     if (r.autor !== autor) return recusa('C7', i, 'o autor do registro não é o SHA-256 da chave da cadeia')
-    const texto = await textoDoElo(c.chave, i, e.anterior, e.registroTexto)
+    const texto = await textoDoElo(c.chave, i, e.anterior, e.registroTexto, formato)
     if (!(await conferirAssinatura(chave, new TextEncoder().encode(texto), deHex(e.assinatura)))) return recusa('C8', i, 'a assinatura não vale para o texto do elo')
     anterior = await sha256(texto)
     resumos.push(anterior)

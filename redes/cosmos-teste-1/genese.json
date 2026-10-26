@@ -1,0 +1,28 @@
+{
+  "formato": "genese-teste-v1",
+  "rede": "cosmos-teste-1",
+  "unidade": "UNIDADE-TESTE-SEM-VALOR",
+  "aviso": "Unidade de teste, sem valor: não se vende, não se compra, não se troca por dinheiro nem por bem algum, não representa participação, direito ou promessa, e não vira moeda real. A rede termina no fim do prazo e é zerada, sem migrar saldo.",
+  "inicio": "2026-10-26",
+  "prazoDias": 90,
+  "casasDecimais": 2,
+  "porParticipante": 10000,
+  "recompensaPorRegistro": 1000,
+  "tetoSemanal": 10000,
+  "queimaBps": 500,
+  "travaDias": 30,
+  "participantes": [
+    {
+      "nome": "A",
+      "chave": "c39ce485a1085e7ce340239abba0f564bd8bf7112fa8352bcca98a263b8463fd"
+    },
+    {
+      "nome": "B",
+      "chave": "d84233c1f927fc81fa197908c67897c329937baeacc327b7ecae30e16bdb6d45"
+    },
+    {
+      "nome": "C",
+      "chave": "36fe5abfcb8262f05378f6bc690006c407b2301a9e3019d61ec89909490a28fe"
+    }
+  ]
+}

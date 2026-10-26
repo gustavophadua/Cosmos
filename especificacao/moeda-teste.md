@@ -63,6 +63,40 @@ O dono do projeto ficou com as regras recomendadas acima e com estes valores par
 | Participantes | os três notebooks (o próprio dono); depois, convidados nominais |
 | Promessa | nenhuma: saldo de teste não vira moeda real nem dá direito a nada |
 
+## Implementação da cosmos-teste-1 (26/10/2026)
+
+A simulação da v4 continua como estava; a rede decidida acima é outra peça, ligada à cadeia pessoal.
+
+- **Gênese:** `redes/cosmos-teste-1/genese.json`, com os valores da tabela e as chaves dos três notebooks do teste da
+  Fase 3 (A `c39ce485…`, B `d84233c1…`, C `36fe5abf…`). Início em 26/10/2026; o último dia é 23/01/2027 (90 dias). O
+  identificador da rede é o SHA-256 do texto da gênese (`textoDaGenese` em `src/motor/moedaTeste.ts`), que vai em toda
+  operação: uma operação de outra rede não vale nesta.
+- **Unidades:** inteiros em centésimos de unidade de teste (100 unidades = 10000). A queima é 5% arredondado para baixo.
+- **Livro:** cada participante tem um livro com a estrutura da cadeia-v1 (elos com índice, anterior, texto e
+  assinatura; a mesma conferência C1–C8), assinado pela mesma chave Ed25519 da cadeia pessoal, mas com o formato
+  `livro-cosmos-teste-1` na primeira linha do texto assinado: uma assinatura de livro não vale numa cadeia-v1, nem o
+  contrário. Cada elo é uma operação `operacao-teste-v1`: transferir uma quantia para outro participante, numa data,
+  como pagamento comum ou como pagamento por certificado (com o SHA-256 do registro pedido).
+- **Gasto duplo:** duas histórias diferentes do mesmo livro são uma bifurcação, que o aparelho que recebe acusa e
+  guarda como prova; a rede lê um livro por chave.
+- **Estado:** `estadoDaRede` refaz a conta a partir da gênese, dos livros e de `redes/cosmos-teste-1/recompensas.json`.
+  As operações são conferidas em ordem de data; cada uma só gasta o saldo livre naquele dia (a gênese, mais o recebido
+  há pelo menos 30 dias, menos o que já saiu). A primeira operação que não vale recusa o resto daquele livro, e quem
+  receberia dela não recebe nada. A conta tem de fechar: emitido − queimado = soma dos saldos.
+- **Recompensas:** 10 unidades por registro, presas 30 dias, até 100 por chave por semana (contada do início), sem
+  repetir o mesmo registro. A CI só aceita uma recompensa se o registro está publicado em `cadeias/`, é da chave da
+  recompensa e foi aberto com certificado pelo verificador público (`testes/cadeias-publicadas.test.ts`). A primeira é
+  do registro 0 da cadeia `teste-3-notebooks-a` (A).
+- **No app:** Labs → Moeda de teste. Transferir só pelo `localhost`, com a chave de Minha cadeia; a operação é conferida
+  contra o estado da rede antes de ser guardada. Receber o livro de outro aparelho funciona em qualquer lugar.
+- **Limites conhecidos:** as datas das operações são declaradas por quem assina (não há relógio confiável; quem recebe
+  recusa data no futuro, e a CI confere com a data dela). Uma chave não prova quem é a pessoa (Fase 6). A rede não tem
+  consenso: cada aparelho vê os livros que recebeu, e a versão publicada em `redes/cosmos-teste-1/livros/` é a que o
+  verificador público confere.
+
+Os cenários M01–M10 de `testes/moeda-teste.test.ts` cobrem cada regra; o roteiro dos três notebooks está em
+`especificacao/teste-moeda-3-notebooks.md`.
+
 ## Fontes
 
 - CVM, Parecer de Orientação 40 (11/10/2022), comentado por [Lefosse](https://lefosse.com/noticias/alerta/cvm-divulga-parecer-de-orientacao-sobre-o-mercado-de-valores-mobiliarios-e-criptoativos/), [Machado Meyer](https://www.machadomeyer.com.br/pt/inteligencia-juridica/publicacoes-ij/mercado-de-capitais-ij/orientacoes-da-cvm-para-o-mercado-de-criptoativos) e [Mattos Filho](https://www.mattosfilho.com.br/unico/cvm-parecer-criptoativos/).

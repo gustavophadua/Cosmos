@@ -187,19 +187,22 @@ export async function restaurarChave(copiaTexto: string, senha: string): Promise
 
 // ---- a cadeia
 
-/** Põe um registro no fim da cadeia (ou começa uma), assinado pela chave, e confere a cadeia inteira de novo. */
-export async function anexar(cadeia: Cadeia | null, chave: ChaveLocal, registroTexto: string): Promise<{ cadeia: Cadeia; conferencia: ConferenciaDaCadeia }> {
+/**
+ * Põe um registro no fim da cadeia (ou começa uma), assinado pela chave, e confere a cadeia inteira de novo. Com outro
+ * `formato`, o mesmo para o livro da moeda de teste.
+ */
+export async function anexar(cadeia: Cadeia | null, chave: ChaveLocal, registroTexto: string, formato: string = FORMATO_CADEIA): Promise<{ cadeia: Cadeia; conferencia: ConferenciaDaCadeia }> {
   if (cadeia && cadeia.chave !== chave.publica) throw new Error('esta cadeia é de outra chave')
   let anterior = ZEROS
   if (cadeia) {
-    const c = await conferirCadeia(cadeia)
+    const c = await conferirCadeia(cadeia, formato)
     if (c.veredito !== 'aceita') throw new Error(`a cadeia guardada não confere (${c.motivo}); nada foi assinado`)
     anterior = c.cabeca!
   }
   const indice = cadeia?.elos.length ?? 0
-  const { elo } = await novoElo(chave.publica, indice, anterior, registroTexto, async m => new Uint8Array(await crypto.subtle.sign('Ed25519', chave.privada, m as BufferSource)))
-  const nova: Cadeia = { formato: FORMATO_CADEIA, chave: chave.publica, elos: [...(cadeia?.elos ?? []), elo] }
-  const conferencia = await conferirCadeia(nova)
+  const { elo } = await novoElo(chave.publica, indice, anterior, registroTexto, async m => new Uint8Array(await crypto.subtle.sign('Ed25519', chave.privada, m as BufferSource)), formato)
+  const nova: Cadeia = { formato, chave: chave.publica, elos: [...(cadeia?.elos ?? []), elo] }
+  const conferencia = await conferirCadeia(nova, formato)
   if (conferencia.veredito !== 'aceita') throw new Error(`a cadeia nova não confere (${conferencia.motivo}): ${conferencia.detalhe}`)
   return { cadeia: nova, conferencia }
 }
@@ -211,8 +214,8 @@ export interface Recebimento { conferencia: ConferenciaDaCadeia; chave: string |
  * Confere uma cadeia recebida por arquivo e a compara com a versão que já se tinha dessa chave (seção 5): igual,
  * extensão (troca pela nova), encurtada ou bifurcada (acusar e guardar as duas).
  */
-export async function receber(texto: string, conhecidas: VersaoConhecida[]): Promise<Recebimento> {
-  const conferencia = await conferirCadeiaTexto(texto)
+export async function receber(texto: string, conhecidas: VersaoConhecida[], formato: string = FORMATO_CADEIA): Promise<Recebimento> {
+  const conferencia = await conferirCadeiaTexto(texto, formato)
   if (conferencia.veredito !== 'aceita') return { conferencia, chave: null, relacao: null, elo: conferencia.elo }
   const chave = (JSON.parse(texto) as Cadeia).chave
   const antiga = conhecidas.find(v => v.chave === chave)

@@ -20,6 +20,7 @@ import { expandir } from '../src/logica/acucar'
 // @ts-expect-error módulo .mjs sem tipos
 import { extrairCorpoCvc5 } from '../scripts/fase4-extrair-cvc5.mjs'
 import ancoraFase3 from '../src/dados/ancora-fase3.json'
+import recompensas from '../redes/cosmos-teste-1/recompensas.json'
 
 const RAIZ = 'cadeias'
 const pastas = existsSync(RAIZ) ? readdirSync(RAIZ, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort() : []
@@ -86,6 +87,7 @@ describe('Cadeias publicadas em cadeias/', () => {
       }
       const traduzir = (fs: Formula[], numericos: Set<string>) => problemaSmt(api, fs, numericos)
       const modeloExato = async (fs: Formula[], numericos: Set<string>) => { const e = await modeloExatoPeloZ3(api, fs, numericos); return 'modelo' in e ? e.modelo : null }
+      const abertos = new Map<string, { chave: string; indices: Set<number> }>()
       for (const pasta of pastas) {
         const elos = JSON.parse(readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')).elos as { registroTexto: string }[]
         const arquivoRev = join(RAIZ, pasta, 'revelacoes.json')
@@ -109,7 +111,11 @@ describe('Cadeias publicadas em cadeias/', () => {
         if (pasta === 'teste-3-notebooks-a') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:nao-se-sustenta'])
         mkdirSync(join(SAIDA!, pasta), { recursive: true })
         writeFileSync(join(SAIDA!, pasta, 'registros.json'), JSON.stringify({ pasta, resultados }, null, 2))
+        abertos.set(pasta, { chave: JSON.parse(readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')).chave, indices: new Set(resultados.filter((x) => x.estado === 'aberto').map((x) => x.indice)) })
       }
+      // as recompensas da moeda de teste: cada uma tem de ser de um registro aberto aqui, com certificado, da chave dela
+      for (const r of recompensas as { chave: string; pasta: string; indice: number }[])
+        expect(abertos.get(r.pasta)?.chave === r.chave && abertos.get(r.pasta)!.indices.has(r.indice), `recompensa ${r.pasta} · elo ${r.indice}: não é um registro aberto da chave ${r.chave.slice(0, 8)}`).toBe(true)
     } finally {
       rmSync(tmp, { recursive: true, force: true })
       await killThreads(api.em)

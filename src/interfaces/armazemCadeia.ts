@@ -44,3 +44,34 @@ export async function gravarEstado(e: EstadoCadeiaLocal): Promise<void> {
     })
   } finally { db.close() }
 }
+
+/** O livro da moeda de teste (cosmos-teste-1), no mesmo banco, noutra entrada: o próprio livro e os recebidos. */
+export interface EstadoMoedaLocal {
+  livro: Cadeia | null
+  conhecidos: VersaoConhecida[]
+  /** livros que bifurcaram de um conhecido: gasto duplo, as duas versões ficam como prova */
+  conflitos: { chave: string; elo: number; texto: string; recebidaEm: string }[]
+}
+const ENTRADA_MOEDA = 'moeda-cosmos-teste-1'
+export async function lerMoeda(): Promise<EstadoMoedaLocal> {
+  const db = await abrir()
+  try {
+    return await new Promise((ok, erro) => {
+      const r = db.transaction(LOJA, 'readonly').objectStore(LOJA).get(ENTRADA_MOEDA)
+      r.onsuccess = () => ok({ livro: null, conhecidos: [], conflitos: [], ...(r.result ?? {}) })
+      r.onerror = () => erro(r.error)
+    })
+  } finally { db.close() }
+}
+export async function gravarMoeda(m: EstadoMoedaLocal): Promise<void> {
+  const db = await abrir()
+  try {
+    await new Promise<void>((ok, erro) => {
+      const t = db.transaction(LOJA, 'readwrite')
+      t.objectStore(LOJA).put(m, ENTRADA_MOEDA)
+      t.oncomplete = () => ok()
+      t.onerror = () => erro(t.error)
+      t.onabort = () => erro(t.error ?? new Error('gravação cancelada'))
+    })
+  } finally { db.close() }
+}
