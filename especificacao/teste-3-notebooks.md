@@ -53,8 +53,10 @@ As cadeias principais dos três notebooks também ficam publicadas, sem revelaç
 (3 registros), `cadeias/teste-3-notebooks-b/` (2) e `cadeias/teste-3-notebooks-c/` (1). O resumo
 `public/cosmos-fase3-resumo.txt` traz, para cada uma das quatro cadeias, a chave, o número de registros e a cabeça
 (C1–C8); a CI confere que ele bate com as cadeias publicadas. O resumo foi enviado aos calendários do OpenTimestamps em
-25/10/2026 (`public/cosmos-fase3-resumo.txt.ots`, SHA-256 do resumo `929a947c…`); a confirmação num bloco do Bitcoin
-vem algumas horas depois e é registrada à parte, como a âncora do checkpoint.
+25/10/2026 (`public/cosmos-fase3-resumo.txt.ots`, SHA-256 do resumo `929a947c…`) e confirmado no **bloco 973118** do
+Bitcoin (25/10/2026 19:52:52 UTC), conferido em cabeçalhos públicos. O registro fica em `src/dados/ancora-fase3.json`;
+a prova original dos calendários fica preservada em `public/cosmos-fase3-resumo.txt.calendario.ots`, e a parte carimbo
+do verificador público confere a confirmação a cada commit. Com isso a Fase 3 está pronta.
 
 ## O que este roteiro não cobre
 

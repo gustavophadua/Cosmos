@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -18,6 +19,7 @@ import { validar } from '../src/logica/validador'
 import { expandir } from '../src/logica/acucar'
 // @ts-expect-error módulo .mjs sem tipos
 import { extrairCorpoCvc5 } from '../scripts/fase4-extrair-cvc5.mjs'
+import ancoraFase3 from '../src/dados/ancora-fase3.json'
 
 const RAIZ = 'cadeias'
 const pastas = existsSync(RAIZ) ? readdirSync(RAIZ, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort() : []
@@ -25,6 +27,7 @@ const SAIDA = process.env.CADEIAS_SAIDA, CVC5 = process.env.CVC5
 const OPCOES_CVC5 = ['--dump-proofs', '--proof-format-mode=alethe', '--proof-granularity=dsl-rewrite', '--proof-alethe-res-pivots', '--simplification=none', '--dag-thresh=0', '--tlimit=20000']
 const ler = (texto: string, fichas: Ficha[]): Formula | null => { const v = validar(texto, comoDicionario(fichas)); return v.ast && v.ok ? expandir(v.ast) : null }
 interface Revelada { indice: number; revelacao: RevelacaoDeRegistro }
+const sha256 = (caminho: string) => createHash('sha256').update(readFileSync(caminho)).digest('hex')
 
 describe('Cadeias publicadas em cadeias/', () => {
   it('há pelo menos a cadeia de exemplo', () => expect(pastas.length).toBeGreaterThan(0))
@@ -55,6 +58,11 @@ describe('Cadeias publicadas em cadeias/', () => {
       const c = await conferirCadeiaTexto(texto)
       expect([JSON.parse(texto).chave, String(c.resumos.length), c.cabeca], pasta).toEqual([chave, elos, cabeca])
     }
+    // a âncora no Bitcoin (bloco 973118): o registro bate com os arquivos; a parte carimbo confere a prova nos cabeçalhos
+    expect(ancoraFase3.cadeias).toEqual(linhas.map((l) => l.split(' ')[0]))
+    expect(sha256(ancoraFase3.alvo)).toBe(ancoraFase3.sha256_alvo)
+    expect(sha256(ancoraFase3.prova)).toBe(ancoraFase3.sha256_prova)
+    expect(sha256(ancoraFase3.prova_calendario_original.arquivo)).toBe(ancoraFase3.prova_calendario_original.sha256)
   })
 
   it.runIf(!!SAIDA && !!CVC5)('abre os registros revelados com certificado e confere pela conferência do Caderno', async () => {

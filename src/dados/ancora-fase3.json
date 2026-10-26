@@ -1,0 +1,21 @@
+{
+  "formato": "cosmos-ancora-fase3-v1",
+  "alvo": "public/cosmos-fase3-resumo.txt",
+  "sha256_alvo": "929a947cd97760822ac46002a383a26400a88a5778a12c4ae9044bcf7c4018c2",
+  "cadeias": [
+    "teste-3-notebooks-a-principal",
+    "teste-3-notebooks-a",
+    "teste-3-notebooks-b",
+    "teste-3-notebooks-c"
+  ],
+  "prova": "public/cosmos-fase3-resumo.txt.ots",
+  "sha256_prova": "d6f6d6e70ee6ef6e43cce5432a5014e7b11418c97e0f0bd78dfe48067e6cda6c",
+  "prova_calendario_original": {
+    "arquivo": "public/cosmos-fase3-resumo.txt.calendario.ots",
+    "sha256": "10bdc329d3eb85b483e59b51e2507f28bbdd35c914c5d15ba6c72173afcfd797"
+  },
+  "altura": 973118,
+  "bloco": "00000000000000000001f03321b55293b1c538d5198438209f2afa3dc18816fd",
+  "tempo_bloco_utc": "2026-10-25T19:52:52Z",
+  "limite": "Sem nó Bitcoin próprio. Prova que o resumo das quatro cadeias do teste com três notebooks (chave, número de registros e cabeça de cada uma) existia antes do bloco; não prova a verdade das afirmações."
+}
