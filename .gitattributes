@@ -45,3 +45,6 @@ public/cosmos-checkpoint-raiz.txt.calendario.ots -text
 public/cosmos-fase3-resumo.txt -text
 public/cosmos-fase3-resumo.txt.ots -text
 public/cosmos-fase3-resumo.txt.calendario.ots -text
+# a raiz do conjunto fechado de avaliação e a prova OTS dela
+public/cosmos-avaliacao-v1-raiz.txt -text
+public/cosmos-avaliacao-v1-raiz.txt.ots -text
