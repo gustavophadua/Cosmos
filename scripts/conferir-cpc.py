@@ -62,13 +62,31 @@ def veredito_do_ethos(codigo, saida, erro):
     return 'recusada', ' '.join((erro or saida).split())[:300]
 
 
+def veredito_do_logos(codigo, saida, erro):
+    """O Logos escreve o veredito na última linha e sai com 0 (correct), 1 (incorrect) ou 2 (incomplete); qualquer
+    outra combinação, ou um erro de leitura, é 'erro'."""
+    linhas = [l.strip() for l in saida.splitlines() if l.strip()]
+    v = linhas[-1] if linhas else ''
+    if (v, codigo) in (('correct', 0), ('incorrect', 1), ('incomplete', 2)):
+        return v, ' '.join(erro.split())[:300]
+    return 'erro', ' '.join((erro or saida).split())[:300]
+
+
+def sem_declaracoes(linhas):
+    """Os passos e as suposições de uma prova CPC, sem as declarações e a referência: o que tem de ser igual nas duas
+    versões que o cvc5 imprime (com a referência ao problema, para o Ethos; com as declarações, para o Logos)."""
+    return [l for l in linhas if not l.lstrip().startswith(('(declare-', '(reference '))]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--cvc5', required=True)
     ap.add_argument('--ethos', required=True)
     ap.add_argument('--assinatura', required=True)
+    ap.add_argument('--logos', help='a camada 4: o Logos, checador com a correção provada em Lean')
     args = ap.parse_args()
-    falhas, linhas, incompletas = [], ['| Problema | cvc5 | Ethos | Estragos recusados |', '| --- | --- | --- | --- |'], []
+    falhas, incompletas, logos_corretas, logos_fora = [], [], [], []
+    linhas = ['| Problema | cvc5 | Ethos | Estragos recusados | Logos (Lean) | Estrago recusado |', '| --- | --- | --- | --- | --- | --- |']
     assinatura = os.path.abspath(args.assinatura)
     if hash_da_arvore(assinatura) != ASSINATURA_SHA256:
         sys.exit(f'a assinatura CPC em {assinatura} não é a do cvc5 1.4.2 (hash da árvore diferente)')
@@ -104,21 +122,28 @@ def main():
             with open(problema, 'xb') as f:
                 f.write(dados)
             opcoes = ['--enum-inst'] if cid in ENUM_INST else []
-            codigo, saida, erro = rodar([args.cvc5, '--dump-proofs', '--proof-format-mode=cpc', '--proof-print-reference',
-                                         '--tlimit=20000', *opcoes, problema], tmp)
-            corpo = saida.splitlines()
-            if codigo is None or not corpo or corpo[0].strip() != 'unsat':
-                falhas.append(f"{cid}: o cvc5 não deu unsat ({' '.join((erro or saida).split())[:200]})")
-                linhas.append(f'| {cid} | não deu unsat | — | — |')
+
+            def gerar(*extra):
+                codigo, saida, erro = rodar([args.cvc5, '--dump-proofs', '--proof-format-mode=cpc', *extra,
+                                             '--tlimit=20000', *opcoes, problema], tmp)
+                corpo = saida.splitlines()
+                if codigo is None or not corpo or corpo[0].strip() != 'unsat':
+                    return None, ' '.join((erro or saida).split())[:200]
+                corpo = corpo[1:]
+                if corpo and corpo[0].strip() == '(' and corpo[-1].strip() == ')':
+                    corpo = corpo[1:-1]
+                return corpo, ''
+
+            corpo, motivo = gerar('--proof-print-reference')
+            if corpo is None:
+                falhas.append(f'{cid}: o cvc5 não deu unsat ({motivo})')
+                linhas.append(f'| {cid} | não deu unsat | — | — | — | — |')
                 continue
-            corpo = corpo[1:]
-            if corpo and corpo[0].strip() == '(' and corpo[-1].strip() == ')':
-                corpo = corpo[1:-1]
             texto = '\n'.join(corpo) + '\n'
             v, motivo = ethos(texto, f'{cid}.cpc', problema)
             if v == 'recusada':
                 falhas.append(f'{cid}: o Ethos recusa a prova CPC ({motivo})')
-                linhas.append(f'| {cid} | unsat | **recusada** | — |')
+                linhas.append(f'| {cid} | unsat | **recusada** | — | — | — |')
                 continue
             if v == 'incomplete':
                 incompletas.append(cid)
@@ -136,20 +161,56 @@ def main():
                     falhas.append(f'{cid}: o Ethos aceitou um estrago ({descricao})')
                 else:
                     recusados += 1
-            linhas.append(f'| {cid} | unsat | {v} | {recusados} de {len(estragos)} |')
+            # a camada 4: a mesma prova, com as declarações, pelo Logos. As duas versões têm de ter os mesmos passos e
+            # suposições: assim as suposições que o Logos lê são as que o Ethos ligou ao problema publicado
+            lv, le = '—', '—'
+            if args.logos:
+                com_decl, motivo = gerar()
+                if com_decl is None or sem_declaracoes(com_decl) != sem_declaracoes(corpo):
+                    falhas.append(f'{cid}: a versão da prova para o Logos não é a que o Ethos conferiu ({motivo or "passos diferentes"})')
+                    lv = '**versões diferentes**'
+                else:
+                    def logos(linhas_prova, nome):
+                        arquivo = os.path.join(tmp, nome)
+                        with open(arquivo, 'w', encoding='utf-8', newline='\n') as f:
+                            f.write('\n'.join(linhas_prova) + '\n')
+                        return veredito_do_logos(*rodar([args.logos, arquivo], tmp))
+                    lv, motivo = logos(com_decl, f'{cid}-logos.cpc')
+                    if lv == 'correct':
+                        logos_corretas.append(cid)
+                    elif lv == 'incomplete':
+                        logos_fora.append(f'{cid} ({motivo[:120]})')
+                    else:
+                        falhas.append(f'{cid}: o Logos não aceita a prova que o Ethos aceitou ({lv}: {motivo})')
+                        lv = f'**{lv}**'
+                    passos_d = [i for i, l in enumerate(com_decl) if l.lstrip().startswith('(step')]
+                    if passos_d:
+                        ve, _ = logos(com_decl[:passos_d[-1]] + com_decl[passos_d[-1] + 1:], f'{cid}-logos-estrago.cpc')
+                        if ve == 'correct':
+                            falhas.append(f'{cid}: o Logos aceitou um estrago (sem o último passo)')
+                        le = 'sim' if ve != 'correct' else '**NÃO**'
+            linhas.append(f'| {cid} | unsat | {v} | {recusados} de {len(estragos)} | {lv} | {le} |')
 
     versao = (rodar([args.cvc5, '--version'], RAIZ)[1].splitlines() or ['?'])[0]
     with open(args.ethos, 'rb') as f:
         ethos_sha = sha(f.read())
-    corretas = sum('| correct |' in l for l in linhas)
+    corretas = sum(l.split(' | ')[2] == 'correct' for l in linhas[2:])
+    logos_linha = []
+    if args.logos:
+        with open(args.logos, 'rb') as f:
+            logos_linha = [f'Camada 4 (Lean): {len(logos_corretas)} de {len(certificados)} `correct` pelo Logos; '
+                           f'{len(logos_fora)} fora do fragmento do teorema (incomplete){": " + "; ".join(logos_fora) if logos_fora else ""}. '
+                           f'Logos SHA-256 `{sha(f.read())}`.', '']
     texto = '\n'.join([
         '## Segundo conferidor: provas CPC pelo Ethos', '',
         f'{corretas} de {len(certificados)} problemas com prova CPC aceita (`correct`) pelo Ethos 0.2.5; '
         f'{len(incompletas)} incompletas (com passo sem justificativa formal){": " + ", ".join(incompletas) if incompletas else ""}.', '',
+        *logos_linha,
         f'{versao}; Ethos SHA-256 `{ethos_sha}`; assinatura CPC do cvc5 1.4.2, árvore `{ASSINATURA_SHA256}`.', '',
         *linhas, '', *(f'- FALHA: {x}' for x in falhas), 'Nenhuma falha.' if not falhas else ''])
     print(texto)
-    anotar('error' if falhas else 'notice', 'Segundo conferidor', texto.split('\n')[2] + ''.join('\n' + x for x in falhas[:8]))
+    anotar('error' if falhas else 'notice', 'Segundo conferidor',
+           '\n'.join(texto.split('\n')[2:5 if args.logos else 3]) + ''.join('\n' + x for x in falhas[:8]))
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
             f.write(texto + '\n')

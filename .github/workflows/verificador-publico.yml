@@ -9,7 +9,8 @@
 #           E a prova pública 5p4c (software-public-v1/) por dois Carcaras independentes, com estragos
 #           (scripts/conferir-5p4c.py); a saída da GPU não está no pacote, e nada aqui atesta hardware.
 #   carimbo: a prova OpenTimestamps contra o cabeçalho do bloco Bitcoin em fontes públicas.
-#   segundo-conferidor: os mesmos problemas por uma prova CPC do cvc5, conferida pelo Ethos (scripts/conferir-cpc.py).
+#   segundo-conferidor: os mesmos problemas por uma prova CPC do cvc5, conferida pelo Ethos e pelo Logos, checador com
+#           a correção provada em Lean (scripts/conferir-cpc.py).
 #
 # Integridade e autoria não comprovam a verdade das afirmações; o carimbo Bitcoin só conta confirmado por um cliente OTS.
 name: Verificador público
@@ -278,7 +279,10 @@ jobs:
     # e o Ethos 0.2.5 (o que o cvc5 1.4.2 indica, commit 08e4aa4) a confere contra a assinatura CPC do cvc5 1.4.2, com a
     # prova obrigada a chegar em falso e cada suposição obrigada a ser uma asserção do problema (scripts/conferir-cpc.py)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
+    env:
+      LOGOS_COMMIT: a4ab2f8deada090d96178ee9da22a47b5c834e33
+      LEAN_VERSAO: 4.34.0
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -299,5 +303,32 @@ jobs:
           # a assinatura vem do código-fonte da tag; o script confere o hash da árvore proofs/eo/cpc
           baixar "$RUNNER_TEMP/cvc5-fonte.tgz" https://github.com/cvc5/cvc5/archive/refs/tags/cvc5-1.4.2.tar.gz
           mkdir -p "$RUNNER_TEMP/fonte" && tar -xzf "$RUNNER_TEMP/cvc5-fonte.tgz" -C "$RUNNER_TEMP/fonte" --strip-components=1 cvc5-cvc5-1.4.2/proofs/eo/cpc
-      - name: Conferir as provas CPC pelo Ethos, com estragos
-        run: python3 scripts/conferir-cpc.py --cvc5 "$CVC5" --ethos "$ETHOS" --assinatura "$RUNNER_TEMP/fonte/proofs/eo/cpc"
+      # a camada 4: o Logos, checador de provas CPC com a correção provada em Lean, no commit que o cvc5 1.4.2 indica
+      # (contrib/get-logos-checker), compilado com o Lean 4.34.0 do lean-toolchain dele (binário oficial, hash fixado)
+      - uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: logos
+        with:
+          path: ~/logos-bin/logos
+          key: logos-${{ env.LOGOS_COMMIT }}-lean-${{ env.LEAN_VERSAO }}-ubuntu-24.04
+      - name: Compilar o Logos (Lean 4.34.0)
+        if: steps.logos.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 600 \
+            -o "$RUNNER_TEMP/lean.tar.zst" "https://github.com/leanprover/lean4/releases/download/v$LEAN_VERSAO/lean-$LEAN_VERSAO-linux.tar.zst"
+          printf '%s  %s\n' caaa98356098c85dc0fcbbd28e1ec66f39eb6551829972b752ff20e1286b646b "$RUNNER_TEMP/lean.tar.zst" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/lean" && tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP/lean" --strip-components=1
+          export PATH="$RUNNER_TEMP/lean/bin:$PATH"
+          git init -q "$RUNNER_TEMP/logos" && cd "$RUNNER_TEMP/logos"
+          git fetch -q --depth 1 https://github.com/cvc5/logos.git "$LOGOS_COMMIT" && git checkout -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$LOGOS_COMMIT"
+          test "$(tr -d '[:space:]' < lean-toolchain)" = "leanprover/lean4:v$LEAN_VERSAO"
+          lake build logos
+          mkdir -p ~/logos-bin && cp .lake/build/bin/logos ~/logos-bin/logos
+      - uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        if: steps.logos.outputs.cache-hit != 'true'
+        with:
+          path: ~/logos-bin/logos
+          key: logos-${{ env.LOGOS_COMMIT }}-lean-${{ env.LEAN_VERSAO }}-ubuntu-24.04
+      - name: Conferir as provas CPC pelo Ethos e pelo Logos, com estragos
+        run: python3 scripts/conferir-cpc.py --cvc5 "$CVC5" --ethos "$ETHOS" --assinatura "$RUNNER_TEMP/fonte/proofs/eo/cpc" --logos ~/logos-bin/logos

@@ -343,9 +343,36 @@ são verificadas em Lean pelo projeto Logos, do mesmo grupo.
 
 Resultado de 27/10/2026: **28 de 28 `correct`**, nenhuma incompleta, 56
 estragos recusados. O Ethos é outra base de código que a do Carcara e lê outro
-formato; o que os dois têm em comum é o cvc5, que gera as duas provas. Um erro
-do cvc5 que gere duas provas erradas do mesmo jeito ainda teria de passar por
-dois checadores diferentes.
+formato; o que os dois têm em comum é o cvc5, que gera as duas provas. Uma
+prova errada do cvc5 é recusada pelos checadores; o cvc5 comum só pesa quando
+ele não consegue provar, não para aceitar o que não vale.
+
+### A camada 4: o Logos, com a correção provada em Lean
+
+A mesma prova CPC também passa pelo Logos, um checador escrito em Lean cuja
+correção é um teorema em Lean (`correct___logos_check_proof`): `correct` quer
+dizer que a conjunção das suposições da prova é insatisfazível pela semântica
+do SMT-LIB formalizada em Lean (`Cpc/SmtModel.lean`). É o commit que o cvc5
+1.4.2 indica (`contrib/get-logos-checker`, `a4ab2f8`), compilado na CI com o
+Lean 4.34.0 do `lean-toolchain` dele (binário oficial, SHA-256 fixado).
+
+- O Logos ignora a referência ao problema; por isso o cvc5 imprime a prova
+  duas vezes, com a referência (para o Ethos) e com as declarações (para o
+  Logos), e o script exige que as duas tenham os mesmos passos e as mesmas
+  suposições. As suposições que o Logos lê são as que o Ethos ligou ao problema.
+- `incomplete` no Logos quer dizer que a prova está fora do fragmento que o
+  teorema cobre; é listado à parte. `incorrect` ou erro numa prova que o Ethos
+  aceitou é falha.
+- Um estrago por prova (sem o último passo), que tem de ser recusado.
+
+Resultado de 27/10/2026: **28 de 28 `correct`** pelo Logos, nenhuma fora do
+fragmento, 28 estragos recusados.
+
+Limites: o executável é compilado aqui, mas as provas de correção do Logos
+inteiras levam mais de duas horas para o Lean conferir e não são compiladas
+nesta CI (nem na do Logos, que compila uma amostra); a confiança nelas vem do
+projeto. O repositório do Logos não traz arquivo de licença: ele só é compilado
+e rodado na CI para conferir, sem redistribuição.
 
 ## O que isto não prova
 
