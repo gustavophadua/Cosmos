@@ -75,6 +75,11 @@ da mesma obrigação e, como sugestão, as da mesma fórmula com outra teoria; *
 | 1 | CP08: o mesmo com P(b) acrescentado | abre com refutação e modelo das premissas; a memória com o elo 0 não o bloqueia |
 | 2 | CP05: "R segue de S e ¬S" | abre só com a marca `vazio`; o resumo da CI diz que a conclusão segue só porque as premissas são inconsistentes |
 
+Os outros casos têm teste próprio: CP01 (`verificado: true` vindo de fora é recusado, `testes/contraponto-cp01.test.ts`),
+CP02 e CP03 (leitura estrita do veredito do Carcara, `scripts/testar-veredito-carcara.py`), CP04 (a prova trocada depois
+do hash não muda o que o Carcara lê, e trocada antes dá R8, `scripts/testar-cp04.py`) e CP06 (prova correta contra outro
+enunciado, recusada pelo vínculo, `especificacao/provas-t1/vinculo.py`).
+
 ## 7. Limites
 
 - A leitura de volta ajuda a conferir, mas não substitui a pessoa: ela lê a fórmula, não o sentido pretendido.

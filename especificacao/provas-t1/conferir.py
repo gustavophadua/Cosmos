@@ -487,18 +487,24 @@ def main():
     so_um_modo = []
     adv_notas = []
     with tempfile.TemporaryDirectory() as tmp:
+        def copia(arquivo, esperado, oque, cid):
+            # lido uma vez; o hash, os estragos e o Carcara usam estes bytes, numa cópia só desta conferência (CP04)
+            with open(os.path.join(PASTA, arquivo), 'rb') as f:
+                dados = f.read()
+            if hashlib.sha256(dados).hexdigest() != esperado:
+                falhas.append(f'{cid}: SHA-256 {oque} diferente do registro')
+            caminho = os.path.join(tmp, f'{cid}-{os.path.basename(arquivo)}')
+            with open(caminho, 'xb') as f:
+                f.write(dados)
+            return caminho, dados
+
         for c in registro['certificados']:
-            problema = os.path.join(PASTA, c['problema']['arquivo'])
-            if sha256(problema) != c['problema']['sha256']:
-                falhas.append(f"{c['id']}: SHA-256 do problema diferente do registro")
+            problema, _ = copia(c['problema']['arquivo'], c['problema']['sha256'], 'do problema', c['id'])
             if not c.get('prova'):
                 continue
             com_prova += 1
-            prova = os.path.join(PASTA, c['prova']['arquivo'])
-            if sha256(prova) != c['prova']['sha256']:
-                falhas.append(f"{c['id']}: SHA-256 da prova diferente do registro")
-            with open(prova, encoding='utf-8') as f:
-                linhas = f.read().splitlines()
+            prova, dados_prova = copia(c['prova']['arquivo'], c['prova']['sha256'], 'da prova', c['id'])
+            linhas = dados_prova.decode('utf-8').splitlines()
             lista = estragos(c['id'], linhas)
             for tipo, descricao, l in lista:
                 if l == linhas:

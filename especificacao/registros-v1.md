@@ -113,7 +113,11 @@ esconde uma frase curta, que se acha testando frases.
 Um **arquivo** é `{"arquivo": caminho, "sha256": hash}`. O caminho é relativo à
 raiz do conjunto de registros (nos exemplos, a pasta de `exemplos.json`), com
 `/`, sem segmento vazio, `.` ou `..`, e não sai da raiz, nem por link
-simbólico. O que vale é o SHA-256 dos bytes do arquivo (R8).
+simbólico. O que vale é o SHA-256 dos bytes do arquivo (R8). Quem confere lê
+cada arquivo **uma vez só**: o hash, a comparação com a tradução t1 e o
+Carcara usam esses mesmos bytes, e o Carcara os recebe numa cópia, numa pasta
+criada só para aquela conferência. Trocar o arquivo depois do hash não muda o
+que é conferido; trocar antes dá R8 (CP04, `scripts/testar-cp04.py`).
 
 O **conjunto** que o certificado confere é a lista das premissas, na ordem do
 registro, e depois ¬(φ) em `segue` e `nao-segue`, ou φ em `contradiz` e

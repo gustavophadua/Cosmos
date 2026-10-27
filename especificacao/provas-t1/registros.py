@@ -19,7 +19,9 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 
 import modelos
 import vinculo
@@ -118,6 +120,44 @@ def texto_da_formula(canonica, fichas):
 
 def sha256(dados):
     return hashlib.sha256(dados.encode('utf-8') if isinstance(dados, str) else dados).hexdigest()
+
+
+def ler_conferido(pasta, caminho, esperado, onde):
+    """Os bytes de um arquivo do conjunto, lidos uma vez só e com o SHA-256 declarado. Tudo o que vem depois (a
+    tradução, o Carcara) usa estes bytes, nunca o arquivo de novo (CP04)."""
+    # relativo à raiz do conjunto, com /, sem segmento vazio, . ou .., e sem sair da raiz, nem por link
+    if not _texto(caminho) or '\\' in caminho or any(x in ('', '.', '..') for x in caminho.split('/')):
+        recusar('R8', f'{onde}: caminho inválido {caminho}')
+    cheio = os.path.join(pasta, *caminho.split('/'))
+    raiz = os.path.realpath(pasta)
+    if os.path.commonpath([raiz, os.path.realpath(cheio)]) != raiz:
+        recusar('R8', f'{onde}: o caminho {caminho} sai da raiz do conjunto')
+    if not os.path.isfile(cheio):
+        recusar('R8', f'{onde}: o arquivo {caminho} não existe')
+    with open(cheio, 'rb') as f:
+        dados = f.read()
+    if sha256(dados) != esperado:
+        recusar('R8', f'{onde}: o SHA-256 de {caminho} não bate')
+    return dados
+
+
+def provar_copia(provar, prova, problema, nomes=('prova.alethe', 'problema.smt2')):
+    """`provar` sobre uma cópia dos bytes conferidos, numa pasta criada só para esta conferência (CP04): trocar o
+    arquivo original depois do hash não muda o que o Carcara lê. Os nomes ficam os do conjunto, para as mensagens."""
+    nome_prova, nome_problema = (os.path.basename(n) for n in nomes)
+    if nome_prova == nome_problema:
+        nome_prova = 'prova-' + nome_prova
+    pasta = tempfile.mkdtemp(prefix='cosmos-conferencia-')
+    try:
+        caminhos = []
+        for nome, dados in ((nome_prova, prova), (nome_problema, problema)):
+            caminho = os.path.join(pasta, nome)
+            with open(caminho, 'xb') as f:
+                f.write(dados)
+            caminhos.append(caminho)
+        return provar(*caminhos)
+    finally:
+        shutil.rmtree(pasta, ignore_errors=True)
 
 
 def conferir_ficha(f):
@@ -285,31 +325,17 @@ def _conferir(r, provar, pendencias, pasta=PASTA):
     def arquivo(a, onde):
         if not isinstance(a, dict) or set(a) != {'arquivo', 'sha256'} or not _texto(a['arquivo']) or not _texto(a['sha256']):
             recusar('R1', f'{onde}: {{arquivo, sha256}}')
-        caminho = a['arquivo']
-        # relativo à raiz do conjunto, com /, sem segmento vazio, . ou .., e sem sair da raiz, nem por link
-        if '\\' in caminho or any(x in ('', '.', '..') for x in caminho.split('/')):
-            recusar('R8', f'{onde}: caminho inválido {caminho}')
-        cheio = os.path.join(pasta, *caminho.split('/'))
-        raiz = os.path.realpath(pasta)
-        if os.path.commonpath([raiz, os.path.realpath(cheio)]) != raiz:
-            recusar('R8', f'{onde}: o caminho {caminho} sai da raiz do conjunto')
-        if not os.path.isfile(cheio):
-            recusar('R8', f'{onde}: o arquivo {caminho} não existe')
-        with open(cheio, 'rb') as f:
-            if sha256(f.read()) != a['sha256']:
-                recusar('R8', f'{onde}: o SHA-256 de {caminho} não bate')
-        return cheio
+        return ler_conferido(pasta, a['arquivo'], a['sha256'], onde)
 
     def refutacao(x, formulas, onde):
         if not isinstance(x, dict) or set(x) != {'problema', 'prova'}:
             recusar('R1', f'{onde}: {{problema, prova}}')
         problema = arquivo(x['problema'], f'{onde}.problema')
         prova = arquivo(x['prova'], f'{onde}.prova')
-        with open(problema, encoding='utf-8') as f:
-            diferenca = vinculo.diferenca(vinculo.refazer(fichas, formulas), f.read())
+        diferenca = vinculo.diferenca(vinculo.refazer(fichas, formulas), problema.decode('utf-8'))
         if diferenca:
             recusar('R9', f'{onde}: o problema não é a tradução t1 do conjunto ({diferenca[:160]})')
-        v = provar(prova, problema)
+        v = provar_copia(provar, prova, problema, (x['prova']['arquivo'], x['problema']['arquivo']))
         if v is None:
             pendencias.append(f'{onde}: a prova (sem o Carcara, ou com o tempo esgotado)')
         elif not v:
@@ -352,8 +378,29 @@ def no_leitor_do_gpt(e, provar, pasta=PASTA):
         return 'erro', None, repr(erro)[:200]
     if res['veredito'] != 'pendente-prova':
         return res['veredito'], res.get('motivo'), res.get('escopo', '')
-    vs = [provar(os.path.join(pasta, *p['aleth'].split('/')), os.path.join(pasta, *p['smt'].split('/')))
-          for p in res['pendencias']]
+    # o leitor do GPT conferiu os hashes, mas devolve só os nomes: os bytes são lidos de novo, uma vez, com o hash
+    # declarado no registro, e o Carcara recebe a cópia deles (CP04)
+    declarados = {}
+
+    def colher(x):
+        if isinstance(x, dict):
+            if set(x) == {'arquivo', 'sha256'}:
+                declarados.setdefault(x['arquivo'], set()).add(x['sha256'])
+            for v in x.values():
+                colher(v)
+    colher(registro.get('certificado'))
+    vs = []
+    try:
+        for p in res['pendencias']:
+            bytes_de = {}
+            for chave in ('aleth', 'smt'):
+                hashes = declarados.get(p[chave], set())
+                if len(hashes) != 1:
+                    recusar('R8', f'{p[chave]}: sem um SHA-256 declarado no registro')
+                bytes_de[chave] = ler_conferido(pasta, p[chave], next(iter(hashes)), p[chave])
+            vs.append(provar_copia(provar, bytes_de['aleth'], bytes_de['smt'], (p['aleth'], p['smt'])))
+    except Recusa as recusa:
+        return 'recusado', recusa.motivo, str(recusa)
     if any(v is False for v in vs):
         return 'recusado', 'R10', 'o Carcara recusa a prova'
     if any(v is None for v in vs):
