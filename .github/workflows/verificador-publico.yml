@@ -9,6 +9,7 @@
 #           E a prova pública 5p4c (software-public-v1/) por dois Carcaras independentes, com estragos
 #           (scripts/conferir-5p4c.py); a saída da GPU não está no pacote, e nada aqui atesta hardware.
 #   carimbo: a prova OpenTimestamps contra o cabeçalho do bloco Bitcoin em fontes públicas.
+#   segundo-conferidor: os mesmos problemas por uma prova CPC do cvc5, conferida pelo Ethos (scripts/conferir-cpc.py).
 #
 # Integridade e autoria não comprovam a verdade das afirmações; o carimbo Bitcoin só conta confirmado por um cliente OTS.
 name: Verificador público
@@ -271,3 +272,32 @@ jobs:
           chmod u+x "$RUNNER_TEMP/carcara-linux"
       - name: Conferir a prova pública 5p4c pelos dois Carcaras, com estragos
         run: python3 scripts/conferir-5p4c.py compilado="$HOME/.cargo/bin/carcara" oficial="$RUNNER_TEMP/carcara-linux"
+
+  segundo-conferidor:
+    # os 28 problemas da parte provas por outra prova, em outro formato, noutro checador: o cvc5 1.4.2 gera a prova CPC
+    # e o Ethos 0.2.5 (o que o cvc5 1.4.2 indica, commit 08e4aa4) a confere contra a assinatura CPC do cvc5 1.4.2, com a
+    # prova obrigada a chegar em falso e cada suposição obrigada a ser uma asserção do problema (scripts/conferir-cpc.py)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: cvc5 1.4.2, Ethos 0.2.5 e a assinatura CPC (hashes fixados)
+        run: |
+          set -euo pipefail
+          baixar() { curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 120 -o "$1" "$2"; }
+          baixar "$RUNNER_TEMP/cvc5.zip" https://github.com/cvc5/cvc5/releases/download/cvc5-1.4.2/cvc5-Linux-x86_64-static.zip
+          printf '%s  %s\n' 7eb18f8c814c36a46c5a7d003983e9cfbc4b0a9828d6dd596239291bd4cc61d8 "$RUNNER_TEMP/cvc5.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/cvc5.zip" -d "$RUNNER_TEMP/cvc5"
+          echo "CVC5=$(find "$RUNNER_TEMP/cvc5" -type f -name cvc5 -perm -u+x | head -1)" >> "$GITHUB_ENV"
+          baixar "$RUNNER_TEMP/ethos.zip" https://github.com/cvc5/ethos/releases/download/ethos-0.2.5/ethos-linux-x86_64.zip
+          printf '%s  %s\n' 5d9c41e53d97d918ccd682b0012032ba26994d964309328cddb4a20df116e296 "$RUNNER_TEMP/ethos.zip" | sha256sum --check --strict
+          unzip -q "$RUNNER_TEMP/ethos.zip" -d "$RUNNER_TEMP/ethos"
+          ETHOS=$(find "$RUNNER_TEMP/ethos" -type f -name ethos | head -1); chmod u+x "$ETHOS"
+          echo "ETHOS=$ETHOS" >> "$GITHUB_ENV"
+          # a assinatura vem do código-fonte da tag; o script confere o hash da árvore proofs/eo/cpc
+          baixar "$RUNNER_TEMP/cvc5-fonte.tgz" https://github.com/cvc5/cvc5/archive/refs/tags/cvc5-1.4.2.tar.gz
+          mkdir -p "$RUNNER_TEMP/fonte" && tar -xzf "$RUNNER_TEMP/cvc5-fonte.tgz" -C "$RUNNER_TEMP/fonte" --strip-components=1 cvc5-cvc5-1.4.2/proofs/eo/cpc
+      - name: Conferir as provas CPC pelo Ethos, com estragos
+        run: python3 scripts/conferir-cpc.py --cvc5 "$CVC5" --ethos "$ETHOS" --assinatura "$RUNNER_TEMP/fonte/proofs/eo/cpc"

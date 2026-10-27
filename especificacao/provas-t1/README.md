@@ -321,6 +321,32 @@ ser declarado `@T0`, como nas outras regras. A versão 394edbb aceita as duas
 formas, mas o trecho que aceita a primeira não está na versão em
 desenvolvimento.
 
+## O segundo conferidor (CPC, pelo Ethos)
+
+Os 28 problemas com prova Alethe também são conferidos por outra prova, em
+outro formato, noutro checador (`scripts/conferir-cpc.py`, parte
+segundo-conferidor do verificador público). O cvc5 1.4.2 gera, para cada
+problema, uma prova no formato CPC (com `--enum-inst` nos mesmos quatro), e o
+Ethos 0.2.5 a confere contra a assinatura Eunoia do CPC publicada com o cvc5
+1.4.2: o Ethos é o checador que o cvc5 1.4.2 indica (commit `08e4aa4`, a
+release 0.2.5), binário oficial com o SHA-256 fixado, e a assinatura é fixada
+pelo hash da árvore `proofs/eo/cpc` (51 arquivos). As regras dessa assinatura
+são verificadas em Lean pelo projeto Logos, do mesmo grupo.
+
+- A prova tem de terminar em falso (`--require-proof-of-false`), e cada
+  suposição dela tem de ser uma asserção do problema publicado (a referência do
+  Ethos), lido uma vez com o SHA-256 do registro.
+- Só `correct` conta: uma prova `incomplete` (com a regra `trust`, sem
+  justificativa formal) é falha.
+- Dois estragos por prova: sem o último passo, e com um problema sem as
+  asserções. Os dois têm de ser recusados.
+
+Resultado de 27/10/2026: **28 de 28 `correct`**, nenhuma incompleta, 56
+estragos recusados. O Ethos é outra base de código que a do Carcara e lê outro
+formato; o que os dois têm em comum é o cvc5, que gera as duas provas. Um erro
+do cvc5 que gere duas provas erradas do mesmo jeito ainda teria de passar por
+dois checadores diferentes.
+
 ## O que isto não prova
 
 - A prova vale para o problema SMT. O elo com a fórmula é a tradução t1, que o
