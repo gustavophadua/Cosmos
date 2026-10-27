@@ -11,6 +11,15 @@ export interface ResultadoCarcara {
 }
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex')
 const REGRAS_SHA = 'ffbfc076411a039624a55dfbb9f0c588996aeac10bb8e72161cd64039b071fad'
+/**
+ * A leitura do veredito, estrita como a de especificacao/provas-t1/conferir.py: `valid` só vale como primeira linha e
+ * único veredito da saída. `valid` seguido de `invalid` ou `holey`, ou saída vazia, não aprova. O código de saída
+ * diferente de zero já cai no catch de conferirAletheLocal.
+ */
+export function vereditoValido(saida: string): boolean {
+  const linhas = saida.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+  return linhas[0] === 'valid' && linhas.filter((l) => ['valid', 'invalid', 'holey'].includes(l)).length === 1
+}
 /** Adaptador CLI local, não serviço público nem sandbox de sistema operacional.
  * Só aceita `valid` do executável explicitamente configurado e pinado pelo operador.
  * Não confunde hash, código de saída zero ou `holey` com prova conferida.
@@ -27,7 +36,7 @@ export function conferirAletheLocal(prova: string, problema: string, config: { b
     for (const f of [prova, problema]) if (!statSync(f).isFile() || statSync(f).size > 1048576) return { ...base, estado: 'invalido', motivo: 'Arquivos devem ter até 1 MiB.' }
     const hashes = { hashProva: sha(readFileSync(prova)), hashProblema: sha(readFileSync(problema)), hashVerificador: pin }
     const saida = execFileSync(binario, ['--no-color', 'check', '--allow-int-real-subtyping', '--expand-let-bindings', '--rare-file', regras, prova, problema], { encoding: 'utf8', timeout: 10000, maxBuffer: 1048576, windowsHide: true })
-    const valid = saida.replace(/\x1b\[[0-9;]*m/g, '').trim().split(/\r?\n/)[0] === 'valid'
+    const valid = vereditoValido(saida)
     return { ...base, ...hashes, estado: valid ? 'verificado' : 'invalido', motivo: valid ? 'Carcara conferiu a prova contra este problema SMT-LIB.' : 'Saída sem veredito valid; não aprovado.' }
   } catch {
     return { ...base, estado: 'indisponivel', motivo: 'Falha, timeout ou erro de leitura/execução; nenhum resultado aprovado.' }

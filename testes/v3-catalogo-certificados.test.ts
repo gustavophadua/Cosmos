@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { REGISTROS_PUBLICOS, pesquisarPublicos, MODULOS_V3 } from '../src/v3/catalogo'
-import { conferirAletheLocal } from '../src/v3/carcara-node'
+import { conferirAletheLocal, vereditoValido } from '../src/v3/carcara-node'
 import { lerRota } from '../src/ui/rotas'
 describe('catálogo público e entrada v3', () => {
   it('pesquisa por metadados, hash e chave, sem indexar campos privados', () => {
@@ -22,5 +22,15 @@ describe('Carcara falha fechado, sem fingir execução formal', () => {
   })
   it('não executa um binário com hash diferente do pin', () => {
     expect(conferirAletheLocal('inexistente.alethe', 'inexistente.smt2', { binario: process.execPath, sha256Binario: '0'.repeat(64) }).estado).toBe('indisponivel')
+  })
+  it('lê o veredito de forma estrita: valid só sozinho e na primeira linha (CP02 da resposta do GPT ao contraponto)', () => {
+    expect(vereditoValido('valid\n')).toBe(true)
+    expect(vereditoValido('\x1b[32mvalid\x1b[0m\r\n')).toBe(true)
+    expect(vereditoValido('valid\ninvalid\n')).toBe(false)
+    expect(vereditoValido('valid\nholey\n')).toBe(false)
+    expect(vereditoValido('invalid\n')).toBe(false)
+    expect(vereditoValido('holey\n')).toBe(false)
+    expect(vereditoValido('')).toBe(false)
+    expect(vereditoValido('aviso qualquer\nvalid\n')).toBe(false)
   })
 })
