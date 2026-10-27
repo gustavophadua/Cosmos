@@ -1,0 +1,113 @@
+[
+  {
+    "indice": 0,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "c7e443ee56f3ad2d225e4f12c338708896c2455c9db18e90556727eff7281642",
+      "sal": "dede61acb0cb1827a87c365ac4470244242a960ddc20aa40d5a0b89f362f23fa",
+      "formula": "Q(b)",
+      "formaCanonica": "(Q b)",
+      "teoria": {
+        "nome": "Contraponto",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "b",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "P(a)"
+        ],
+        "hash": "006f447c61fcf5bc57e353ba3ed8c7100f1fa7bb5fa6ce0d67795b736b8be0b0"
+      }
+    }
+  },
+  {
+    "indice": 1,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "f57648fd4d622f0dc96886d35d1bfd3ccbabf66263180c4da430d7d001ff7e64",
+      "sal": "05a176ea5b72516b101f480ab82ae14c49a87545ebeb3c1d180f4829e8e6a75b",
+      "formula": "Q(b)",
+      "formaCanonica": "(Q b)",
+      "teoria": {
+        "nome": "Contraponto",
+        "fichas": [
+          {
+            "simbolo": "Q",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "b",
+            "tipo": "constante",
+            "aridade": 0
+          },
+          {
+            "simbolo": "P",
+            "tipo": "predicado",
+            "aridade": 1
+          },
+          {
+            "simbolo": "a",
+            "tipo": "constante",
+            "aridade": 0
+          }
+        ],
+        "premissas": [
+          "∀x (P(x) ⟹ Q(x))",
+          "P(a)",
+          "P(b)"
+        ],
+        "hash": "fa4e835286a78fabffb510d24d07a4e26062413d4c5027774577fcb57e875a1e"
+      }
+    }
+  },
+  {
+    "indice": 2,
+    "revelacao": {
+      "formato": "cosmos-revelacao-v1",
+      "compromisso": "9ba47bb98503b0349e1261caaa49f42342e86f091252d24769d1c54481e7544f",
+      "sal": "8d35c269a0f6e0eeb619f7c3fe65fb259e3f4c001d7abd3a2c1451d5c3b2a843",
+      "formula": "R",
+      "formaCanonica": "R",
+      "teoria": {
+        "nome": "Contraponto",
+        "fichas": [
+          {
+            "simbolo": "R",
+            "tipo": "predicado",
+            "aridade": 0
+          },
+          {
+            "simbolo": "S",
+            "tipo": "predicado",
+            "aridade": 0
+          }
+        ],
+        "premissas": [
+          "S",
+          "¬S"
+        ],
+        "hash": "9c56fdfd4eb57814488c13c233baae9cc3097fba4d912d30e5a0d0979ea974c3"
+      }
+    }
+  }
+]

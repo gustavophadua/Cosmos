@@ -66,6 +66,9 @@ def main():
                 anotar('error', f'Registro {rotulo}', falhas[-1][:900])
             cert = ', '.join(r['certificado'].keys())
             como = r['afirmacao'] if item['estado'] == 'aberto' else f'não se sustenta; contra-registro {r["afirmacao"]}'
+            if 'vazio' in r['certificado']:
+                # base inconsistente: tudo "segue" dela; o selo não pode ser o de uma consequência de premissas com modelo
+                como = f'{r["afirmacao"]} SÓ PORQUE AS PREMISSAS SÃO INCONSISTENTES (vazio): não informa nada'
             linhas.append(f'| {rotulo} | {como} ({r["tipo"]}) | {cert} | {"aceito" if ok_ver else f"{motivo} {pendencias}"} · GPT: {gpt[0]} | {r["formula"]} |')
     texto = '\n'.join(['## Verificador público · cadeias publicadas (registros abertos)', '',
                        '| Registro | Afirmação | Certificado | Conferência independente | Fórmula / detalhe |', '| --- | --- | --- | --- | --- |', *linhas, '',

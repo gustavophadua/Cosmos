@@ -27,7 +27,7 @@ const RELACOES: Record<string, string> = {
  * Fase 3: a cadeia pessoal num aparelho. Criar a chave e assinar só pelo localhost (como a conta local); conferir
  * uma cadeia recebida funciona em qualquer lugar, porque não usa chave nenhuma.
  */
-export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; dominio: string } | null }) {
+export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; dominio: string; premissas?: string[]; afirmacao?: Afirmacao } | null }) {
   const local = somenteHostLocal(location.hostname)
   const [estado, setEstado] = useState<EstadoCadeiaLocal | null>(null)
   const [conferencia, setConferencia] = useState<ConferenciaDaCadeia | null>(null)
@@ -35,8 +35,9 @@ export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; domini
   const [erro, setErro] = useState(''), [aviso, setAviso] = useState(''), [ocupado, setOcupado] = useState(false)
   const [recebido, setRecebido] = useState<(Recebimento & { nome: string }) | null>(null)
   const senha = useRef<HTMLInputElement>(null), confirmar = useRef<HTMLInputElement>(null), senhaRestaurar = useRef<HTMLInputElement>(null)
-  const [dados, setDados] = useState<DadosRegistro>({ afirmacao: 'consistente', formula: inicial?.formula ?? '', premissas: [], teoriaNome: 'Minha teoria v1', tipo: 'hipótese', dominio: inicial?.dominio || 'geral', estado: 'proposta' })
-  const [premissasTexto, setPremissasTexto] = useState('')
+  const [dados, setDados] = useState<DadosRegistro>({ afirmacao: inicial?.afirmacao ?? 'consistente', formula: inicial?.formula ?? '', premissas: [], teoriaNome: 'Minha teoria v1', tipo: inicial?.afirmacao === 'segue' ? 'teorema' : 'hipótese', dominio: inicial?.dominio || 'geral', estado: 'proposta' })
+  // da formalização assistida vêm também as premissas e a afirmação aprovadas
+  const [premissasTexto, setPremissasTexto] = useState(inicial?.premissas?.join('\n') ?? '')
 
   useEffect(() => { void lerEstado().then(setEstado).catch(() => setErro('Este navegador não deixa guardar a cadeia (IndexedDB indisponível).')) }, [])
   useEffect(() => {

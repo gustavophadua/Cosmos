@@ -8,7 +8,8 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { classificar, compromissoDoItem, pontuar, raizDoConjunto, resumir, CLASSES, type Item, type Resposta } from '../src/motor/avaliacao'
+import { compromissoDoItem, raizDoConjunto, resumir, CLASSES, type Item, type Resposta } from '../src/motor/avaliacao'
+import { classificar, pontuar } from '../src/motor/avaliacaoZ3'
 
 const lerJsonl = <T>(arquivo: string): T[] => readFileSync(arquivo, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as T)
 const EXEMPLOS = lerJsonl<Item>('avaliacao/exemplos-publicos-v1.jsonl')

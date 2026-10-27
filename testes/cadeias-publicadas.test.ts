@@ -21,6 +21,7 @@ import { expandir } from '../src/logica/acucar'
 import { extrairCorpoCvc5 } from '../scripts/fase4-extrair-cvc5.mjs'
 import ancoraFase3 from '../src/dados/ancora-fase3.json'
 import recompensas from '../redes/cosmos-teste-1/recompensas.json'
+import { consultar, memoriaVazia, obrigacaoDe, registrar } from '../src/motor/memoriaRefutacoes'
 
 const RAIZ = 'cadeias'
 const pastas = existsSync(RAIZ) ? readdirSync(RAIZ, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).sort() : []
@@ -92,7 +93,7 @@ describe('Cadeias publicadas em cadeias/', () => {
         const elos = JSON.parse(readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')).elos as { registroTexto: string }[]
         const arquivoRev = join(RAIZ, pasta, 'revelacoes.json')
         const reveladas: Revelada[] = existsSync(arquivoRev) ? JSON.parse(readFileSync(arquivoRev, 'utf8')) : []
-        const resultados = []
+        const resultados: { indice: number; estado: string; registro?: Record<string, unknown>; [campo: string]: unknown }[] = []
         for (const { indice, revelacao } of reveladas) {
           const a = await abrirRegistro(JSON.parse(elos[indice].registroTexto), revelacao, `E${indice}`, { traduzir, refutar, modeloExato })
           if (a.estado === 'pendente') { resultados.push({ indice, estado: a.estado, detalhe: a.detalhe }); continue }
@@ -109,6 +110,18 @@ describe('Cadeias publicadas em cadeias/', () => {
         if (pasta === 'exemplo-rfc8032') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:aberto', '2:aberto', '3:aberto', '4:nao-se-sustenta', '5:aberto'])
         // o G03 do teste real com três notebooks (25/10/2026): o notebook A afirmou que Q(b) segue de ∀x (P(x) ⟹ Q(x)) e P(a)
         if (pasta === 'teste-3-notebooks-a') expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:aberto', '1:nao-se-sustenta'])
+        // os casos da resposta do GPT ao contraponto: CP07 (refutado, com contramodelo), CP08 (com P(b), segue) e CP05
+        // (base inconsistente: abre só com a marca vazio, nunca como consequência de premissas com modelo)
+        if (pasta === 'exemplo-contraponto') {
+          expect(resultados.map((x) => `${x.indice}:${x.estado}`)).toEqual(['0:nao-se-sustenta', '1:aberto', '2:aberto'])
+          const certificado = (i: number) => Object.keys(resultados[i].registro!.certificado as object).sort()
+          expect(certificado(1)).toEqual(['modeloDasPremissas', 'refutacao'])
+          expect(certificado(2)).toEqual(['vazio'])
+          // a memória de refutações guarda o CP07 e não bloqueia o CP08, que é outra obrigação
+          const obrigacao = (i: number) => obrigacaoDe('segue', reveladas.find((x) => x.indice === i)!.revelacao)
+          const memoria = await registrar(memoriaVazia(), { obrigacao: await obrigacao(0), resultado: 'contramodelo-conferido', evidencia: `${pasta}/E0-contra`, origem: `${pasta} · elo 0`, em: new Date().toISOString().slice(0, 10) })
+          expect(await consultar(memoria, await obrigacao(1))).toMatchObject({ bloqueia: false, exatas: [], parecidas: [expect.anything()] })
+        }
         mkdirSync(join(SAIDA!, pasta), { recursive: true })
         writeFileSync(join(SAIDA!, pasta, 'registros.json'), JSON.stringify({ pasta, resultados }, null, 2))
         abertos.set(pasta, { chave: JSON.parse(readFileSync(join(RAIZ, pasta, 'cadeia.json'), 'utf8')).chave, indices: new Set(resultados.filter((x) => x.estado === 'aberto').map((x) => x.indice)) })
