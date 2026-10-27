@@ -150,4 +150,19 @@ describe('A rede publicada em redes/cosmos-teste-1/', () => {
     expect(e.recompensas.filter(r => !r.valida).map(r => r.motivo)).toEqual([])
     expect(e.conserva).toBe(true)
   })
+
+  it('o teste de 27/10 com os notebooks A e C: a conta do dia, o gasto duplo e a alteração guardados como evidência', async () => {
+    const ler = (p: string) => readFileSync(join('redes/cosmos-teste-1', p), 'utf8')
+    const a = ler('livros/cosmos-livro-c39ce485-1.json'), c = ler('livros/cosmos-livro-36fe5abf-1.json')
+    const e = await estadoDaRede(G0, [JSON.parse(a), JSON.parse(c)], recompensasPublicadas, '2026-10-27')
+    expect(e.contas.map(k => `${k.nome} ${emUnidades(k.livre)} ${emUnidades(k.travado)}`)).toEqual(['A 80,00 38,50', 'B 100,00 0,00', 'C 70,00 19,00'])
+    expect([e.emitido, e.queimado, e.emCirculacao, e.conserva]).toEqual([31_000, 250, 30_750, true])
+    const ra = await receber(a, [], FORMATO_LIVRO)
+    const conhecidas = [{ chave: ra.chave!, resumos: ra.conferencia.resumos, recebidaEm: '', texto: a }]
+    expect((await receber(a, conhecidas, FORMATO_LIVRO)).relacao).toBe('igual')
+    // M04: a mesma chave de A, restaurada no Edge, assinou outra operação 0 (90 para C)
+    expect(await receber(ler('acusacoes/A-livro-edge.json'), conhecidas, FORMATO_LIVRO)).toMatchObject({ relacao: 'bifurcada', elo: 0 })
+    // M05: a quantia trocada no Bloco de Notas (2000 → 9000) derruba a assinatura
+    expect((await receber(ler('acusacoes/A-alterado.json'), [], FORMATO_LIVRO)).conferencia).toMatchObject({ veredito: 'recusada', motivo: 'C8', elo: 0 })
+  })
 })

@@ -45,3 +45,20 @@ Para cada teste, anotar o computador e a mensagem que apareceu. Fotos da tela ba
 - **Recompensa nova.** Uma recompensa entra quando um registro novo é publicado em `cadeias/` e aberto pelo verificador
   público.
 - **Identidade.** Uma chave não prova quem é a pessoa por trás dela (Fase 6).
+
+## Resultado de 27/10/2026
+
+Feito pelo operador com **dois** notebooks, A e C (o B ficou sem Node.js instalado), com os arquivos levados por
+pendrive; o roteiro de dois notebooks é o de cima sem a etapa da roda pelo terceiro. O B ficou parado na rede, com os
+100 da gênese. Os arquivos estão publicados byte a byte e conferidos por `testes/moeda-teste.test.ts`:
+
+| Teste | Arquivo | O que o arquivo mostra |
+| --- | --- | --- |
+| M02 · Transferência | `livros/cosmos-livro-c39ce485-1.json` | A assinou 20 para C em 2026-10-27; chegam 19,00, presas até 2026-11-26 |
+| M07 · Volta | `livros/cosmos-livro-36fe5abf-1.json` | C assinou 30 para A; chegam 28,50 |
+| M08 · Mesma conta | os dois livros | A 80,00 livres e 38,50 presas, B 100,00, C 70,00 e 19,00; emitido 310,00, queimado 2,50, em circulação 307,50; a conta fecha |
+| M09 · Repetido | o livro de A duas vezes | "igual" |
+| M05 · Alteração | `acusacoes/A-alterado.json` | a quantia trocada de 20,00 para 90,00: recusado (C8, elo 0) |
+| M04 · Gasto duplo | `acusacoes/A-livro-edge.json` | a chave de A, no Edge, assinou outra operação 0 (90 para C): bifurcada no elo 0 |
+
+A trava (M03) não gera arquivo: a operação recusada não é guardada, e a conferência dela é pela tela.
