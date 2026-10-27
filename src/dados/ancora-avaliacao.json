@@ -1,0 +1,17 @@
+{
+  "formato": "cosmos-ancora-avaliacao-v1",
+  "alvo": "public/cosmos-avaliacao-v1-raiz.txt",
+  "sha256_alvo": "1ade216dfa444135cfc63f8f5b6c06b38c1f3411a63b438c22bf1158f59722bd",
+  "conjunto": "avaliacao/conjunto-fechado-v1.json",
+  "raiz": "80c552d37f2619e87ad0fcc60133272d34f78ace24a90f216bf6c4d8270709a5",
+  "prova": "public/cosmos-avaliacao-v1-raiz.txt.ots",
+  "sha256_prova": "990f5c252b48c76a0d17342d066e346feed8aefe16cac8392dc87ac95a66e451",
+  "prova_calendario_original": {
+    "arquivo": "public/cosmos-avaliacao-v1-raiz.txt.calendario.ots",
+    "sha256": "00d440208d1581b51231ff18f73cf876323beaa0c3da16e9c1b397f524d933e4"
+  },
+  "altura": 973304,
+  "bloco": "000000000000000000012a4747fefe25d346b5545875655d6cbe567ae4eac68b",
+  "tempo_bloco_utc": "2026-10-26T22:50:05Z",
+  "limite": "Sem nó Bitcoin próprio. Prova que a raiz dos compromissos dos 120 itens do conjunto fechado existia antes do bloco, portanto antes de qualquer treino; não revela os itens nem prova a qualidade deles."
+}

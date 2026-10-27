@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { compromissoDoItem, raizDoConjunto, resumir, CLASSES, type Item, type Resposta } from '../src/motor/avaliacao'
 import { classificar, pontuar } from '../src/motor/avaliacaoZ3'
 
@@ -58,6 +59,13 @@ describe('Avaliação de frases curtas', () => {
     return raizDoConjunto(p.compromissos).then((raiz) => {
       expect(raiz).toBe(p.raiz)
       expect(readFileSync('public/cosmos-avaliacao-v1-raiz.txt', 'utf8')).toBe(`avaliacao-frases-v1 ${p.itens} ${p.raiz}\n`)
+      // a âncora registrada aponta para esta raiz e para as provas publicadas, sem troca
+      const a = JSON.parse(readFileSync('src/dados/ancora-avaliacao.json', 'utf8'))
+      const sha = (f: string) => createHash('sha256').update(readFileSync(f)).digest('hex')
+      expect(a.raiz).toBe(p.raiz)
+      expect(sha(a.alvo)).toBe(a.sha256_alvo)
+      expect(sha(a.prova)).toBe(a.sha256_prova)
+      expect(sha(a.prova_calendario_original.arquivo)).toBe(a.prova_calendario_original.sha256)
     })
   })
 

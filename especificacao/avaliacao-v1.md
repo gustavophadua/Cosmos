@@ -49,7 +49,9 @@ de um lote dá os acertos completos, os que só acertaram a classe e os acertos 
   Publicado fica só `avaliacao/conjunto-fechado-v1.json`: o número de itens, a contagem por classe, o compromisso de
   cada item e a raiz. O compromisso é o SHA-256 de `avaliacao-frases-v1`, de um sal de 32 bytes e do item em JSON, um
   por linha; o sal impede que alguém adivinhe uma frase curta testando candidatas. A raiz é o SHA-256 dos compromissos,
-  um por linha, e vai carimbada no Bitcoin (`public/cosmos-avaliacao-v1-raiz.txt`).
+  um por linha, e vai carimbada no Bitcoin (`public/cosmos-avaliacao-v1-raiz.txt`): **confirmada no bloco 973304**
+  (2026-10-26 22:50:05 UTC), antes de qualquer treino. O registro fica em `src/dados/ancora-avaliacao.json`, o
+  verificador público o confere a cada execução, e a prova original dos calendários fica em `.calendario.ots`.
 - **Regras:** os itens nunca entram em treino nem em exemplo de prompt; a avaliação de um modelo roda na máquina do
   dono; o resultado publicado diz o modelo, a data e a versão do conjunto. Quando o conjunto for aposentado, os itens
   e os sais são revelados, e qualquer um confere que batem com os compromissos e com a raiz carimbada antes do treino.
