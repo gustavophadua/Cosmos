@@ -6,7 +6,7 @@ import { createServer, request } from 'node:http'
 import { describe, expect, it } from 'vitest'
 import { criarApiIntegracoes } from '../src/integracoes/api-node'
 import { criarPonteIntegracoes } from '../src/integracoes/ponte-node'
-import { validarTextoFormalizacao } from '../src/integracoes/ollama-node'
+import { validarTextoFormalizacao, type ConferidorZ3, type PropostaParaConferir } from '../src/integracoes/ollama-node'
 import { criarClienteOllama } from '../src/interfaces/ollama-cliente'
 import { ESQUEMA_RESPOSTA, lerProposta } from '../src/motor/formalizacao'
 
@@ -22,7 +22,7 @@ function ollamaFalso(rodando = true) {
     if (!rodando) throw new TypeError('fetch failed')
     const respostas: Record<string, unknown> = {
       '/api/tags': { models: [{ name: 'qwen3:4b', model: 'qwen3:4b', digest: DIGEST }] }, '/api/version': { version: '0.40.12' },
-      '/api/chat': { message: { content: PROPOSTA }, prompt_eval_count: 1100, eval_count: 160 },
+      '/api/chat': { message: { content: PROPOSTA }, prompt_eval_count: 1100, eval_count: 160 }, '/api/generate': { done: true },
     }
     const caminho = new URL(url).pathname
     return new Response(JSON.stringify(respostas[caminho]), { status: caminho in respostas ? 200 : 404, headers: { 'Content-Type': 'application/json' } })
@@ -31,7 +31,7 @@ function ollamaFalso(rodando = true) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3 } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -46,7 +46,7 @@ async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>
   })
   try {
     const endereco = await api.iniciar(), token = api.emitirSessaoLocal().token
-    ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar } }) })
+    ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}) } }) })
     const browser: typeof fetch = (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: origem, 'Sec-Fetch-Site': 'same-origin' } })
     await fn({ cliente: criarClienteOllama(origem, browser), chamar, pedidos: falso.pedidos })
   } finally {
@@ -91,6 +91,31 @@ describe('Formalização pelo Ollama local na ponte', () => {
     expect((await c.cliente.carregar()).estado).toBe('pronto')
     expect((await c.cliente.formalizar(TEXTO)).conteudo).toBe(PROPOSTA)
   }, { ttlSessaoMs: 50 }))
+
+  it('modo automático: a conferência tira o modelo da memória e chama o Z3; pedir ao modelo encerra o Z3', async () => {
+    const recebidas: PropostaParaConferir[] = [], eventos: string[] = []
+    const conferidor: ConferidorZ3 = {
+      async conferir(p) { recebidas.push(p); eventos.push('z3'); return { classeZ3: 'segue', aceita: p.classe === 'segue', motivo: p.classe === 'segue' ? '' : `o modelo disse ${p.classe}, o Z3 diz segue` } },
+      parar() { eventos.push('parar') },
+    }
+    await ambiente(async (c) => {
+      const p = lerProposta(PROPOSTA, null)
+      expect(await c.cliente.conferir(p)).toEqual({ classeZ3: 'segue', aceita: true, motivo: '' })
+      expect(await c.cliente.conferir({ ...p, classe: 'contradiz' })).toEqual({ classeZ3: 'segue', aceita: false, motivo: 'o modelo disse contradiz, o Z3 diz segue' })
+      // o navegador manda só vocabulário, fórmulas e classe; o modelo sai da memória pelo pedido fixo, antes do Z3
+      expect(recebidas[0]).toEqual({ vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, classe: 'segue' })
+      const descarregar = c.pedidos.filter((x) => x.url.endsWith('/api/generate'))
+      expect(descarregar.map((x) => [x.url, x.corpo])).toEqual([['http://127.0.0.1:11434/api/generate', { model: 'qwen3:4b', keep_alive: 0 }], ['http://127.0.0.1:11434/api/generate', { model: 'qwen3:4b', keep_alive: 0 }]])
+      await c.cliente.formalizar(TEXTO)
+      expect(eventos).toEqual(['z3', 'z3', 'parar'])
+      // corpo fora do formato: recusado antes do Ollama e do Z3
+      for (const corpo of [{ ...p, extra: 1 }, { vocabulario: [], premissas: p.premissas, conclusao: p.conclusao, classe: 'segue' }, { vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, classe: 'talvez' },
+        { vocabulario: [{ ...p.vocabulario[0], tipo: 'funcao' }], premissas: p.premissas, conclusao: p.conclusao, classe: 'segue' }, { vocabulario: p.vocabulario, premissas: ['x'.repeat(1001)], conclusao: p.conclusao, classe: 'segue' }])
+        expect(await c.chamar({ rota: 'ollama/conferir', metodo: 'POST', corpo })).toBe(400)
+      expect(recebidas).toHaveLength(2)
+      expect(await c.chamar({ rota: 'ollama/conferir', metodo: 'GET' })).toBe(405)
+    }, { conferidor })
+  })
 
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {
     await ambiente(async (c) => { expect(await c.chamar({ rota: 'ollama/estado' })).toBe(503) }, { ligado: false })

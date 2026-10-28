@@ -44,6 +44,11 @@ export function criarAdaptadorOllama(o: OpcoesOllama) {
   }
 }
 
+/** Tira o modelo da memória (keep_alive 0): antes do Z3, que não cabe junto com ele neste computador. */
+export async function descarregarModeloOllama(modelo: string, buscar: typeof fetch = fetch): Promise<void> {
+  await pedir(buscar, '/api/generate', { model: modelo, keep_alive: 0 }, 30_000)
+}
+
 /**
  * O que identifica o modelo numa medição: o digest (SHA-256 do manifesto, que fixa os pesos) e a versão do Ollama.
  * Lança se o modelo não está instalado.

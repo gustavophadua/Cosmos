@@ -1,14 +1,14 @@
 import { request, type IncomingMessage, type ServerResponse } from 'node:http'
 import { criarObservabilidadeP0, observarHttpP0 } from './observabilidade-node'
 import { criarControleGroq } from './groq-node'
-import { criarControleOllama } from './ollama-node'
+import { criarConferidorZ3, criarControleOllama, type ConferidorZ3 } from './ollama-node'
 
 const PREFIXO = '/cosmos/__p0/'
 const ROTAS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   estado: ['GET'], configuracao: ['GET', 'PUT', 'DELETE'], testar: ['POST'], orcamento: ['GET'],
   executar: ['POST'], cancelar: ['POST'], 'contexto-rag': ['POST'],
   groq: ['POST'], 'groq/configuracao': ['GET', 'PUT'], 'groq/estado': ['GET'], 'groq/testar': ['POST'],
-  ollama: ['POST'], 'ollama/estado': ['GET'],
+  ollama: ['POST'], 'ollama/estado': ['GET'], 'ollama/conferir': ['POST'],
 })
 function unico(req: IncomingMessage, nome: string) {
   const valores = req.rawHeaders.filter((_, i) => i % 2 === 0).filter(h => h.toLowerCase() === nome)
@@ -23,7 +23,7 @@ function unico(req: IncomingMessage, nome: string) {
  */
 export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number; token: string;
   groq?: { chave: () => string | undefined; buscar?: typeof fetch; prazoMs?: number }
-  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number } }) {
+  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 } }) {
   const { origem, portaApi, token } = opcoes
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem
       || !Number.isSafeInteger(portaApi) || portaApi < 1 || portaApi > 65535 || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Ponte local inválida')
@@ -37,7 +37,7 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
     r.setTimeout(1500, () => { r.destroy(); resolve(false) }); r.on('error', () => resolve(false)); r.end()
   })
   const groq = opcoes.groq ? criarControleGroq({ ...opcoes.groq, sessaoValida }) : null
-  const ollama = opcoes.ollama ? criarControleOllama(opcoes.ollama) : null
+  const ollama = opcoes.ollama ? criarControleOllama({ conferidor: criarConferidorZ3(new URL('./z3-trabalhador.mjs', import.meta.url)), ...opcoes.ollama }) : null
   const observabilidade = criarObservabilidadeP0()
   observabilidade.registrar({ tipo: 'servico', canal: 'ponte', estado: 'iniciado' })
   return Object.freeze({

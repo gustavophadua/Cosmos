@@ -67,3 +67,16 @@ export async function votar(api: unknown, v: Termo[], candidatos: Candidato[]): 
   const classe = contagem.size ? [...contagem].reduce((a, x) => (x[1] > a[1] ? x : a))[0] : null
   return { premissas: maior[0].premissas, conclusao: maior[0].conclusao, classe }
 }
+
+export interface Conferencia { classeZ3: Classe | null; aceita: boolean; motivo: string }
+/**
+ * O modo automático da formalização (especificacao/formalizacao-v1.md §3c): a proposta passa sem a pessoa aprovar só
+ * quando a classe que o modelo disse é a que o Z3 dá às fórmulas dele. Classe diferente quase sempre é fórmula que não
+ * diz o que o texto dizia; premissas inconsistentes ou o Z3 sem decidir também descartam.
+ */
+export async function conferirProposta(api: unknown, p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, tempoMs = 5_000): Promise<Conferencia> {
+  let classeZ3: Classe
+  try { classeZ3 = await classificar(api, p.vocabulario, p.premissas, p.conclusao, tempoMs) } catch (e) { return { classeZ3: null, aceita: false, motivo: (e as Error).message } }
+  if (!p.classe) return { classeZ3, aceita: false, motivo: `o modelo não disse a classe; o Z3 diz ${classeZ3}` }
+  return classeZ3 === p.classe ? { classeZ3, aceita: true, motivo: '' } : { classeZ3, aceita: false, motivo: `o modelo disse ${p.classe}, o Z3 diz ${classeZ3}` }
+}

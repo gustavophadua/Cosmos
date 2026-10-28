@@ -31,7 +31,7 @@ try {
   // Sem config de build do site, dotenv, public/ ou segredo gravado no artefato.
   await build({ configFile: false, envDir: false, envPrefix: [], publicDir: false, logLevel: 'silent',
     build: { ssr: true, outDir: 'tmp/integracoes-p0-runtime', emptyOutDir: true,
-      rolldownOptions: { input: { servidor: 'src/integracoes/servidor-node.ts', ponte: 'src/integracoes/ponte-node.ts' },
+      rolldownOptions: { input: { servidor: 'src/integracoes/servidor-node.ts', ponte: 'src/integracoes/ponte-node.ts', 'z3-trabalhador': 'src/integracoes/z3-trabalhador-node.ts' },
         output: { entryFileNames: '[name].mjs' } } },
   })
   const html = await readFile(new URL('../tmp/integracoes-p0-interface/index.html', import.meta.url))

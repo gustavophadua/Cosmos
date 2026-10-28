@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { criarAdaptadorOllama, descreverModeloOllama } from './provedores/ollama'
+import { Worker } from 'node:worker_threads'
+import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } from './provedores/ollama'
 import { ESQUEMA_RESPOSTA, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
-import type { Item } from '../motor/avaliacao'
+import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
+import type { Conferencia } from '../motor/avaliacaoZ3'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -20,6 +22,53 @@ export function validarTextoFormalizacao(x: unknown): { premissas: string[]; con
   return { premissas: (o.premissas as string[]).map((p) => p.trim()), conclusao: (o.conclusao as string).trim() }
 }
 
+export interface PropostaParaConferir { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }
+const objetoSimples = (x: unknown, chaves: string): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
+  && Object.getPrototypeOf(x) === Object.prototype && Object.keys(x).sort().join() === chaves
+/** A proposta já lida no navegador, para o Z3 conferir: vocabulário, fórmulas e a classe dita. Só isso. */
+export function validarPropostaConferir(x: unknown): PropostaParaConferir {
+  const formula = (s: unknown) => typeof s === 'string' && s.trim().length > 0 && s.length <= 1000
+  const termo = (t: unknown) => objetoSimples(t, 'aridade,leitura,simbolo,tipo') && typeof t.simbolo === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(t.simbolo)
+    && (t.tipo === 'predicado' || t.tipo === 'constante') && Number.isInteger(t.aridade) && (t.aridade as number) >= 0 && (t.aridade as number) <= 4 && typeof t.leitura === 'string' && t.leitura.length <= 80
+  if (!objetoSimples(x, 'classe,conclusao,premissas,vocabulario') || !Array.isArray(x.vocabulario) || x.vocabulario.length < 1 || x.vocabulario.length > 40
+      || !x.vocabulario.every(termo) || !Array.isArray(x.premissas) || x.premissas.length < 1 || x.premissas.length > 10 || !x.premissas.every(formula)
+      || !formula(x.conclusao) || !(x.classe === null || CLASSES.includes(x.classe as Classe))) throw new ErroOllama(400, 'invalido')
+  return { vocabulario: (x.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })), premissas: x.premissas as string[], conclusao: x.conclusao as string, classe: x.classe as Classe | null }
+}
+
+export interface ConferidorZ3 { conferir(p: PropostaParaConferir): Promise<Conferencia>; parar(): void }
+/**
+ * O Z3 numa thread (z3-trabalhador-node.ts), aberta na primeira conferência e encerrada antes de cada pedido ao modelo,
+ * depois de um minuto parada ou se uma conferência passar de 60 s.
+ */
+export function criarConferidorZ3(arquivo: URL): ConferidorZ3 {
+  let w: Worker | null = null, n = 0, ocioso: ReturnType<typeof setTimeout> | undefined
+  const espera = new Map<number, { ok: (c: Conferencia) => void; nao: (e: Error) => void; prazo: ReturnType<typeof setTimeout> }>()
+  const parar = () => {
+    clearTimeout(ocioso)
+    if (w) { void w.terminate(); w = null }
+    for (const e of espera.values()) { clearTimeout(e.prazo); e.nao(new Error('o Z3 foi encerrado')) }
+    espera.clear()
+  }
+  const conferir = (p: PropostaParaConferir) => new Promise<Conferencia>((ok, nao) => {
+    if (!w) {
+      const t = w = new Worker(arquivo)
+      t.on('message', (m: { id: number; conferencia?: Conferencia; erro?: string }) => {
+        const e = espera.get(m.id); if (!e) return
+        espera.delete(m.id); clearTimeout(e.prazo)
+        if (m.conferencia) e.ok(m.conferencia); else e.nao(new Error(m.erro ?? 'o Z3 falhou'))
+      })
+      t.on('error', () => { if (w === t) parar() })
+      t.on('exit', () => { if (w === t) parar() })
+    }
+    clearTimeout(ocioso); ocioso = setTimeout(parar, 60_000); ocioso.unref()
+    const id = ++n
+    espera.set(id, { ok, nao, prazo: setTimeout(parar, 60_000) })
+    w.postMessage({ id, proposta: p })
+  })
+  return { conferir, parar }
+}
+
 /**
  * A formalização pelo Ollama local, servida pela ponte (rotas `ollama/estado` e `ollama`). Só o pedido fixo
  * (formalizacao-v1, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
@@ -27,7 +76,7 @@ export function validarTextoFormalizacao(x: unknown): { premissas: string[]; con
  * Não depende da sessão P0 (15 minutos, feita para a chave do Groq): aqui não há segredo, e a rota vale enquanto o
  * serviço local estiver aberto, presa à mesma origem e ao marcador da ponte.
  */
-export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number }) {
+export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   const perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   let pendente = false, encerrado = false
@@ -36,13 +85,13 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Connection: 'close' })
     res.end(JSON.stringify(v))
   }
-  const lerCorpo = (req: IncomingMessage) => new Promise<unknown>((resolve, reject) => {
+  const lerCorpo = (req: IncomingMessage, limite = 16384) => new Promise<unknown>((resolve, reject) => {
     const partes: Buffer[] = []; let bytes = 0
     const timer = setTimeout(() => { limpar(); reject(new ErroOllama(408, 'invalido')) }, 5000)
     const limpar = () => { clearTimeout(timer); req.off('data', data); req.off('end', end) }
     const data = (b: Buffer) => {
       bytes += b.length
-      if (bytes > 16384) { limpar(); req.pause(); reject(new ErroOllama(413, 'invalido')); return }
+      if (bytes > limite) { limpar(); req.pause(); reject(new ErroOllama(413, 'invalido')); return }
       partes.push(b)
     }
     const end = () => {
@@ -65,7 +114,18 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (pendente) throw new ErroOllama(429, 'ocupado')
       pendente = true
       try {
+        if (rota === 'ollama/conferir') {
+          // o modo automático: o modelo sai da memória e o Z3 confere a classe que ele disse
+          if (!opcoes.conferidor) throw new ErroOllama(503, 'indisponivel')
+          const p = validarPropostaConferir(await lerCorpo(req, 32768))
+          await descarregarModeloOllama(modelo, opcoes.buscar).catch(() => undefined)
+          const c = await opcoes.conferidor.conferir(p)
+          if (encerrado) throw new ErroOllama(503, 'indisponivel')
+          enviar(res, 200, { formato: 'cosmos-ollama-conferencia-v1', classe_z3: c.classeZ3, aceita: c.aceita, motivo: c.motivo })
+          return
+        }
         const texto = validarTextoFormalizacao(await lerCorpo(req))
+        opcoes.conferidor?.parar()
         const inicio = Date.now()
         const r = await perguntar(mensagensDeFormalizacao(texto, null, EXEMPLOS))
         if (encerrado) throw new ErroOllama(503, 'indisponivel')
@@ -76,5 +136,5 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       enviar(res, erro.status, { erro: erro.codigo })
     }
   }
-  return Object.freeze({ tratar, encerrar() { encerrado = true } })
+  return Object.freeze({ tratar, encerrar() { encerrado = true; opcoes.conferidor?.parar() } })
 }

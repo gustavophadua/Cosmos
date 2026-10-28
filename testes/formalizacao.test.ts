@@ -57,6 +57,20 @@ describe('Formalização assistida', () => {
     expect(() => lerProposta(JSON.stringify({ vocabulario: [{ simbolo: 'Pé', tipo: 'predicado', aridade: 1, leitura: 'x é pé' }, { simbolo: 'Pe', tipo: 'predicado', aridade: 1, leitura: 'x é pe' }], premissas: ['Pe(a)'], conclusao: 'Pe(a)' }), null)).toThrow(/repetido/)
   })
 
+  it('sem vocabulário dado, completa o símbolo usado e não declarado, com leitura provisória marcada', () => {
+    // o caso real da tela em 28/10/2026, a galinha de Diógenes: o modelo declarou TemPenas e escreveu Penas
+    const r = lerProposta(JSON.stringify({ vocabulario: [{ simbolo: 'Bipede', tipo: 'predicado', aridade: 1, leitura: 'x é bípede' }, { simbolo: 'TemPenas', tipo: 'predicado', aridade: 1, leitura: 'x tem penas' }, { simbolo: 'Homem', tipo: 'predicado', aridade: 1, leitura: 'x é homem' }],
+      premissas: ['∀x ((Bipede(x) ∧ ¬Penas(x)) ⟹ Homem(x))', 'Bipede(galinha)', '¬Penas(galinha)'], conclusao: 'Homem(galinha)', classe: 'segue' }), null)
+    expect(r.completados).toEqual(['Penas', 'galinha'])
+    expect(r.vocabulario.slice(3)).toEqual([{ simbolo: 'Penas', tipo: 'predicado', aridade: 1, leitura: 'x é penas' }, { simbolo: 'galinha', tipo: 'constante', aridade: 0, leitura: 'Galinha' }])
+    expect(lerDeVolta(r.premissas[2], r.vocabulario)).toBe('Galinha não é penas')
+    // nome com verbo vira "x tem …"; nada a completar, nada marcado
+    expect(lerProposta(JSON.stringify({ vocabulario: [{ simbolo: 'Ave', tipo: 'predicado', aridade: 1, leitura: 'x é ave' }], premissas: ['Ave(piu)'], conclusao: 'TemAsas(piu)' }), null).vocabulario.at(-1)!.leitura).toBe('x tem asas')
+    expect(lerProposta(resposta({ vocabulario: [{ simbolo: 'Gato', tipo: 'predicado', aridade: 1, leitura: 'x é gato' }, { simbolo: 'tom', tipo: 'constante', aridade: 0, leitura: 'Tom' }], premissas: ['Gato(tom)'], conclusao: 'Gato(tom)' }), null).completados).toBeUndefined()
+    // um nome já declarado com outra aridade não se completa: continua recusado
+    expect(() => lerProposta(resposta({ vocabulario: [{ simbolo: 'Gato', tipo: 'predicado', aridade: 1, leitura: 'x é gato' }], premissas: ['Gato(tom, ana)'], conclusao: 'Gato(tom)' }), null)).toThrow(/não se lê|vocabulário/)
+  })
+
   it('recusa fórmula fora do vocabulário, que não se lê, ou resposta sem JSON', () => {
     expect(() => lerProposta(resposta({ premissas: ['Medico(bruno)'], conclusao: 'Paciente(ana)', classe: 'segue' }), VOCAB)).toThrow(/vocabulário/)
     expect(() => lerProposta(resposta({ premissas: ['∀x (Medico(x) ⟹'], conclusao: 'Paciente(ana)', classe: 'segue' }), VOCAB)).toThrow(/não se lê/)

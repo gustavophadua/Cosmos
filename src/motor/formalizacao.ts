@@ -7,11 +7,14 @@
 
 import type { EntradaDicionario } from '../dados/tipos'
 import { lerEmPortugues } from '../logica/leitura'
+import { usosDeNomes } from '../logica/termos'
+import { validar } from '../logica/validador'
+import { comoDicionario } from './registro'
 import { CLASSES, lerFormula, type Classe, type Item, type Termo } from './avaliacao'
 
 export const PROMPT_FORMALIZACAO = 'formalizacao-v1'
 export interface Mensagem { role: 'system' | 'user' | 'assistant'; content: string }
-export interface Proposta { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }
+export interface Proposta { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null; completados?: string[] }
 
 const SISTEMA = `Você formaliza frases curtas em português na linguagem m2 (lógica de primeira ordem).
 
@@ -132,6 +135,36 @@ function acertarSimbolos(o: Record<string, unknown>): Record<string, unknown> {
     premissas: Array.isArray(o.premissas) ? o.premissas.map(trocar) : o.premissas, conclusao: trocar(o.conclusao) }
 }
 
+const VERBOS = new Set(['tem', 'gosta', 'come', 'voa', 'ama', 'conhece', 'possui', 'sabe', 'mora', 'vive', 'usa', 'faz', 'pode', 'deve', 'esta', 'gera', 'causa', 'ensina', 'estuda', 'trabalha', 'respeita', 'teme', 'odeia', 've', 'le', 'escreve', 'joga', 'corre', 'nada', 'canta'])
+/** A leitura provisória de um símbolo completado, tirada do nome: "TemPenas" → "x tem penas", "Ave" → "x é ave". */
+function leituraDoNome(simbolo: string, tipo: Termo['tipo'], aridade: number): string {
+  const palavras = simbolo.replace(/_/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().trim()
+  if (tipo === 'constante') return palavras.charAt(0).toUpperCase() + palavras.slice(1)
+  if (aridade === 1) return VERBOS.has(palavras.split(' ')[0]) ? `x ${palavras}` : `x é ${palavras}`
+  if (aridade === 2) return `x ${palavras} y`
+  return `${simbolo}(${['x', 'y', 'z', 'w'].slice(0, aridade).join(', ')})`
+}
+/**
+ * Sem vocabulário dado, o modelo às vezes usa nas fórmulas um símbolo que não declarou (o caso real: "¬Penas(galinha)"
+ * com o vocabulário dizendo outra coisa). O símbolo entra com o tipo e a aridade do uso e uma leitura provisória tirada
+ * do nome, e fica marcado em `completados` para a tela mostrar. Um nome usado de dois jeitos, fora do padrão ou já
+ * declarado com outro tipo não se completa: a leitura recusa, como antes.
+ */
+function completarVocabulario(vocabulario: Termo[], formulas: string[]): { vocabulario: Termo[]; completados: string[] } {
+  const v = [...vocabulario], completados: string[] = []
+  for (const f of formulas) {
+    const r = validar(f, comoDicionario(v.map(({ simbolo, tipo, aridade }) => ({ simbolo, tipo, aridade }))))
+    if (!r.ast) continue
+    for (const u of usosDeNomes(r.ast)) {
+      if (v.some((t) => t.simbolo === u.nome) || (u.tipo !== 'predicado' && u.tipo !== 'constante')) continue
+      if (!(u.tipo === 'constante' ? /^[a-z][a-z0-9_]{0,30}$/ : /^[A-Z][A-Za-z0-9_]{0,30}$/).test(u.nome) || u.aridade > 4) continue
+      v.push({ simbolo: u.nome, tipo: u.tipo, aridade: u.aridade, leitura: leituraDoNome(u.nome, u.tipo, u.aridade) })
+      completados.push(u.nome)
+    }
+  }
+  return { vocabulario: v, completados }
+}
+
 /**
  * Lê a resposta do modelo como proposta: o objeto JSON, o vocabulário (o dado, se houver; senão o proposto, com os
  * símbolos na forma do padrão) e cada fórmula em m2 com esse vocabulário. Lança, com o motivo, o que não se lê.
@@ -140,13 +173,15 @@ export function lerProposta(conteudo: string, vocabularioDado: Termo[] | null): 
   const lido = objetoDaResposta(conteudo)
   if (!ehObjeto(lido)) throw new Error('a resposta não é um objeto')
   const o = vocabularioDado ? lido : acertarSimbolos(lido)
-  const vocabulario = vocabularioDado ?? vocabularioProposto(o.vocabulario)
   if (!Array.isArray(o.premissas) || !o.premissas.length || o.premissas.length > 10 || !o.premissas.every((p) => typeof p === 'string')) throw new Error('premissas: uma lista de 1 a 10 fórmulas')
   if (typeof o.conclusao !== 'string') throw new Error('falta a conclusão')
   const premissas = (o.premissas as string[]).map((p) => p.trim()), conclusao = o.conclusao.trim()
+  // com o vocabulário dado (o piloto e a nota), nada se completa: o símbolo fora dele é erro do modelo
+  const { vocabulario, completados } = vocabularioDado ? { vocabulario: vocabularioDado, completados: [] }
+    : completarVocabulario(vocabularioProposto(o.vocabulario), [...premissas, conclusao])
   for (const f of [...premissas, conclusao]) lerFormula(f, vocabulario)
   const classe = CLASSES.includes(o.classe as Classe) ? (o.classe as Classe) : null
-  return { vocabulario, premissas, conclusao, classe }
+  return { vocabulario, premissas, conclusao, classe, ...(completados.length ? { completados } : {}) }
 }
 
 /**

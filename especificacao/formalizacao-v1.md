@@ -47,6 +47,30 @@ fórmulas, só como palavra inteira. Com o vocabulário dado (o piloto e a nota)
 em 28/10/2026: "Todo pássaro tem penas. Tico não tem penas." ⟹ "Tico não é pássaro." voltou com as três leituras
 certas e a classe "segue", em cerca de 2 minutos e meio.
 
+Símbolo usado nas fórmulas e não declarado no vocabulário (o caso real, a galinha de Diógenes: o modelo escreveu
+`¬Penas(galinha)` sem declarar `Penas`) entra com o tipo e a aridade do uso e uma leitura provisória tirada do nome
+("TemPenas" → "x tem penas", "Ave" → "x é ave"), marcada como completada na tela. Nome usado de dois jeitos, fora do
+padrão ou já declarado de outro jeito continua recusado. Só sem vocabulário dado: o piloto e a nota não mudam.
+
+### 3c. O modo automático (28/10/2026)
+
+Para não aprovar uma por uma: a pessoa cola vários problemas (as premissas, uma por linha, a conclusão na última, uma
+linha em branco entre eles; até 50), e o Cosmos faz o resto. Primeiro o modelo propõe todas, uma de cada vez; depois o
+serviço local tira o modelo da memória e o Z3, numa thread à parte do processo Node (`src/integracoes/z3-trabalhador-node.ts`),
+confere cada uma (rota `ollama/conferir`). **Passa só a proposta que se lê e em que a classe que o modelo disse é a que o
+Z3 dá às fórmulas dele**; o resto é descartado com o motivo (não se lê, classe diferente, premissas inconsistentes, Z3
+sem decidir). A thread do Z3 se encerra antes de cada pedido ao modelo e depois de um minuto parada: os dois juntos não
+cabem na memória deste computador.
+
+As aceitas vão para Minha cadeia com um clique ("Levar as N aceitas"), e lá um clique assina todas, com a afirmação que o
+Z3 deu e o estado "proposta". O resultado inteiro (aceitas, descartadas e motivos) pode ser exportado.
+
+O limite é o mesmo da nota: a conferência pega fórmula que não diz o que o modelo achou que dizia (a classe não bate),
+mas não pega o erro em que a fórmula errada e a classe errada concordam. Aplicada às respostas da nota oficial (§5b), a
+regra aceitaria 95 dos 120 itens, 93 deles com as fórmulas fiéis (98%), e descartaria 25 (23 com a classe divergente e 2
+que não se leram), dos quais 22 tinham as fórmulas certas: descarta mais do que o necessário, em troca de quase nada
+errado passar. A classe que o modelo mais erra é "independente".
+
 **Com o Groq:** só pelo serviço local com o Groq ligado (`node scripts/integracoes-p0.mjs --groq`, com `GROQ_API_KEY` no ambiente,
 em `http://127.0.0.1:4175/cosmos/`): a chave fica no processo Node e nunca chega ao navegador. A tela avisa que o texto
 sai do computador e não deve levar o Principia, dados pessoais nem itens do conjunto fechado. A pessoa escreve as

@@ -27,7 +27,7 @@ const RELACOES: Record<string, string> = {
  * Fase 3: a cadeia pessoal num aparelho. Criar a chave e assinar só pelo localhost (como a conta local); conferir
  * uma cadeia recebida funciona em qualquer lugar, porque não usa chave nenhuma.
  */
-export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; dominio: string; premissas?: string[]; afirmacao?: Afirmacao } | null }) {
+export function CadeiaPessoal({ inicial, lote, aoAssinarLote }: { inicial?: { formula: string; dominio: string; premissas?: string[]; afirmacao?: Afirmacao } | null; lote?: { formula: string; premissas: string[]; afirmacao: Afirmacao; dominio: string }[] | null; aoAssinarLote?: () => void }) {
   const local = somenteHostLocal(location.hostname)
   const [estado, setEstado] = useState<EstadoCadeiaLocal | null>(null)
   const [conferencia, setConferencia] = useState<ConferenciaDaCadeia | null>(null)
@@ -137,6 +137,24 @@ export function CadeiaPessoal({ inicial }: { inicial?: { formula: string; domini
         {!estado.cadeia && conhecidaDaMinha && <Button variant="outline" onClick={() => void executar(async () => { await salvar({ ...estado, cadeia: JSON.parse(conhecidaDaMinha.texto) }); setAviso('Continuando a cadeia recebida desta chave.') })}>Continuar esta cadeia</Button>}
       </div>
     </section>
+
+    {lote && lote.length > 0 && <section className="labs-surface cadeia-lote">
+      <h3>{lote.length} registro(s) do modo automático</h3>
+      <p>Cada um passou pela conferência do Z3 (a classe que o modelo disse é a das fórmulas). Vão fechados, como os outros, com a afirmação que o Z3 deu, na teoria "{dados.teoriaNome}" e no estado "proposta".</p>
+      <ol className="cadeia-elos">{lote.map((r, i) => <li key={i}><span>{i + 1}</span><span>{NOMES_AFIRMACAO[r.afirmacao]} · {r.dominio}</span><code>{r.premissas.join(' ; ')} ⊢ {r.formula}</code></li>)}</ol>
+      <Button disabled={ocupado} onClick={() => void executar(async () => {
+        let cadeia = estado.cadeia, revelacoes = [...estado.revelacoes], ultima: ConferenciaDaCadeia | null = null
+        for (const r of lote) {
+          const { registroTexto, revelacao } = await montarRegistroFechado({ ...dados, formula: r.formula, premissas: r.premissas, afirmacao: r.afirmacao, tipo: r.afirmacao === 'segue' ? 'teorema' : 'hipótese', dominio: r.dominio, estado: 'proposta' }, chave.publica)
+          const a = await anexar(cadeia, chave, registroTexto)
+          cadeia = a.cadeia; ultima = a.conferencia
+          revelacoes = [...revelacoes, { indice: cadeia.elos.length - 1, revelacao }]
+        }
+        await salvar({ ...estado, cadeia, revelacoes })
+        setAviso(`${lote.length} registro(s) assinados e anexados. A cadeia confere (resumo ${ultima?.cabeca?.slice(0, 16)}…).`)
+        aoAssinarLote?.()
+      })}>{ocupado ? 'Assinando…' : `Assinar os ${lote.length} e anexar à cadeia`}</Button>
+    </section>}
 
     <section className="labs-surface">
       <h3>Novo registro na cadeia</h3>
