@@ -1,0 +1,9 @@
+cosmos-iai-v1-resultado
+conjunto avaliacao-frases-v1 120 raiz 80c552d37f2619e87ad0fcc60133272d34f78ace24a90f216bf6c4d8270709a5
+medicao 1 de 3 no conjunto fechado, linha de base sem treino, 2026-10-28T13:09:22Z
+modelo qwen3:4b digest 359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7 ollama 0.40.12
+pedido formalizacao-v1 saida esquema-json-v1 pensando false temperatura 0 semente 0 contexto 4096
+respostas_sha256 07a09a28c0d9bc6d363778af470590b378e2c7826ad1772b0e11494ac3c74952
+notas_sha256 bcb3ca72accbf03705c86c46230f841a0ff1e10dd1f72bf7565f4f44776a32b7
+formulas_fieis 115/120 classe_pelo_z3 116/120 classe_dita 95/120 completas 93/120 lidas 118/120
+meta 85% de formulas fieis, decidida pelo dono em 2026-10-28 depois da linha de base

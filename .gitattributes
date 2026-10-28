@@ -50,3 +50,6 @@ public/cosmos-avaliacao-v1-raiz.txt -text
 public/cosmos-avaliacao-v1-raiz.txt.ots -text
 # a validação da I-AI: a CI refaz o arquivo pelo gerador e compara byte a byte
 avaliacao/validacao-v1.jsonl text eol=lf
+# o resultado da I-AI no conjunto fechado e a prova OTS dele
+public/cosmos-iai-v1-resultado.txt -text
+public/cosmos-iai-v1-resultado.txt.ots -text

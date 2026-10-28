@@ -108,3 +108,34 @@ num conjunto à parte, e os 120 se medem no máximo três vezes (o piloto regist
 **Limite declarado:** o gerador público foi escrito por quem escreveu o do conjunto fechado e cobre os mesmos padrões
 de raciocínio (que já são públicos em §3). Por isso a nota nos 120 mede a passagem para **vocabulário novo**, não para
 frases escritas por gente; o conjunto escrito à mão (§5) continua sendo o próximo passo para isso.
+
+## 7. Medições no conjunto fechado
+
+| # | Data | Modelo | Configuração | Fórmulas fiéis | Classe pelo Z3 | Classe dita | Completas |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | 28/10/2026 | `qwen3:4b` no Ollama 0.40.12, sem treino | `formalizacao-v1`, `esquema-json-v1`, sem modo pensando, temperatura 0 | **115/120 = 95,8%** (90,6–98,2%) | **116/120 = 96,7%** (91,7–98,7%) | 95/120 = 79,2% (71,1–85,5%) | 93/120 = 77,5% (69,2–84,1%) |
+
+Os intervalos são de 95% (Wilson). Rodou no computador do dono, só na CPU (cerca de 48 s por item, 1 h 36 min no
+total); nenhum item saiu do aparelho. O digest do modelo é
+`359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7`.
+
+- **Fórmulas fiéis** é o número que vale: no Cosmos, a classe sai do Z3 a partir das fórmulas, e a pessoa aprova a
+  leitura de volta. Das 5 que falharam, 2 usaram um símbolo fora do vocabulário do item (recusadas na leitura) e 3
+  trouxeram uma premissa ou a conclusão que não equivale à do gabarito.
+- **A classe dita pelo modelo** é o ponto fraco: por classe do gabarito, completas em 37/40 (segue), 36/40
+  (contradiz) e só 20/40 (independente). Nas independentes, o modelo cai nas falácias que o conjunto testa (diz
+  "segue" ou "contradiz" onde nada se conclui). O Cosmos não usa essa classe para decidir nada.
+- Matriz da classe dita (linha = gabarito, coluna = modelo): segue 37 / 0 / 3 / 0; contradiz 3 / 36 / 1 / 0;
+  independente 5 / 11 / 22 / 2 (a última coluna: sem resposta lida).
+- A nota por padrão de raciocínio não é publicada, porque diria quantos itens de cada padrão o conjunto tem.
+
+**Meta e decisão:** o dono fixou a meta em 85% de fórmulas fiéis depois de ver a linha de base (ver
+`decisoes-do-dono.md`); o limite de baixo do intervalo já passa dela, então a I-AI v1 fica com o modelo sem treino e
+as outras duas medições ficam guardadas. O resumo com os hashes das respostas e das notas está em
+`public/cosmos-iai-v1-resultado.txt`, carimbado no Bitcoin pelo OpenTimestamps (enviado aos calendários em
+28/10/2026; a confirmação entra num registro próprio, como a da raiz). Quando o conjunto for revelado (§3), qualquer
+um refaz a nota a partir das respostas e confere os dois hashes.
+
+**Limites desta nota:** vale para frases no estilo do gerador, com vocabulário novo (§6); com frases escritas por
+gente o número pode ser menor. São 120 itens: neste nível de acerto, o intervalo vai até
+ cerca de 5 pontos abaixo do medido.

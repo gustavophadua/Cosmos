@@ -25,3 +25,10 @@ Todas pela recomendação apresentada:
 
 No mesmo dia, a semente do selo 502426c, que estava em claro na máquina do dono (fora do Git), foi cifrada e o
 original apagado.
+
+## 28/10/2026
+
+- **Meta da I-AI v1:** 85% de fórmulas fiéis no conjunto fechado, pela recomendação apresentada depois da linha de
+  base (115/120 = 95,8%, intervalo de 95% de 90,6 a 98,2%). Como a meta já foi batida, o plano segue direto para o
+  fechamento: sem as melhorias sem treino, sem treino e sem rodadas com o verificador; ficam 2 das 3 medições
+  permitidas. Ver `avaliacao-v1.md` §7.

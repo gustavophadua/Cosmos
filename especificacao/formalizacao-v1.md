@@ -91,6 +91,12 @@ invertido; de 1,2 a 2,1 s por item, de 1.106 a 1.167 tokens de entrada e de 324 
 gosta de banho. Mimi é uma gata." ⟹ "Mimi não gosta de banho.") voltou certa em 1,7 s e foi levada ao registro com
 fórmula, premissas e afirmação preenchidas.
 
+## 5b. A nota oficial (28/10/2026)
+
+`qwen3:4b` no Ollama local, sem treino, nos 120 itens fechados (medição 1 de 3): **115/120 fórmulas fiéis (95,8%)** e
+classe certa pelo Z3 em 116/120; a classe que o próprio modelo diz acerta 95/120. A meta do dono, 85% de fórmulas
+fiéis, foi batida; os números, os intervalos e os limites estão em `avaliacao-v1.md` §7.
+
 ## 6. A memória de refutações
 
 `src/motor/memoriaRefutacoes.ts`, com o desenho do capítulo 6 da resposta do GPT ao contraponto. Guarda cada tentativa
