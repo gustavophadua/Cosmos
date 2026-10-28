@@ -1,0 +1,226 @@
+"""Gera frases curtas para a validação e o treino da I-AI (formato avaliacao-frases-v1), público e reproduzível.
+
+Uso:
+  python -I -X utf8 -B scripts/gerar-frases.py validacao avaliacao/validacao-v1.jsonl
+  python -I -X utf8 -B scripts/gerar-frases.py treino SAIDA.jsonl [ITENS_POR_CLASSE]
+
+- validacao: 150 itens, 50 por classe, vocabulário de fantasia, só as formas de frase de base. É nele que se escolhem
+  pedido, exemplos, votação e o checkpoint do treino; o conjunto fechado não serve para ajustar nada.
+- treino: vocabulário próprio (espaço e campo), formas de frase variadas ("Cada", "Todos os…", "Existe um…",
+  "somente se"…) e alguns padrões a mais (e, se e somente se, nem…nem). Por padrão, 1000 itens por classe.
+
+Cada linha: {"padrao": nome, "formas": [índice da forma de cada frase], "item": {...}}. A semente é fixa (o nome do modo): rodar de novo dá o mesmo
+arquivo, byte a byte. A classe de cada padrão é a esperada; a conferência pelo Z3 (testes/frases-geradas.test.ts) é a
+que vale. Este gerador nunca lê o conjunto fechado; scripts/anti-vazamento.py confere, na
+máquina do dono, que nenhuma palavra de conteúdo dele aparece aqui.
+"""
+import hashlib, json, os, random, sys
+
+# símbolo, masculino, feminino, plural (masculino)
+VALIDACAO = {
+    'classes': [
+        ('Mago', 'mago', 'maga', 'magos'), ('Elfo', 'elfo', 'elfa', 'elfos'), ('Anao', 'anão', 'anã', 'anões'),
+        ('Gigante', 'gigante', 'gigante', 'gigantes'), ('Guerreiro', 'guerreiro', 'guerreira', 'guerreiros'),
+        ('Feiticeiro', 'feiticeiro', 'feiticeira', 'feiticeiros'), ('Cavaleiro', 'cavaleiro', 'cavaleira', 'cavaleiros'),
+        ('Pirata', 'pirata', 'pirata', 'piratas'), ('Viajante', 'viajante', 'viajante', 'viajantes'), ('Rei', 'rei', 'rainha', 'reis'),
+        ('Principe', 'príncipe', 'princesa', 'príncipes'), ('Monge', 'monge', 'monja', 'monges'), ('Ladrao', 'ladrão', 'ladra', 'ladrões'),
+        ('Bardo', 'bardo', 'barda', 'bardos'), ('Cacador', 'caçador', 'caçadora', 'caçadores'), ('Druida', 'druida', 'druida', 'druidas'),
+    ],
+    'adjetivos': [
+        ('Sabio', 'sábio', 'sábia', 'sábios'), ('Corajoso', 'corajoso', 'corajosa', 'corajosos'), ('Astuto', 'astuto', 'astuta', 'astutos'),
+        ('Calmo', 'calmo', 'calma', 'calmos'), ('Generoso', 'generoso', 'generosa', 'generosos'), ('Teimoso', 'teimoso', 'teimosa', 'teimosos'),
+        ('Distraido', 'distraído', 'distraída', 'distraídos'), ('Honesto', 'honesto', 'honesta', 'honestos'),
+        ('Ambicioso', 'ambicioso', 'ambiciosa', 'ambiciosos'), ('Cauteloso', 'cauteloso', 'cautelosa', 'cautelosos'),
+        ('Imortal', 'imortal', 'imortal', 'imortais'), ('Invisivel', 'invisível', 'invisível', 'invisíveis'),
+    ],
+    'pessoas': [
+        ('aurora', 'Aurora', 'f'), ('bento', 'Bento', 'm'), ('celia', 'Célia', 'f'), ('dario', 'Dario', 'm'), ('estela', 'Estela', 'f'),
+        ('flavio', 'Flávio', 'm'), ('gloria', 'Glória', 'f'), ('heitor', 'Heitor', 'm'), ('ines', 'Inês', 'f'), ('jonas', 'Jonas', 'm'),
+        ('kiara', 'Kiara', 'f'), ('leandro', 'Leandro', 'm'), ('mirela', 'Mirela', 'f'), ('nestor', 'Nestor', 'm'),
+    ],
+    'relacoes': [('Desafia', 'desafia'), ('Protege', 'protege'), ('Inveja', 'inveja'), ('Procura', 'procura')],
+}
+TREINO = {
+    'classes': [
+        ('Robo', 'robô', 'robô', 'robôs'), ('Astronauta', 'astronauta', 'astronauta', 'astronautas'), ('Piloto', 'piloto', 'pilota', 'pilotos'),
+        ('Mecanico', 'mecânico', 'mecânica', 'mecânicos'), ('Inventor', 'inventor', 'inventora', 'inventores'),
+        ('Explorador', 'explorador', 'exploradora', 'exploradores'), ('Navegador', 'navegador', 'navegadora', 'navegadores'),
+        ('Capitao', 'capitão', 'capitã', 'capitães'), ('Cadete', 'cadete', 'cadete', 'cadetes'), ('Tecnico', 'técnico', 'técnica', 'técnicos'),
+        ('Vigia', 'vigia', 'vigia', 'vigias'), ('Comandante', 'comandante', 'comandante', 'comandantes'),
+        ('Mensageiro', 'mensageiro', 'mensageira', 'mensageiros'), ('Colono', 'colono', 'colona', 'colonos'),
+        ('Androide', 'androide', 'androide', 'androides'), ('Alienigena', 'alienígena', 'alienígena', 'alienígenas'),
+        ('Fazendeiro', 'fazendeiro', 'fazendeira', 'fazendeiros'), ('Vaqueiro', 'vaqueiro', 'vaqueira', 'vaqueiros'),
+        ('Tropeiro', 'tropeiro', 'tropeira', 'tropeiros'), ('Moleiro', 'moleiro', 'moleira', 'moleiros'), ('Ferreiro', 'ferreiro', 'ferreira', 'ferreiros'),
+        ('Tecelao', 'tecelão', 'tecelã', 'tecelões'), ('Oleiro', 'oleiro', 'oleira', 'oleiros'), ('Pastor', 'pastor', 'pastora', 'pastores'),
+        ('Lenhador', 'lenhador', 'lenhadora', 'lenhadores'), ('Apicultor', 'apicultor', 'apicultora', 'apicultores'),
+        ('Viticultor', 'viticultor', 'viticultora', 'viticultores'), ('Ceramista', 'ceramista', 'ceramista', 'ceramistas'),
+    ],
+    'adjetivos': [
+        ('Curioso', 'curioso', 'curiosa', 'curiosos'), ('Rapido', 'rápido', 'rápida', 'rápidos'), ('Lento', 'lento', 'lenta', 'lentos'),
+        ('Atento', 'atento', 'atenta', 'atentos'), ('Ousado', 'ousado', 'ousada', 'ousados'), ('Tranquilo', 'tranquilo', 'tranquila', 'tranquilos'),
+        ('Metodico', 'metódico', 'metódica', 'metódicos'), ('Criativo', 'criativo', 'criativa', 'criativos'), ('Serio', 'sério', 'séria', 'sérios'),
+        ('Modesto', 'modesto', 'modesta', 'modestos'), ('Robusto', 'robusto', 'robusta', 'robustos'), ('Antigo', 'antigo', 'antiga', 'antigos'),
+        ('Novato', 'novato', 'novata', 'novatos'), ('Famoso', 'famoso', 'famosa', 'famosos'), ('Discreto', 'discreto', 'discreta', 'discretos'),
+        ('Pontual', 'pontual', 'pontual', 'pontuais'), ('Confiavel', 'confiável', 'confiável', 'confiáveis'), ('Exigente', 'exigente', 'exigente', 'exigentes'),
+        ('Otimista', 'otimista', 'otimista', 'otimistas'), ('Engenhoso', 'engenhoso', 'engenhosa', 'engenhosos'),
+    ],
+    'pessoas': [
+        ('alice', 'Alice', 'f'), ('benito', 'Benito', 'm'), ('cecilia', 'Cecília', 'f'), ('diogo', 'Diogo', 'm'), ('eva', 'Eva', 'f'),
+        ('felipe', 'Felipe', 'm'), ('helena', 'Helena', 'f'), ('igor', 'Igor', 'm'), ('julia', 'Júlia', 'f'), ('lucas', 'Lucas', 'm'),
+        ('marta', 'Marta', 'f'), ('nuno', 'Nuno', 'm'), ('olivia', 'Olívia', 'f'), ('pedro', 'Pedro', 'm'), ('rita', 'Rita', 'f'),
+        ('sergio', 'Sérgio', 'm'), ('telma', 'Telma', 'f'), ('vitor', 'Vítor', 'm'), ('yara', 'Yara', 'f'), ('wagner', 'Wagner', 'm'),
+        ('zelia', 'Zélia', 'f'), ('arthur', 'Arthur', 'm'), ('bianca', 'Bianca', 'f'), ('enzo', 'Enzo', 'm'),
+    ],
+    'relacoes': [('Chama', 'chama'), ('Avisa', 'avisa'), ('Encontra', 'encontra'), ('Escuta', 'escuta'), ('Treina', 'treina'), ('Elogia', 'elogia'), ('Acompanha', 'acompanha')],
+}
+
+
+class Frase:
+    """Escolhe palavras sem repetir dentro do item e sorteia a forma da frase (sempre a de base na validação)."""
+
+    def __init__(self, vocab, rnd, variar):
+        self.rnd, self.vocab, self.variar = rnd, vocab, variar
+        self.usados, self.formas = {}, []
+
+    def classe(self):
+        return self._tirar('classes', lambda c: {'simbolo': c[0], 'tipo': 'predicado', 'aridade': 1, 'leitura': f'x é {c[1]}' + (f' ({c[2]})' if c[2] != c[1] else ''), 'm': c[1], 'f': c[2], 'pl': c[3]})
+
+    def adjetivo(self):
+        return self._tirar('adjetivos', lambda a: {'simbolo': a[0], 'tipo': 'predicado', 'aridade': 1, 'leitura': f'x é {a[1]}', 'm': a[1], 'f': a[2], 'pl': a[3]})
+
+    def predicado(self):
+        return self.classe() if self.rnd.random() < 0.5 else self.adjetivo()
+
+    def pessoa(self):
+        return self._tirar('pessoas', lambda p: {'simbolo': p[0], 'tipo': 'constante', 'aridade': 0, 'leitura': p[1], 'nome': p[1], 'g': p[2]})
+
+    def relacao(self):
+        return self._tirar('relacoes', lambda r: {'simbolo': r[0], 'tipo': 'predicado', 'aridade': 2, 'leitura': f'x {r[1]} y', 'verbo': r[1]})
+
+    def forma(self, *frases):
+        """Uma das formas equivalentes; a primeira é a de base."""
+        i = self.rnd.randrange(len(frases)) if self.variar else 0
+        self.formas.append(i)
+        return frases[i]
+
+    def _tirar(self, grupo, fazer):
+        livres = [x for x in self.vocab[grupo] if x[0] not in self.usados]
+        x = fazer(self.rnd.choice(livres))
+        self.usados[x['simbolo']] = x
+        return x
+
+    def vocabulario(self):
+        return [{k: t[k] for k in ('simbolo', 'tipo', 'aridade', 'leitura')} for t in self.usados.values()]
+
+
+def maiuscula(s): return s[0].upper() + s[1:]
+
+
+def montar(f):
+    """As frases de cada forma lógica, com as variantes equivalentes que o treino sorteia."""
+    def todo(a, b): return f.forma(f'Todo {a["m"]} é {b["m"]}.', f'Cada {a["m"]} é {b["m"]}.', f'Qualquer {a["m"]} é {b["m"]}.', f'Todos os {a["pl"]} são {b["pl"]}.', f'Se alguém é {a["m"]}, então é {b["m"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
+    def nenhum(a, b): return f.forma(f'Nenhum {a["m"]} é {b["m"]}.', f'Não existe {a["m"]} que seja {b["m"]}.', f'Não há {a["m"]} que seja {b["m"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ ¬{b["simbolo"]}(x))'
+    def algum(a, b): return f.forma(f'Algum {a["m"]} é {b["m"]}.', f'Existe um {a["m"]} que é {b["m"]}.', f'Há pelo menos um {a["m"]} que é {b["m"]}.', f'Alguns {a["pl"]} são {b["pl"]}.'), f'∃x ({a["simbolo"]}(x) ∧ {b["simbolo"]}(x))'
+    def algum_nao(a, b): return f.forma(f'Algum {a["m"]} não é {b["m"]}.', f'Existe um {a["m"]} que não é {b["m"]}.', f'Alguns {a["pl"]} não são {b["pl"]}.'), f'∃x ({a["simbolo"]}(x) ∧ ¬{b["simbolo"]}(x))'
+    def nem_todo(a, b): return f.forma(f'Nem todo {a["m"]} é {b["m"]}.', f'Não é verdade que todo {a["m"]} é {b["m"]}.', f'Nem todos os {a["pl"]} são {b["pl"]}.'), f'¬∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
+    def eh(c, p): return f'{c["nome"]} é {p[c["g"]]}.', f'{p["simbolo"]}({c["simbolo"]})'
+    def nao_eh(c, p): return f.forma(f'{c["nome"]} não é {p[c["g"]]}.', f'Não é verdade que {c["nome"]} é {p[c["g"]]}.'), f'¬{p["simbolo"]}({c["simbolo"]})'
+    def nao_verdade_nao(c, p): return f.forma(f'Não é verdade que {c["nome"]} não é {p[c["g"]]}.', f'É falso que {c["nome"]} não é {p[c["g"]]}.'), f'¬¬{p["simbolo"]}({c["simbolo"]})'
+    def ou(c, p, q): return f.forma(f'{c["nome"]} é {p[c["g"]]} ou {q[c["g"]]}.', f'{c["nome"]} é {p[c["g"]]} ou é {q[c["g"]]}.'), f'{p["simbolo"]}({c["simbolo"]}) ∨ {q["simbolo"]}({c["simbolo"]})'
+    def e(c, p, q): return f.forma(f'{c["nome"]} é {p[c["g"]]} e {q[c["g"]]}.', f'{c["nome"]} é {p[c["g"]]} e também {q[c["g"]]}.'), f'{p["simbolo"]}({c["simbolo"]}) ∧ {q["simbolo"]}({c["simbolo"]})'
+    def nem_nem(c, p, q): return f.forma(f'{c["nome"]} não é {p[c["g"]]} nem {q[c["g"]]}.', f'{c["nome"]} não é {p[c["g"]]} e não é {q[c["g"]]}.'), f'¬{p["simbolo"]}({c["simbolo"]}) ∧ ¬{q["simbolo"]}({c["simbolo"]})'
+    def se(c, p, d, q): return f.forma(f'Se {c["nome"]} é {p[c["g"]]}, então {d["nome"]} é {q[d["g"]]}.', f'Se {c["nome"]} é {p[c["g"]]}, {d["nome"]} é {q[d["g"]]}.', f'Caso {c["nome"]} seja {p[c["g"]]}, {d["nome"]} é {q[d["g"]]}.'), f'{p["simbolo"]}({c["simbolo"]}) ⟹ {q["simbolo"]}({d["simbolo"]})'
+    def so_se(c, p, q): return f.forma(f'{c["nome"]} é {p[c["g"]]} só se é {q[c["g"]]}.', f'{c["nome"]} é {p[c["g"]]} somente se é {q[c["g"]]}.', f'{c["nome"]} é {p[c["g"]]} apenas se é {q[c["g"]]}.'), f'{p["simbolo"]}({c["simbolo"]}) ⟹ {q["simbolo"]}({c["simbolo"]})'
+    def sse(c, p, q): return f.forma(f'{c["nome"]} é {p[c["g"]]} se e somente se é {q[c["g"]]}.', f'{c["nome"]} é {p[c["g"]]} se e só se é {q[c["g"]]}.'), f'{p["simbolo"]}({c["simbolo"]}) ⟺ {q["simbolo"]}({c["simbolo"]})'
+    def rel(c, r, d): return f'{c["nome"]} {r["verbo"]} {d["nome"]}.', f'{r["simbolo"]}({c["simbolo"]}, {d["simbolo"]})'
+    def todo_rel_algum(a, r, b): return f.forma(f'Todo {a["m"]} {r["verbo"]} algum {b["m"]}.', f'Cada {a["m"]} {r["verbo"]} pelo menos um {b["m"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ ∃y ({b["simbolo"]}(y) ∧ {r["simbolo"]}(x, y)))'
+    def algum_todos(a, r, b): return f.forma(f'Há um {b["m"]} que todo {a["m"]} {r["verbo"]}.', f'Existe um {b["m"]} que todo {a["m"]} {r["verbo"]}.'), f'∃y ({b["simbolo"]}(y) ∧ ∀x ({a["simbolo"]}(x) ⟹ {r["simbolo"]}(x, y)))'
+
+    C, P, X, R = f.classe, f.predicado, f.pessoa, f.relacao
+    # (classe esperada, nome, só no treino?, montar)
+    return [
+        ('segue', 'barbara', False, lambda: (lambda a, b, c: ([todo(a, b), todo(b, c)], todo(a, c)))(C(), C(), P())),
+        ('segue', 'modus-ponens', False, lambda: (lambda a, b, c: ([todo(a, b), eh(c, a)], eh(c, b)))(C(), P(), X())),
+        ('segue', 'modus-tollens', False, lambda: (lambda a, b, c: ([todo(a, b), nao_eh(c, b)], nao_eh(c, a)))(C(), P(), X())),
+        ('segue', 'celarent', False, lambda: (lambda a, b, c: ([nenhum(a, b), todo(c, a)], nenhum(c, b)))(C(), P(), C())),
+        ('segue', 'silogismo-disjuntivo', False, lambda: (lambda c, a, b: ([ou(c, a, b), nao_eh(c, a)], eh(c, b)))(X(), P(), P())),
+        ('segue', 'conversao-algum', False, lambda: (lambda a, b: ([algum(a, b)], algum(b, a)))(C(), C())),
+        ('segue', 'algum-nao-nem-todo', False, lambda: (lambda a, b: ([algum_nao(a, b)], nem_todo(a, b)))(C(), P())),
+        ('segue', 'dupla-negacao', False, lambda: (lambda c, a: ([nao_verdade_nao(c, a)], eh(c, a)))(X(), P())),
+        ('segue', 'escopo-forte', False, lambda: (lambda a, r, b: ([algum_todos(a, r, b)], todo_rel_algum(a, r, b)))(C(), R(), C())),
+        ('segue', 'contrapositiva', False, lambda: (lambda c, a, d, b: ([se(c, a, d, b), nao_eh(d, b)], nao_eh(c, a)))(X(), P(), X(), P())),
+        ('segue', 'so-se', False, lambda: (lambda c, a, b: ([so_se(c, a, b), eh(c, a)], eh(c, b)))(X(), P(), P())),
+        ('segue', 'instancia-existe', False, lambda: (lambda a, b, c: ([todo(a, b), eh(c, a)], algum(a, b)))(C(), P(), X())),
+        ('segue', 'conversao-nenhum', False, lambda: (lambda a, b: ([nenhum(a, b)], nenhum(b, a)))(C(), C())),
+        ('segue', 'e-simplifica', True, lambda: (lambda c, a, b: ([e(c, a, b)], eh(c, b)))(X(), P(), P())),
+        ('segue', 'sse-volta', True, lambda: (lambda c, a, b: ([sse(c, a, b), eh(c, b)], eh(c, a)))(X(), P(), P())),
+        ('segue', 'nem-nem', True, lambda: (lambda c, a, b: ([nem_nem(c, a, b)], nao_eh(c, a)))(X(), P(), P())),
+        ('contradiz', 'todo-instancia-negada', False, lambda: (lambda a, b, c: ([todo(a, b), eh(c, a)], nao_eh(c, b)))(C(), P(), X())),
+        ('contradiz', 'nenhum-instancia', False, lambda: (lambda a, b, c: ([nenhum(a, b), eh(c, a)], eh(c, b)))(C(), P(), X())),
+        ('contradiz', 'todo-nem-todo', False, lambda: (lambda a, b: ([todo(a, b)], nem_todo(a, b)))(C(), P())),
+        ('contradiz', 'algum-nenhum', False, lambda: (lambda a, b: ([algum(a, b)], nenhum(a, b)))(C(), P())),
+        ('contradiz', 'disjuntivo-negado', False, lambda: (lambda c, a, b: ([ou(c, a, b), nao_eh(c, a)], nao_eh(c, b)))(X(), P(), P())),
+        ('contradiz', 'cadeia-negada', False, lambda: (lambda a, b, c, d: ([todo(a, b), todo(b, c), eh(d, a)], nao_eh(d, c)))(C(), C(), P(), X())),
+        ('contradiz', 'condicional-negado', False, lambda: (lambda c, a, d, b: ([se(c, a, d, b), eh(c, a)], nao_eh(d, b)))(X(), P(), X(), P())),
+        ('contradiz', 'algum-nao-todo', False, lambda: (lambda a, b: ([algum_nao(a, b)], todo(a, b)))(C(), P())),
+        ('contradiz', 'nenhum-algum', False, lambda: (lambda a, b: ([nenhum(a, b)], algum(a, b)))(C(), P())),
+        ('contradiz', 'e-negado', True, lambda: (lambda c, a, b: ([e(c, a, b)], nao_eh(c, a)))(X(), P(), P())),
+        ('contradiz', 'sse-negado', True, lambda: (lambda c, a, b: ([sse(c, a, b), eh(c, a)], nao_eh(c, b)))(X(), P(), P())),
+        ('independente', 'afirmar-consequente', False, lambda: (lambda a, b, c: ([todo(a, b), eh(c, b)], eh(c, a)))(C(), P(), X())),
+        ('independente', 'negar-antecedente', False, lambda: (lambda a, b, c: ([todo(a, b), nao_eh(c, a)], nao_eh(c, b)))(C(), P(), X())),
+        ('independente', 'conversao-ilicita', False, lambda: (lambda a, b: ([todo(a, b)], todo(b, a)))(C(), C())),
+        ('independente', 'import-existencial', False, lambda: (lambda a, b: ([todo(a, b)], algum(a, b)))(C(), P())),
+        ('independente', 'escopo-fraco', False, lambda: (lambda a, r, b: ([todo_rel_algum(a, r, b)], algum_todos(a, r, b)))(C(), R(), C())),
+        ('independente', 'relacao-nao-transitiva', False, lambda: (lambda c, r, d, e_: ([rel(c, r, d), rel(d, r, e_)], rel(c, r, e_)))(X(), R(), X(), X())),
+        ('independente', 'algum-todo', False, lambda: (lambda a, b: ([algum(a, b)], todo(a, b)))(C(), P())),
+        ('independente', 'termo-medio-nao-distribuido', False, lambda: (lambda a, b, c: ([todo(a, b), todo(c, b)], todo(a, c)))(C(), P(), C())),
+        ('independente', 'so-se-invertido', False, lambda: (lambda c, a, b: ([so_se(c, a, b), eh(c, b)], eh(c, a)))(X(), P(), P())),
+        ('independente', 'ou-inclusivo', False, lambda: (lambda c, a, b: ([ou(c, a, b), eh(c, a)], nao_eh(c, b)))(X(), P(), P())),
+        ('independente', 'dois-algum', False, lambda: (lambda a, b, c: ([algum(a, b), algum(b, c)], algum(a, c)))(C(), C(), P())),
+        ('independente', 'ou-nao-simplifica', True, lambda: (lambda c, a, b: ([ou(c, a, b)], eh(c, a)))(X(), P(), P())),
+        ('independente', 'se-nao-volta', True, lambda: (lambda c, a, d, b: ([se(c, a, d, b), eh(d, b)], eh(c, a)))(X(), P(), X(), P())),
+    ]
+
+
+def gerar(modo, por_classe):
+    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'T')
+    # semente fixa pelo nome do modo: o arquivo se refaz igual, e qualquer um confere
+    rnd = random.Random(int.from_bytes(hashlib.sha256(f'cosmos-frases-{modo}-v1'.encode()).digest(), 'big'))
+    linhas, vistos = [], set()
+    for classe in ('segue', 'contradiz', 'independente'):
+        nomes = [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and (variar or not so_treino)]
+        feitos, tentativas = 0, 0
+        while feitos < por_classe:
+            tentativas += 1
+            if tentativas > por_classe * 50:
+                sys.exit(f'{classe}: só {feitos} itens distintos de {por_classe}; aumente o vocabulário')
+            f = Frase(vocab, rnd, variar)
+            nome = nomes[feitos % len(nomes)]
+            _, _, _, fazer = next(x for x in montar(f) if x[1] == nome)
+            premissas, conclusao = fazer()
+            texto = {'premissas': [p[0] for p in premissas], 'conclusao': conclusao[0]}
+            chave = json.dumps(texto, ensure_ascii=False)
+            if chave in vistos:  # frase repetida: sorteia de novo
+                continue
+            vistos.add(chave)
+            feitos += 1
+            item = {'id': '', 'texto': texto, 'vocabulario': f.vocabulario(),
+                    'gabarito': {'premissas': [p[1] for p in premissas], 'conclusao': conclusao[1], 'classe': classe}}
+            linhas.append({'padrao': nome, 'formas': f.formas, 'item': item})
+    rnd.shuffle(linhas)
+    largura = 3 if len(linhas) < 1000 else 5
+    for i, l in enumerate(linhas):  # ids na ordem final, para a ordem não denunciar a classe
+        l['item']['id'] = f'{prefixo}-{i + 1:0{largura}d}'
+    return linhas
+
+
+if __name__ == '__main__':
+    modo, saida = sys.argv[1], sys.argv[2]
+    if modo not in ('validacao', 'treino'):
+        sys.exit('modo: validacao ou treino')
+    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 1000
+    linhas = gerar(modo, por_classe)
+    corpo = ''.join(json.dumps(l, ensure_ascii=False) + '\n' for l in linhas).encode('utf-8')
+    with open(saida, 'wb') as arq:
+        arq.write(corpo)
+    print(len(linhas), 'itens em', saida, 'sha256', hashlib.sha256(corpo).hexdigest())

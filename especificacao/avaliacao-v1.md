@@ -78,3 +78,33 @@ por fatia: `AVALIACAO_FATIA=0-20`, `20-40` e assim por diante. Os compromissos s
 - O conjunto mede a formalização dentro do fragmento m2/t1; não mede prova longa nem matemática.
 - A fidelidade é conferida contra o gabarito; o gabarito em si foi conferido pelo Z3 quanto à classe, e a tradução de
   cada frase para o gabarito segue os padrões do gerador, revisados à mão nos exemplos públicos.
+
+## 6. A validação, os dados de treino e a nota item a item
+
+Os 120 itens fechados não servem para ajustar nada: pedido, exemplos, votação e o checkpoint do treino se escolhem
+num conjunto à parte, e os 120 se medem no máximo três vezes (o piloto registra cada medição; ver
+`especificacao/formalizacao-v1.md`).
+
+- **Gerador público:** `scripts/gerar-frases.py`. Semente fixa pelo nome do modo; rodar de novo dá o mesmo arquivo,
+  byte a byte. Nunca lê o conjunto fechado.
+- **Validação:** `avaliacao/validacao-v1.jsonl` (SHA-256 `0c8126c6152388865c3b9c47c823a2ccb6d688219ef21a231116026c2cb194a6`),
+  150 itens, 50 por classe, vocabulário de fantasia (mago, elfa, cavaleiro, sábio, Aurora, Bento, desafia…), só as
+  formas de frase de base, os mesmos fenômenos do conjunto fechado. A CI refaz o arquivo pelo gerador e confere o
+  gabarito dos 150 pelo Z3, em 6 fatias de 25 (um processo por fatia; os 150 num processo só travaram o Z3 wasm).
+- **Treino:** `python -I -X utf8 -B scripts/gerar-frases.py treino SAIDA.jsonl [ITENS_POR_CLASSE]`, por padrão 1000
+  por classe. Vocabulário próprio (espaço e campo: robô, astronauta, vaqueira, metódico, Alice, Benito, avisa…),
+  formas de frase variadas ("Cada…", "Todos os… são…", "Existe um… que…", "somente se", "Caso… seja…") e 7 padrões a
+  mais (e, se e somente se, nem… nem, ou sem simplificar, se sem voltar). O lote se refaz igual e se confere pelo Z3
+  com `FRASES_ARQUIVO` e `FRASES_FATIA` em `testes/frases-geradas.test.ts`.
+- **Anti-vazamento:** `scripts/anti-vazamento.py <conjunto fechado> <lotes…>`, só na máquina do dono, conta palavras de
+  conteúdo, símbolos, frases e fórmulas em comum e só imprime contagens. Em 27/10/2026: validação, treino (3000 itens)
+  e exemplos públicos com **0 / 0 / 0 / 0**. O detector foi conferido contra o próprio conjunto fechado (acusa tudo).
+- **Nota item a item:** `testes/nota.test.ts` (`NOTA_CONJUNTO`, `NOTA_RESPOSTAS`, `NOTA_SAIDA`, `NOTA_FATIA`) grava uma
+  linha por item com a nota de §2 e a classe que o Z3 dá às fórmulas do modelo (a que vale no Cosmos). O relatório
+  é `scripts/relatorio-nota.py NOTAS.jsonl [--comparar ANTES.jsonl]`: intervalo de 95% (Wilson), por classe, por
+  padrão, matriz de confusão, motivos de erro e, comparando duas medições, McNemar exato nos itens em comum. Com 120
+  itens a margem é de cerca de ±8 a 9 pontos; diferença sem p < 0,05 não conta.
+
+**Limite declarado:** o gerador público foi escrito por quem escreveu o do conjunto fechado e cobre os mesmos padrões
+de raciocínio (que já são públicos em §3). Por isso a nota nos 120 mede a passagem para **vocabulário novo**, não para
+frases escritas por gente; o conjunto escrito à mão (§5) continua sendo o próximo passo para isso.
