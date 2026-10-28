@@ -138,4 +138,4 @@ um refaz a nota a partir das respostas e confere os dois hashes.
 
 **Limites desta nota:** vale para frases no estilo do gerador, com vocabulário novo (§6); com frases escritas por
 gente o número pode ser menor. São 120 itens: neste nível de acerto, o intervalo vai até
- cerca de 5 pontos abaixo do medido.
+cerca de 5 pontos abaixo do medido.

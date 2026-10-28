@@ -42,6 +42,21 @@ describe('Formalização assistida', () => {
     expect(lerProposta(conteudo, VOCAB)).toEqual({ vocabulario: VOCAB, premissas: ['∀x (Medico(x) ⟹ Paciente(x))', 'Medico(ana)'], conclusao: 'Paciente(ana)', classe: 'segue' })
   })
 
+  it('sem vocabulário dado, acerta a forma dos símbolos propostos, só nas palavras inteiras', () => {
+    // os casos reais da tela com o qwen3:4b, em 28/10/2026: "Pássaro" e a constante "Tico" ficavam fora do padrão
+    const r = lerProposta(JSON.stringify({ vocabulario: [{ simbolo: 'Pássaro', tipo: 'predicado', aridade: 1, leitura: 'x é pássaro' }, { simbolo: 'TemPenas', tipo: 'predicado', aridade: 1, leitura: 'x tem penas' }, { simbolo: 'Tico', tipo: 'constante', aridade: 0, leitura: 'Tico' }],
+      premissas: ['∀x (Pássaro(x) ⟹ TemPenas(x))', '¬TemPenas(Tico)'], conclusao: '¬Pássaro(Tico)', classe: 'segue' }), null)
+    expect(r.vocabulario.map((t) => t.simbolo)).toEqual(['Passaro', 'TemPenas', 'tico'])
+    expect(r.vocabulario[0].leitura).toBe('x é pássaro')
+    expect(r.premissas).toEqual(['∀x (Passaro(x) ⟹ TemPenas(x))', '¬TemPenas(tico)'])
+    expect(r.conclusao).toBe('¬Passaro(tico)')
+    expect(lerDeVolta(r.conclusao, r.vocabulario)).toContain('pássaro')
+    // com o vocabulário dado (o piloto e a nota), nada muda: a constante com maiúscula continua fora do vocabulário
+    expect(() => lerProposta(JSON.stringify({ premissas: ['Medico(Ana)'], conclusao: 'Paciente(ana)' }), VOCAB)).toThrow()
+    // dois símbolos que ficam iguais sem acento continuam recusados
+    expect(() => lerProposta(JSON.stringify({ vocabulario: [{ simbolo: 'Pé', tipo: 'predicado', aridade: 1, leitura: 'x é pé' }, { simbolo: 'Pe', tipo: 'predicado', aridade: 1, leitura: 'x é pe' }], premissas: ['Pe(a)'], conclusao: 'Pe(a)' }), null)).toThrow(/repetido/)
+  })
+
   it('recusa fórmula fora do vocabulário, que não se lê, ou resposta sem JSON', () => {
     expect(() => lerProposta(resposta({ premissas: ['Medico(bruno)'], conclusao: 'Paciente(ana)', classe: 'segue' }), VOCAB)).toThrow(/vocabulário/)
     expect(() => lerProposta(resposta({ premissas: ['∀x (Medico(x) ⟹'], conclusao: 'Paciente(ana)', classe: 'segue' }), VOCAB)).toThrow(/não se lê/)
@@ -53,7 +68,9 @@ describe('Formalização assistida', () => {
   it('sem vocabulário dado, aceita o proposto pelo modelo só no padrão (predicado com maiúscula, constante em minúscula)', () => {
     const v = [{ simbolo: 'Gato', tipo: 'predicado', aridade: 1, leitura: 'x é gato' }, { simbolo: 'tom', tipo: 'constante', aridade: 0, leitura: 'Tom' }]
     expect(lerProposta(resposta({ vocabulario: v, premissas: ['Gato(tom)'], conclusao: 'Gato(tom)' }), null).vocabulario).toHaveLength(2)
-    expect(() => lerProposta(resposta({ vocabulario: [{ ...v[0], simbolo: 'gato' }, v[1]], premissas: ['gato(tom)'], conclusao: 'gato(tom)' }), null)).toThrow(/padrão/)
+    // a forma se acerta (gato → Gato); o que não tem conserto continua fora do padrão
+    expect(lerProposta(resposta({ vocabulario: [{ ...v[0], simbolo: 'gato' }, v[1]], premissas: ['gato(tom)'], conclusao: 'gato(tom)' }), null).conclusao).toBe('Gato(tom)')
+    expect(() => lerProposta(resposta({ vocabulario: [{ ...v[0], simbolo: 'Gato-preto' }, v[1]], premissas: ['Gato(tom)'], conclusao: 'Gato(tom)' }), null)).toThrow(/padrão/)
     expect(() => lerProposta(resposta({ vocabulario: [v[0], v[0]], premissas: ['Gato(tom)'], conclusao: 'Gato(tom)' }), null)).toThrow(/repetido/)
   })
 

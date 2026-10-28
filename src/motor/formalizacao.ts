@@ -108,13 +108,38 @@ function vocabularioProposto(v: unknown): Termo[] {
   })
 }
 
+const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').normalize('NFC')
 /**
- * Lê a resposta do modelo como proposta: o objeto JSON, o vocabulário (o dado, se houver; senão o proposto) e cada
- * fórmula em m2 com esse vocabulário. Lança, com o motivo, o que não se lê.
+ * Sem vocabulário dado, o modelo costuma propor símbolos fora do padrão: com acento ("Pássaro") ou constante com
+ * maiúscula ("Tico"). Acerta a forma do símbolo (sem acento; predicado com a primeira letra maiúscula, constante toda
+ * em minúscula) e das ocorrências dele nas fórmulas, só como palavra inteira (nunca a fórmula toda: "≠" se decompõe em
+ * "=" e um acento). Símbolo proposto duas vezes fica como veio, e a leitura recusa. A leitura em português não muda.
+ */
+function acertarSimbolos(o: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(o.vocabulario)) return o
+  const forma = (t: Record<string, unknown>, s: string) => {
+    const b = semAcento(s)
+    return t.tipo === 'constante' ? b.toLowerCase() : t.tipo === 'predicado' ? b.charAt(0).toUpperCase() + b.slice(1) : b
+  }
+  const simbolos = o.vocabulario.map((t) => (ehObjeto(t) && typeof t.simbolo === 'string' ? t.simbolo : null))
+  const unico = (s: string) => simbolos.filter((x) => x === s).length === 1
+  const trocas = o.vocabulario.flatMap((t) => (ehObjeto(t) && typeof t.simbolo === 'string' && unico(t.simbolo) && forma(t, t.simbolo) !== t.simbolo ? [[t.simbolo, forma(t, t.simbolo)]] : []))
+  if (!trocas.length) return o
+  const novos = new Map(trocas.map(([de, para]) => [de, para]))
+  const trocar = (f: unknown) => typeof f !== 'string' ? f
+    : f.replace(/(?<![\p{L}\p{N}_])[\p{L}_][\p{L}\p{N}_]*/gu, (palavra) => novos.get(palavra) ?? palavra)
+  return { ...o, vocabulario: o.vocabulario.map((t) => (ehObjeto(t) && typeof t.simbolo === 'string' && novos.has(t.simbolo) ? { ...t, simbolo: novos.get(t.simbolo) } : t)),
+    premissas: Array.isArray(o.premissas) ? o.premissas.map(trocar) : o.premissas, conclusao: trocar(o.conclusao) }
+}
+
+/**
+ * Lê a resposta do modelo como proposta: o objeto JSON, o vocabulário (o dado, se houver; senão o proposto, com os
+ * símbolos na forma do padrão) e cada fórmula em m2 com esse vocabulário. Lança, com o motivo, o que não se lê.
  */
 export function lerProposta(conteudo: string, vocabularioDado: Termo[] | null): Proposta {
-  const o = objetoDaResposta(conteudo)
-  if (!ehObjeto(o)) throw new Error('a resposta não é um objeto')
+  const lido = objetoDaResposta(conteudo)
+  if (!ehObjeto(lido)) throw new Error('a resposta não é um objeto')
+  const o = vocabularioDado ? lido : acertarSimbolos(lido)
   const vocabulario = vocabularioDado ?? vocabularioProposto(o.vocabulario)
   if (!Array.isArray(o.premissas) || !o.premissas.length || o.premissas.length > 10 || !o.premissas.every((p) => typeof p === 'string')) throw new Error('premissas: uma lista de 1 a 10 fórmulas')
   if (typeof o.conclusao !== 'string') throw new Error('falta a conclusão')

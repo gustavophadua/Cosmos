@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { criarClienteGroq } from './groq-cliente'
+import { criarClienteOllama } from './ollama-cliente'
 import type { ModeloGroq } from '../integracoes/groq-contratos'
 import type { Afirmacao } from '../motor/registro'
 import { lerFormula, type Item, type Termo } from '../motor/avaliacao'
@@ -22,12 +23,15 @@ function leitura(f: string, v: Termo[]): { texto: string; erro: boolean } {
 /**
  * A formalização assistida (especificacao/formalizacao-v1.md): o modelo propõe, o Cosmos lê de volta em português sem
  * modelo, a pessoa corrige se preciso e aprova; a aprovação leva a proposta para o registro em Minha cadeia, onde a
- * verificação (Z3, cvc5, Carcara) decide. Só funciona pelo serviço local com o Groq ligado (a chave fica no processo
- * Node); cada proposta e cada decisão entram na medição de tempo, guardada só neste navegador.
+ * verificação (Z3, cvc5, Carcara) decide. Só funciona pelo serviço local: de preferência com o Ollama (o modelo da nota
+ * oficial, e o texto não sai do computador); senão com o Groq ligado (a chave fica no processo Node). Cada proposta e
+ * cada decisão entram na medição de tempo, guardada só neste navegador.
  */
 export function FormalizacaoAssistida({ levar }: { levar: (r: { formula: string; premissas: string[]; afirmacao: Afirmacao; dominio: string }) => void }) {
   const cliente = useMemo(() => { try { return criarClienteGroq(location.origin) } catch { return null } }, [])
-  const [modelo, setModelo] = useState<ModeloGroq | null>(null), [estado, setEstado] = useState('conferindo')
+  const local = useMemo(() => { try { return criarClienteOllama(location.origin) } catch { return null } }, [])
+  // o Ollama vem primeiro: é o modelo medido no conjunto fechado e o texto fica no computador
+  const [modelo, setModelo] = useState<{ provedor: 'ollama'; nome: string } | { provedor: 'groq'; nome: ModeloGroq } | null>(null), [estado, setEstado] = useState('conferindo')
   const [premissasTexto, setPremissasTexto] = useState(''), [conclusao, setConclusao] = useState('')
   const [proposta, setProposta] = useState<Proposta | null>(null), [editadas, setEditadas] = useState<{ premissas: string[]; conclusao: string } | null>(null)
   const [afirmacao, setAfirmacao] = useState<Afirmacao>('segue'), [dominio, setDominio] = useState('geral')
@@ -35,27 +39,30 @@ export function FormalizacaoAssistida({ levar }: { levar: (r: { formula: string;
   const ultima = useRef<{ msModelo: number; tokens: number; chegou: number } | null>(null)
 
   useEffect(() => {
-    if (!cliente) { setEstado('sem-servico'); return }
-    void cliente.carregar().then((s) => { setModelo(s.configuracao?.habilitada ? s.configuracao.modelo : null); setEstado(s.estado) }).catch(() => setEstado('sem-servico'))
-  }, [cliente])
+    if (!cliente || !local) { setEstado('sem-servico'); return }
+    const groq = () => cliente.carregar().then((s) => { setModelo(s.configuracao?.habilitada ? { provedor: 'groq', nome: s.configuracao.modelo } : null); setEstado(s.estado) })
+    void local.carregar().then((o) => { if (o.estado !== 'pronto') return groq(); setModelo({ provedor: 'ollama', nome: o.modelo }); setEstado('pronto') }, groq).catch(() => setEstado('sem-servico'))
+  }, [cliente, local])
 
   const medir = (decisao: Medicao['decisao']) => {
     const u = ultima.current
     if (!u || !modelo) return
-    const nova = [...medicoes, { em: new Date().toISOString(), modelo, prompt: PROMPT_FORMALIZACAO, msModelo: u.msModelo, tokens: u.tokens, msAteDecisao: Date.now() - u.chegou, decisao }].slice(-500)
+    const nova = [...medicoes, { em: new Date().toISOString(), modelo: `${modelo.provedor}:${modelo.nome}`, prompt: PROMPT_FORMALIZACAO, msModelo: u.msModelo, tokens: u.tokens, msAteDecisao: Date.now() - u.chegou, decisao }].slice(-500)
     try { localStorage.setItem(MEDICOES, JSON.stringify(nova)) } catch { /* a medição é conveniência deste navegador */ }
     setMedicoes(nova); ultima.current = null
   }
 
   const propor = async () => {
-    if (!cliente || !modelo || ocupado) return
+    if (!cliente || !local || !modelo || ocupado) return
     const premissas = premissasTexto.split('\n').map((l) => l.trim()).filter(Boolean)
     if (!premissas.length || !conclusao.trim()) { setErro('escreva pelo menos uma premissa e a conclusão'); return }
     setOcupado(true); setErro(''); setProposta(null); setEditadas(null)
     const inicio = Date.now()
     try {
-      // a ponte reserva bytes do pedido + max_tokens contra 8 mil tokens por minuto: 2048 cabe (o piloto gastou até 837)
-      const r = await cliente.perguntar({ model: modelo, messages: mensagensDeFormalizacao({ premissas, conclusao: conclusao.trim() }, null, EXEMPLOS), max_tokens: 2048, temperature: 0 })
+      // no Groq, a ponte reserva bytes do pedido + max_tokens contra 8 mil tokens por minuto: 2048 cabe (o piloto gastou
+      // até 837); no Ollama, o pedido se monta na ponte e o navegador manda só o texto
+      const r = modelo.provedor === 'ollama' ? await local.formalizar({ premissas, conclusao: conclusao.trim() })
+        : await cliente.perguntar({ model: modelo.nome, messages: mensagensDeFormalizacao({ premissas, conclusao: conclusao.trim() }, null, EXEMPLOS), max_tokens: 2048, temperature: 0 })
       ultima.current = { msModelo: Date.now() - inicio, tokens: r.prompt_tokens + r.completion_tokens, chegou: Date.now() }
       try {
         const p = lerProposta(r.conteudo, null)
@@ -69,9 +76,10 @@ export function FormalizacaoAssistida({ levar }: { levar: (r: { formula: string;
   const tempoMedio = medicoes.length ? Math.round(medicoes.reduce((s, m) => s + m.msAteDecisao, 0) / medicoes.length / 1000) : 0
 
   if (estado === 'sem-servico' || !modelo) return <div className="cadeia-pessoal">
-    <div className="labs-result" role="note"><strong>A formalização assistida usa o serviço local com o Groq.</strong>
-      <p>A chave do Groq fica só no processo local, nunca no navegador. Para ligar: no PowerShell, na pasta do Cosmos, rode <code>node scripts/integracoes-p0.mjs --groq</code> (com a variável GROQ_API_KEY definida), abra <code>http://127.0.0.1:4175/cosmos/#/integracoes</code>, escolha o Groq, salve o modelo e teste a conexão. Depois volte aqui, em Labs → Formalizar, pelo mesmo endereço.</p>
-      <p>{estado === 'conferindo' ? 'Conferindo o serviço…' : estado === 'sem-servico' ? 'O serviço local não está rodando neste endereço.' : 'O Groq ainda não está configurado e habilitado em Integrações.'}</p></div>
+    <div className="labs-result" role="note"><strong>A formalização assistida usa o serviço local, com o Ollama ou com o Groq.</strong>
+      <p><strong>Com o Ollama (recomendado):</strong> o modelo roda neste computador e o texto não sai dele. Com o Ollama aberto e o modelo baixado (<code>ollama pull qwen3:4b</code>), rode no PowerShell, na pasta do Cosmos, <code>node scripts/integracoes-p0.mjs --ollama</code> e abra <code>http://127.0.0.1:4175/cosmos/</code>, em Labs → Formalizar.</p>
+      <p><strong>Com o Groq:</strong> a chave fica só no processo local, nunca no navegador. Rode <code>node scripts/integracoes-p0.mjs --groq</code> (com a variável GROQ_API_KEY definida), abra <code>http://127.0.0.1:4175/cosmos/#/integracoes</code>, escolha o Groq, salve o modelo e teste a conexão. Depois volte aqui, em Labs → Formalizar, pelo mesmo endereço.</p>
+      <p>{estado === 'conferindo' ? 'Conferindo o serviço…' : estado === 'sem-servico' ? 'O serviço local não está rodando neste endereço.' : 'Nem o Ollama está pronto (aberto e com o modelo) nem o Groq está configurado e habilitado em Integrações.'}</p></div>
   </div>
 
   const atual = editadas
@@ -80,7 +88,9 @@ export function FormalizacaoAssistida({ levar }: { levar: (r: { formula: string;
   const corrigida = !!proposta && !!atual && (atual.conclusao !== proposta.conclusao || atual.premissas.join('\n') !== proposta.premissas.join('\n'))
 
   return <div className="cadeia-pessoal formalizacao">
-    <div className="labs-result has-conflict" role="note"><strong>O texto sai deste computador.</strong><p>As frases vão para o Groq ({modelo}). Não use para o Principia, dados pessoais nem itens do conjunto fechado de avaliação.</p></div>
+    {modelo.provedor === 'ollama'
+      ? <div className="labs-result" role="note"><strong>O texto fica neste computador.</strong><p>As frases vão para o Ollama local ({modelo.nome}), o mesmo modelo da nota oficial. Na CPU, cada proposta leva cerca de um minuto.</p></div>
+      : <div className="labs-result has-conflict" role="note"><strong>O texto sai deste computador.</strong><p>As frases vão para o Groq ({modelo.nome}). Não use para o Principia, dados pessoais nem itens do conjunto fechado de avaliação.</p></div>}
 
     <section className="labs-surface">
       <h3>Escreva em português</h3>

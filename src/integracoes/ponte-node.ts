@@ -1,12 +1,14 @@
 import { request, type IncomingMessage, type ServerResponse } from 'node:http'
 import { criarObservabilidadeP0, observarHttpP0 } from './observabilidade-node'
 import { criarControleGroq } from './groq-node'
+import { criarControleOllama } from './ollama-node'
 
 const PREFIXO = '/cosmos/__p0/'
 const ROTAS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   estado: ['GET'], configuracao: ['GET', 'PUT', 'DELETE'], testar: ['POST'], orcamento: ['GET'],
   executar: ['POST'], cancelar: ['POST'], 'contexto-rag': ['POST'],
   groq: ['POST'], 'groq/configuracao': ['GET', 'PUT'], 'groq/estado': ['GET'], 'groq/testar': ['POST'],
+  ollama: ['POST'], 'ollama/estado': ['GET'],
 })
 function unico(req: IncomingMessage, nome: string) {
   const valores = req.rawHeaders.filter((_, i) => i % 2 === 0).filter(h => h.toLowerCase() === nome)
@@ -20,7 +22,8 @@ function unico(req: IncomingMessage, nome: string) {
  * Sem destino/URL/headers arbitrários, cookies, redirecionamento ou bootstrap.
  */
 export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number; token: string;
-  groq?: { chave: () => string | undefined; buscar?: typeof fetch; prazoMs?: number } }) {
+  groq?: { chave: () => string | undefined; buscar?: typeof fetch; prazoMs?: number }
+  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number } }) {
   const { origem, portaApi, token } = opcoes
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem
       || !Number.isSafeInteger(portaApi) || portaApi < 1 || portaApi > 65535 || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Ponte local inválida')
@@ -34,6 +37,7 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
     r.setTimeout(1500, () => { r.destroy(); resolve(false) }); r.on('error', () => resolve(false)); r.end()
   })
   const groq = opcoes.groq ? criarControleGroq({ ...opcoes.groq, sessaoValida }) : null
+  const ollama = opcoes.ollama ? criarControleOllama({ ...opcoes.ollama, sessaoValida }) : null
   const observabilidade = criarObservabilidadeP0()
   observabilidade.registrar({ tipo: 'servico', canal: 'ponte', estado: 'iniciado' })
   return Object.freeze({
@@ -42,10 +46,11 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
       if (!encerrada) observabilidade.registrar({ tipo: 'servico', canal: 'ponte', estado: 'encerrado' })
       encerrada = true
       groq?.encerrar()
+      ollama?.encerrar()
     },
     tratar(req: IncomingMessage, res: ServerResponse) {
       // Não rotular tráfego real P1 como diagnóstico "simulado" do P0.
-      if (!req.url?.startsWith('/cosmos/__p0/groq')) observarHttpP0(observabilidade, 'ponte', req.url, res)
+      if (!req.url?.startsWith('/cosmos/__p0/groq') && !req.url?.startsWith('/cosmos/__p0/ollama')) observarHttpP0(observabilidade, 'ponte', req.url, res)
       const recusar = (status: number) => {
         if (res.destroyed || res.writableEnded) return
         if (res.headersSent) { res.destroy(); return }
@@ -78,6 +83,11 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
         if (caminho === 'groq' || caminho.startsWith('groq/')) {
           if (!groq) { recusar(503); return }
           void groq.tratar(req, res, caminho)
+          return
+        }
+        if (caminho === 'ollama' || caminho.startsWith('ollama/')) {
+          if (!ollama) { recusar(503); return }
+          void ollama.tratar(req, res, caminho)
           return
         }
         const proxy = request({ hostname: '127.0.0.1', port: portaApi, path: `/integracoes/p0/${caminho}`, method: req.method,

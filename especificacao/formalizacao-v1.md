@@ -26,7 +26,20 @@ do pedido; mudar o pedido é outra versão.
 
 ## 3. Na tela (Labs → Formalizar)
 
-Só pelo serviço local com o Groq ligado (`node scripts/integracoes-p0.mjs --groq`, com `GROQ_API_KEY` no ambiente,
+**Com o Ollama (o padrão desde 28/10/2026):** `node scripts/integracoes-p0.mjs --ollama`, com o Ollama aberto e o
+`qwen3:4b` baixado, em `http://127.0.0.1:4175/cosmos/`. É o modelo da nota oficial, e o texto não sai do computador.
+A ponte (`src/integracoes/ollama-node.ts`) aceita do navegador só premissas e conclusão (até 10 premissas de até 500
+caracteres) e monta ela mesma o pedido fixo, com a saída presa ao esquema e temperatura 0: o navegador não escolhe
+mensagens, modelo nem destino, e só fala com `127.0.0.1:11434`. Uma proposta de cada vez; na CPU, de 1 a 2,5 minutos.
+Se o Ollama não estiver pronto, a tela usa o Groq, se estiver ligado.
+
+Sem vocabulário dado (a tela), o `qwen3:4b` propõe símbolos com acento ("Pássaro") e constantes com maiúscula
+("Tico"); a leitura acerta a forma (sem acento, predicado com maiúscula, constante em minúscula) no vocabulário e nas
+fórmulas, só como palavra inteira. Com o vocabulário dado (o piloto e a nota), nada muda. Primeiro teste real na tela,
+em 28/10/2026: "Todo pássaro tem penas. Tico não tem penas." ⟹ "Tico não é pássaro." voltou com as três leituras
+certas e a classe "segue", em cerca de 2 minutos e meio.
+
+**Com o Groq:** só pelo serviço local com o Groq ligado (`node scripts/integracoes-p0.mjs --groq`, com `GROQ_API_KEY` no ambiente,
 em `http://127.0.0.1:4175/cosmos/`): a chave fica no processo Node e nunca chega ao navegador. A tela avisa que o texto
 sai do computador e não deve levar o Principia, dados pessoais nem itens do conjunto fechado. A pessoa escreve as
 premissas e a conclusão, recebe a proposta com a leitura de volta de cada fórmula, corrige se preciso e aprova: a
