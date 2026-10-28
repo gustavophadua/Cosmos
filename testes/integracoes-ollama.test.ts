@@ -31,12 +31,12 @@ function ollamaFalso(rodando = true) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as { port: number }).port, origem = `http://127.0.0.1:${port}`
-  const api = criarApiIntegracoes({ origemPermitida: origem })
+  const api = criarApiIntegracoes({ origemPermitida: origem, ...(o.ttlSessaoMs ? { ttlSessaoMs: o.ttlSessaoMs } : {}) })
   const falso = ollamaFalso(o.rodando ?? true)
   const chamar = (c: Chamada) => new Promise<number>((resolve, reject) => {
     const corpo = c.corpo === undefined ? undefined : JSON.stringify(c.corpo)
@@ -84,6 +84,13 @@ describe('Formalização pelo Ollama local na ponte', () => {
     expect(await c.chamar({ rota: 'ollama/qualquer' })).toBe(404)
     expect(c.pedidos).toHaveLength(0)
   }))
+
+  it('continua depois que a sessão P0 expira: a rota não depende da sessão do Groq', async () => ambiente(async (c) => {
+    // o caso real da tela em 28/10/2026: "sessao-expirada" 15 minutos depois de abrir o serviço
+    await new Promise((r) => setTimeout(r, 120))
+    expect((await c.cliente.carregar()).estado).toBe('pronto')
+    expect((await c.cliente.formalizar(TEXTO)).conteudo).toBe(PROPOSTA)
+  }, { ttlSessaoMs: 50 }))
 
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {
     await ambiente(async (c) => { expect(await c.chamar({ rota: 'ollama/estado' })).toBe(503) }, { ligado: false })

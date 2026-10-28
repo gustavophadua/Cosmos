@@ -31,7 +31,15 @@ do pedido; mudar o pedido é outra versão.
 A ponte (`src/integracoes/ollama-node.ts`) aceita do navegador só premissas e conclusão (até 10 premissas de até 500
 caracteres) e monta ela mesma o pedido fixo, com a saída presa ao esquema e temperatura 0: o navegador não escolhe
 mensagens, modelo nem destino, e só fala com `127.0.0.1:11434`. Uma proposta de cada vez; na CPU, de 1 a 2,5 minutos.
-Se o Ollama não estiver pronto, a tela usa o Groq, se estiver ligado.
+Se o Ollama não estiver pronto, a tela usa o Groq, se estiver ligado. No Windows, o lançador `Abrir-Cosmos-IA.cmd`
+confere o Ollama (abre o aplicativo se estiver fechado), sobe o serviço e abre o navegador no Labs. A rota não depende da
+sessão P0 de 15 minutos, que é a da chave do Groq: vale enquanto o serviço estiver aberto.
+
+**Placa de vídeo integrada:** o Ollama acha a AMD Vega 8 pelo Vulkan, mas a descarta por ser integrada. Com
+`OLLAMA_IGPU_ENABLE=1` o modelo inteiro vai para ela (medido em 28/10/2026, mesmo pedido da tela, mesma resposta): a
+leitura do pedido fica 2 vezes mais rápida (64 contra 32 tokens/s) e a escrita quase igual (8 contra 7,5), e a
+proposta do Tico cai de 132 s para 68 s. A nota oficial foi medida na CPU; a placa pode mudar a resposta em casos
+raros, por arredondamento, e não entra numa medição oficial sem dizer.
 
 Sem vocabulário dado (a tela), o `qwen3:4b` propõe símbolos com acento ("Pássaro") e constantes com maiúscula
 ("Tico"); a leitura acerta a forma (sem acento, predicado com maiúscula, constante em minúscula) no vocabulário e nas

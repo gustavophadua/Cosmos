@@ -24,8 +24,10 @@ export function validarTextoFormalizacao(x: unknown): { premissas: string[]; con
  * A formalização pelo Ollama local, servida pela ponte (rotas `ollama/estado` e `ollama`). Só o pedido fixo
  * (formalizacao-v1, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
  * modelo ou destino. O texto não sai do aparelho. Uma chamada de cada vez; na CPU, cada uma leva cerca de um minuto.
+ * Não depende da sessão P0 (15 minutos, feita para a chave do Groq): aqui não há segredo, e a rota vale enquanto o
+ * serviço local estiver aberto, presa à mesma origem e ao marcador da ponte.
  */
-export function criarControleOllama(opcoes: { modelo?: string; sessaoValida: () => Promise<boolean>; buscar?: typeof fetch; prazoMs?: number }) {
+export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   const perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   let pendente = false, encerrado = false
@@ -51,7 +53,7 @@ export function criarControleOllama(opcoes: { modelo?: string; sessaoValida: () 
   })
   async function tratar(req: IncomingMessage, res: ServerResponse, rota: string) {
     try {
-      if (encerrado || !(await opcoes.sessaoValida())) throw new ErroOllama(401, 'sessao-expirada')
+      if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO })

@@ -37,7 +37,7 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
     r.setTimeout(1500, () => { r.destroy(); resolve(false) }); r.on('error', () => resolve(false)); r.end()
   })
   const groq = opcoes.groq ? criarControleGroq({ ...opcoes.groq, sessaoValida }) : null
-  const ollama = opcoes.ollama ? criarControleOllama({ ...opcoes.ollama, sessaoValida }) : null
+  const ollama = opcoes.ollama ? criarControleOllama(opcoes.ollama) : null
   const observabilidade = criarObservabilidadeP0()
   observabilidade.registrar({ tipo: 'servico', canal: 'ponte', estado: 'iniciado' })
   return Object.freeze({

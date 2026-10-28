@@ -54,3 +54,5 @@ avaliacao/validacao-v1.jsonl text eol=lf
 public/cosmos-iai-v1-resultado.txt -text
 public/cosmos-iai-v1-resultado.txt.ots -text
 public/cosmos-iai-v1-resultado.txt.calendario.ots -text
+# o lancador do Windows precisa de CRLF
+*.cmd text eol=crlf
