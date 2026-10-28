@@ -49,6 +49,29 @@ ser exportada. Conta as recusas e as que não se leram, para o custo por formali
 O código recusa mandar o conjunto fechado para outro provedor que não o Ollama local. A nota separa a fidelidade das
 fórmulas (o que importa: o Z3 decide a classe a partir delas) da classe dita pelo modelo.
 
+**No Ollama** (`src/integracoes/provedores/ollama.ts`, só `127.0.0.1:11434`, API nativa `/api/chat`), o modelo padrão
+é `qwen3:4b` e cada pedido sai com:
+
+- `think: false`: o "modo pensando" do Qwen3 desligado, para tempo e formato comparáveis entre medições;
+- `format` com o esquema JSON da resposta (`ESQUEMA_RESPOSTA`, versão `esquema-json-v1`): o modelo só gera JSON que
+  cumpre o formato, então JSON quebrado deixa de existir sem treino; se as fórmulas se leem continua com `lerProposta`;
+- temperatura 0, semente 0 e contexto de 4096 tokens fixos.
+
+O `meta.json` de cada execução guarda o digest do modelo (o SHA-256 do manifesto, que fixa os pesos), a versão do
+Ollama, a do pedido, a da saída e o SHA-256 das respostas. No conjunto fechado, as respostas têm de ficar na pasta dele
+(fora do Git, porque revelam os itens), e cada medição é registrada em `medicoes-no-fechado.jsonl`, ao lado do
+conjunto. O plano de fechamento permite **3 medições** nos 120 (linha de base, melhor configuração sem treino, modelo
+final); uma quarta exige `PILOTO_ALEM_DO_LIMITE=declarado` e fica marcada no registro. Os ajustes se escolhem num
+conjunto de validação à parte, nunca nos 120.
+
+Para rodar (no PowerShell, na pasta do Cosmos, com o Ollama aberto):
+
+```
+$env:PILOTO_PROVEDOR='ollama'; $env:PILOTO_SAIDA='saida-piloto'; node node_modules/vitest/vitest.mjs run testes/piloto.test.ts
+```
+
+Sem `PILOTO_CONJUNTO`, roda nos 12 exemplos públicos (o passo B3 do plano).
+
 ## 5. Resultado do desenvolvimento (26/10/2026)
 
 `openai/gpt-oss-120b` pelo Groq, pedido `formalizacao-v1`, nos 12 exemplos públicos: **12 de 12 completas** (classe

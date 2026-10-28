@@ -35,7 +35,31 @@ Responda SÓ com um objeto JSON, sem texto antes ou depois:
 {"vocabulario": [{"simbolo": "...", "tipo": "predicado" ou "constante", "aridade": número, "leitura": "..."}], "premissas": ["..."], "conclusao": "...", "classe": "segue" | "contradiz" | "independente"}
 Na leitura, use "x é médico" para predicado de um lugar, "x admira y" para dois lugares e o nome próprio para constante.`
 
-const entradaDoUsuario = (texto: { premissas: string[]; conclusao: string }, vocabulario: Termo[] | null) =>
+/**
+ * O formato da resposta como esquema JSON (versão SAIDA_FORMALIZACAO). Um provedor que aceita esquema (o Ollama, no
+ * parâmetro `format`) só gera texto que o cumpre, e o JSON quebrado deixa de existir sem treino nenhum. O esquema só
+ * prende a forma: se as fórmulas se leem em m2 com o vocabulário continua com lerProposta.
+ */
+export const SAIDA_FORMALIZACAO = 'esquema-json-v1'
+export const ESQUEMA_RESPOSTA = {
+  type: 'object',
+  properties: {
+    vocabulario: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { simbolo: { type: 'string' }, tipo: { type: 'string', enum: ['predicado', 'constante'] }, aridade: { type: 'integer' }, leitura: { type: 'string' } },
+        required: ['simbolo', 'tipo', 'aridade', 'leitura'],
+      },
+    },
+    premissas: { type: 'array', items: { type: 'string' } },
+    conclusao: { type: 'string' },
+    classe: { type: 'string', enum: ['segue', 'contradiz', 'independente'] },
+  },
+  required: ['vocabulario', 'premissas', 'conclusao', 'classe'],
+} as const
+
+const entradaDoUsuario =(texto: { premissas: string[]; conclusao: string }, vocabulario: Termo[] | null) =>
   [`Premissas:\n${texto.premissas.map((p) => `- ${p}`).join('\n')}`, `Conclusão: ${texto.conclusao}`,
     vocabulario ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(vocabulario)}` : 'Proponha o vocabulário.'].join('\n\n')
 const respostaDoExemplo = (i: Item) => JSON.stringify({ vocabulario: i.vocabulario, premissas: i.gabarito.premissas, conclusao: i.gabarito.conclusao, classe: i.gabarito.classe })

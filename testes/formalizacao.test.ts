@@ -4,8 +4,8 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import type { Item } from '../src/motor/avaliacao'
-import { lerDeVolta, lerProposta, mensagensDeFormalizacao } from '../src/motor/formalizacao'
+import { CLASSES, type Item } from '../src/motor/avaliacao'
+import { ESQUEMA_RESPOSTA, lerDeVolta, lerProposta, mensagensDeFormalizacao } from '../src/motor/formalizacao'
 
 const EXEMPLOS = readFileSync('avaliacao/exemplos-publicos-v1.jsonl', 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
 const VOCAB = [
@@ -24,6 +24,17 @@ describe('Formalização assistida', () => {
     expect(m.at(-1)!.content).toContain('Todo médico é paciente.')
     expect(m.at(-1)!.content).toContain('"simbolo":"Medico"')
     expect(JSON.parse(m[2].content).classe).toBe(EXEMPLOS[0].gabarito.classe)
+  })
+
+  it('o esquema JSON da resposta pede o que a leitura lê, e as respostas dos exemplos o cumprem', () => {
+    expect(ESQUEMA_RESPOSTA.required).toEqual(['vocabulario', 'premissas', 'conclusao', 'classe'])
+    expect(ESQUEMA_RESPOSTA.properties.classe.enum).toEqual(CLASSES)
+    const m = mensagensDeFormalizacao({ premissas: ['Todo médico é paciente.'], conclusao: 'Ana é paciente.' }, VOCAB, EXEMPLOS)
+    for (const r of [m[2], m[4]].map((x) => JSON.parse(x.content))) {
+      expect(Object.keys(r).sort()).toEqual([...ESQUEMA_RESPOSTA.required].sort())
+      for (const t of r.vocabulario) expect(Object.keys(t).sort()).toEqual([...ESQUEMA_RESPOSTA.properties.vocabulario.items.required].sort())
+      expect(lerProposta(JSON.stringify(r), r.vocabulario).classe).toBe(r.classe)
+    }
   })
 
   it('lê a resposta mesmo com raciocínio entre <think> e cerca de código, e confere cada fórmula', () => {
