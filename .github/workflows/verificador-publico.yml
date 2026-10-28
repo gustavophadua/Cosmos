@@ -155,6 +155,31 @@ jobs:
           open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(f"\n**Âncora do conjunto fechado** ({p['itens']} itens, raiz {c['raiz'][:12]}…): {linha}\n" + ''.join(f'- {e}\n' for e in erros))
           if erros: sys.exit('\n'.join(erros))
           PY
+      - name: Âncora da nota da I-AI v1 (o resumo do resultado no OpenTimestamps)
+        env:
+          COSMOS_OTS_ALVO: public/cosmos-iai-v1-resultado.txt
+        run: |
+          python scripts/cosmos-ots.py estado | tee "$RUNNER_TEMP/iai.json"
+          python - "$RUNNER_TEMP/iai.json" <<'PY'
+          import hashlib, json, os, sys
+          r = json.load(open(sys.argv[1], encoding='utf-8'))
+          c = json.load(open('src/dados/ancora-iai.json', encoding='utf-8'))
+          sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
+          erros = []
+          if not r.get('vinculoValido'): erros.append('a prova OTS não é do resumo publicado')
+          if not r.get('confirmacaoVerificada'): erros.append(f"confirmação não verificada: {r.get('erro', '')}")
+          for campo in ('altura', 'bloco', 'tempo_bloco_utc', 'sha256_alvo', 'sha256_prova'):
+              if r.get(campo) != c[campo]: erros.append(f'{campo}: conferido {r.get(campo)!r}, registrado {c[campo]!r}')
+          if sha(c['prova_calendario_original']['arquivo']) != c['prova_calendario_original']['sha256']: erros.append('a prova original dos calendários foi alterada')
+          raiz = json.load(open(c['ancora_do_conjunto'], encoding='utf-8'))['raiz']
+          linhas = open(c['alvo'], encoding='ascii').read().split('\n')
+          if f'conjunto avaliacao-frases-v1 120 raiz {raiz}' not in linhas: erros.append('o resumo não aponta para a raiz carimbada do conjunto fechado')
+          if not any(l.startswith(f"modelo {c['modelo']} digest {c['digest_modelo']} ") for l in linhas): erros.append('o modelo registrado não é o do resumo')
+          if not any(l.startswith(f"formulas_fieis {c['formulas_fieis']} ") for l in linhas): erros.append('a nota registrada não é a do resumo')
+          linha = f"bloco {r.get('altura')} ({r.get('tempo_bloco_utc')}), conferido em {', '.join(r.get('fontes', []))}; igual ao registrado: {'sim' if not erros else 'NÃO'}"
+          open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8').write(f"\n**Âncora da nota da I-AI v1** ({c['modelo']}, fórmulas fiéis {c['formulas_fieis']}): {linha}\n" + ''.join(f'- {e}\n' for e in erros))
+          if erros: sys.exit('\n'.join(erros))
+          PY
 
   cadeias:
     # as cadeias pessoais publicadas em cadeias/: cada registro revelado é aberto com certificado (tradução t1 pelo Z3 e

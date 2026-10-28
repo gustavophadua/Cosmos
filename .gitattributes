@@ -53,3 +53,4 @@ avaliacao/validacao-v1.jsonl text eol=lf
 # o resultado da I-AI no conjunto fechado e a prova OTS dele
 public/cosmos-iai-v1-resultado.txt -text
 public/cosmos-iai-v1-resultado.txt.ots -text
+public/cosmos-iai-v1-resultado.txt.calendario.ots -text

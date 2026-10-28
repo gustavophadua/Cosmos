@@ -132,8 +132,9 @@ total); nenhum item saiu do aparelho. O digest do modelo é
 **Meta e decisão:** o dono fixou a meta em 85% de fórmulas fiéis depois de ver a linha de base (ver
 `decisoes-do-dono.md`); o limite de baixo do intervalo já passa dela, então a I-AI v1 fica com o modelo sem treino e
 as outras duas medições ficam guardadas. O resumo com os hashes das respostas e das notas está em
-`public/cosmos-iai-v1-resultado.txt`, carimbado no Bitcoin pelo OpenTimestamps (enviado aos calendários em
-28/10/2026; a confirmação entra num registro próprio, como a da raiz). Quando o conjunto for revelado (§3), qualquer
+`public/cosmos-iai-v1-resultado.txt`, carimbado no Bitcoin pelo OpenTimestamps: **confirmado no bloco 973562**
+(2026-10-28 13:58:24 UTC). O registro fica em `src/dados/ancora-iai.json`, o verificador público o confere a cada
+execução, e a prova original dos calendários fica em `.calendario.ots`. Quando o conjunto for revelado (§3), qualquer
 um refaz a nota a partir das respostas e confere os dois hashes.
 
 **Limites desta nota:** vale para frases no estilo do gerador, com vocabulário novo (§6); com frases escritas por

@@ -1,0 +1,19 @@
+{
+  "formato": "cosmos-ancora-iai-v1",
+  "alvo": "public/cosmos-iai-v1-resultado.txt",
+  "sha256_alvo": "789b8de9f73359055807408ed4f4045083b9917e74837232810ccfab7403b8f5",
+  "ancora_do_conjunto": "src/dados/ancora-avaliacao.json",
+  "modelo": "qwen3:4b",
+  "digest_modelo": "359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7",
+  "formulas_fieis": "115/120",
+  "prova": "public/cosmos-iai-v1-resultado.txt.ots",
+  "sha256_prova": "f217d5310f9474b2b35068642e0ea867d4edca43df8b79c8983873195b148974",
+  "prova_calendario_original": {
+    "arquivo": "public/cosmos-iai-v1-resultado.txt.calendario.ots",
+    "sha256": "488c91f142bc155f859ad77a49aefdcbda999d240258117333901715bfd76144"
+  },
+  "altura": 973562,
+  "bloco": "00000000000000000000afe362a23e013ff4228ba1490fdb227aaed4f2455b18",
+  "tempo_bloco_utc": "2026-10-28T13:58:24Z",
+  "limite": "Sem nó Bitcoin próprio. Prova que o resumo da nota (modelo, configuração, hashes das respostas e das notas, números) existia antes do bloco; a nota só se refaz por terceiros quando o conjunto for revelado."
+}
