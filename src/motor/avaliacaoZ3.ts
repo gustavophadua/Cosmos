@@ -5,6 +5,8 @@ import type { Formula } from '../logica/ast'
 import { checarZ3, type ResultadoZ3 } from './z3'
 import { CLASSES, lerFormula, type Classe, type Item, type Nota, type Resposta, type Termo } from './avaliacao'
 
+export interface Candidato { premissas: string[]; conclusao: string; classe: Classe | null }
+
 export const conjuncao = (fs: string[]) => fs.map((f) => `(${f})`).join(' ∧ ')
 
 /**
@@ -40,4 +42,28 @@ export async function pontuar(api: unknown, item: Item, r: Resposta): Promise<No
   nota.completa = nota.classeCerta && nota.premissasFieis && nota.conclusaoFiel
   nota.motivo = nota.completa ? '' : [!nota.classeCerta && 'classe errada', !nota.premissasFieis && 'premissas não equivalem às do gabarito', !nota.conclusaoFiel && 'conclusão não equivale à do gabarito'].filter(Boolean).join('; ')
   return nota
+}
+
+const equivale = async (api: unknown, v: Termo[], a: string, b: string) => a === b || (await equivalentes(api, v, a, b)) === 'unsat'
+const mesmoSentido = async (api: unknown, v: Termo[], a: Candidato, b: Candidato) =>
+  await equivale(api, v, a.conclusao, b.conclusao) && await equivale(api, v, conjuncao(a.premissas), conjuncao(b.premissas))
+
+/**
+ * A votação do piloto (passo D3 do plano): das respostas de um item, fica a da maior turma de fórmulas equivalentes
+ * pelo Z3 (premissas juntas e conclusão), não a de texto igual. Empate: a turma do candidato que veio primeiro. A
+ * classe é a mais dita dentro da turma (sem contar as que não disseram classe). Null se nenhum candidato se leu.
+ */
+export async function votar(api: unknown, v: Termo[], candidatos: Candidato[]): Promise<Candidato | null> {
+  const turmas: Candidato[][] = []
+  for (const c of candidatos) {
+    let achou = false
+    for (const t of turmas) if (await mesmoSentido(api, v, t[0], c)) { t.push(c); achou = true; break }
+    if (!achou) turmas.push([c])
+  }
+  if (!turmas.length) return null
+  const maior = turmas.reduce((a, t) => (t.length > a.length ? t : a))
+  const contagem = new Map<Classe | null, number>()
+  for (const c of maior) if (c.classe) contagem.set(c.classe, (contagem.get(c.classe) ?? 0) + 1)
+  const classe = contagem.size ? [...contagem].reduce((a, x) => (x[1] > a[1] ? x : a))[0] : null
+  return { premissas: maior[0].premissas, conclusao: maior[0].conclusao, classe }
 }

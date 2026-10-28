@@ -10,6 +10,10 @@
  * contexto fixos, e o digest do modelo vai para meta.json. No conjunto fechado, as respostas ficam na pasta dele (fora
  * do Git) e cada medição fica registrada em medicoes-no-fechado.jsonl: o plano permite 3; uma quarta só com
  * PILOTO_ALEM_DO_LIMITE=declarado, e o registro diz que foi além.
+ *
+ * Votação (passo D3 do plano, só no Ollama): com PILOTO_VOTOS=n, cada item recebe n respostas com temperatura
+ * PILOTO_TEMPERATURA (0,7 por padrão) e sementes 1..n, e todas as que se leem vão para candidatos.jsonl. Quem escolhe
+ * a resposta é testes/votacao.test.ts, pelo Z3 (a maior turma de fórmulas equivalentes), que grava respostas.jsonl.
  */
 import { it, expect } from 'vitest'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -45,7 +49,10 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   const exemplos = lerJsonl<Item>(PUBLICOS)
   const modelo = process.env.PILOTO_MODELO ?? (PROVEDOR === 'groq' ? 'openai/gpt-oss-120b' : 'qwen3:4b')
 
+  const votos = Number(process.env.PILOTO_VOTOS ?? 0), temperaturaVoto = Number(process.env.PILOTO_TEMPERATURA ?? 0.7)
+  if (votos && (PROVEDOR !== 'ollama' || !Number.isInteger(votos) || votos < 2 || votos > 9)) throw new Error('PILOTO_VOTOS: de 2 a 9, só no Ollama')
   let perguntar: (m: Mensagem[]) => Promise<{ conteudo: string; prompt: number; completion: number }>
+  let votantes: typeof perguntar[] = []
   let identidade: Record<string, unknown> = { modelo }
   if (PROVEDOR === 'groq') {
     const groq = criarAdaptadorGroq({ chave: () => process.env.GROQ_API_KEY, prazoMs: 20_000 })
@@ -56,6 +63,7 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   } else if (PROVEDOR === 'ollama') {
     identidade = await descreverModeloOllama(modelo) // só local: o conjunto fechado não sai do aparelho
     perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096 })
+    votantes = Array.from({ length: votos }, (_, k) => criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: temperaturaVoto, semente: k + 1, contexto: 4096 }))
   } else throw new Error('PILOTO_PROVEDOR é groq ou ollama')
 
   mkdirSync(SAIDA!, { recursive: true })
@@ -64,6 +72,23 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
     // os exemplos do pedido nunca são o próprio item
     const mensagens = mensagensDeFormalizacao(item.texto, item.vocabulario, exemplos.filter((e) => e.id !== item.id))
     const inicio = Date.now()
+    if (votos) {
+      const candidatos: unknown[] = [], motivos: string[] = []
+      let prompt = 0, completion = 0
+      for (const votar of votantes) {
+        try {
+          const r = await votar(mensagens)
+          prompt += r.prompt; completion += r.completion
+          const p = lerProposta(r.conteudo, item.vocabulario)
+          candidatos.push({ premissas: p.premissas, conclusao: p.conclusao, classe: p.classe })
+        } catch (e) { motivos.push((e as Error).message) }
+      }
+      respostas.push(JSON.stringify({ id: item.id, candidatos }))
+      const medicao = { id: item.id, ms: Date.now() - inicio, prompt_tokens: prompt, completion_tokens: completion, lidas: candidatos.length, ...(motivos.length ? { motivos } : {}) }
+      medicoes.push(JSON.stringify(medicao))
+      console.log(JSON.stringify(medicao))
+      continue
+    }
     let medicao: Record<string, unknown> = { id: item.id }
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
@@ -86,13 +111,13 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
     if (PROVEDOR === 'groq') await esperar(20_000) // 8 mil tokens por minuto no plano grátis
   }
   const corpo = respostas.join('\n') + '\n'
-  writeFileSync(join(SAIDA!, 'respostas.jsonl'), corpo)
+  writeFileSync(join(SAIDA!, votos ? 'candidatos.jsonl' : 'respostas.jsonl'), corpo)
   writeFileSync(join(SAIDA!, 'medicoes.jsonl'), medicoes.join('\n') + '\n')
   const meta = {
     provedor: PROVEDOR, ...identidade, prompt: PROMPT_FORMALIZACAO,
-    ...(PROVEDOR === 'ollama' ? { saida: SAIDA_FORMALIZACAO, pensando: false, temperatura: 0, semente: 0, contexto: 4096 } : { temperatura: 0 }),
+    ...(PROVEDOR === 'ollama' ? { saida: SAIDA_FORMALIZACAO, pensando: false, contexto: 4096, ...(votos ? { votos, temperatura: temperaturaVoto, sementes: `1-${votos}` } : { temperatura: 0, semente: 0 }) } : { temperatura: 0 }),
     conjunto: fechado ? 'fechado' : PUBLICOS, itens: linhas.length, lidas: respostas.length,
-    respostas_sha256: createHash('sha256').update(corpo).digest('hex'), data: new Date().toISOString(),
+    [votos ? 'candidatos_sha256' : 'respostas_sha256']: createHash('sha256').update(corpo).digest('hex'), data: new Date().toISOString(),
   }
   writeFileSync(join(SAIDA!, 'meta.json'), JSON.stringify(meta, null, 2) + '\n')
   if (fechado) appendFileSync(registro, JSON.stringify({ ...meta, saida_pasta: resolve(SAIDA!), ...(alemDoLimite ? { alem_do_limite: true } : {}) }) + '\n')

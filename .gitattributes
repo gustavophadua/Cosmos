@@ -48,3 +48,5 @@ public/cosmos-fase3-resumo.txt.calendario.ots -text
 # a raiz do conjunto fechado de avaliação e a prova OTS dela
 public/cosmos-avaliacao-v1-raiz.txt -text
 public/cosmos-avaliacao-v1-raiz.txt.ots -text
+# a validação da I-AI: a CI refaz o arquivo pelo gerador e compara byte a byte
+avaliacao/validacao-v1.jsonl text eol=lf

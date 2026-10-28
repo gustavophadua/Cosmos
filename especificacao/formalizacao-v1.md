@@ -72,6 +72,16 @@ $env:PILOTO_PROVEDOR='ollama'; $env:PILOTO_SAIDA='saida-piloto'; node node_modul
 
 Sem `PILOTO_CONJUNTO`, roda nos 12 exemplos públicos (o passo B3 do plano).
 
+**Votação** (passo D3): com `PILOTO_VOTOS=5`, cada item recebe 5 respostas (temperatura 0,7, sementes 1 a 5) e as que
+se leem vão para `candidatos.jsonl`. `testes/votacao.test.ts` (`VOTACAO_CONJUNTO`, `VOTACAO_CANDIDATOS`,
+`VOTACAO_SAIDA`, `VOTACAO_FATIA`) escolhe a resposta pelo Z3: a maior turma de fórmulas **equivalentes**, não de
+texto igual, com a classe mais dita dentro dela. O custo é cerca de 5 vezes o tempo; só fica se o ganho na validação
+pagar.
+
+**Treino:** `testes/exportar-treino.test.ts` transforma um lote do gerador público em conversas com este mesmo
+pedido e a resposta certa (recusa ids que não sejam do gerador público). O passo a passo do treino está em
+`treino/README.md`.
+
 ## 5. Resultado do desenvolvimento (26/10/2026)
 
 `openai/gpt-oss-120b` pelo Groq, pedido `formalizacao-v1`, nos 12 exemplos públicos: **12 de 12 completas** (classe

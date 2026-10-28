@@ -62,7 +62,8 @@ export const ESQUEMA_RESPOSTA = {
 const entradaDoUsuario =(texto: { premissas: string[]; conclusao: string }, vocabulario: Termo[] | null) =>
   [`Premissas:\n${texto.premissas.map((p) => `- ${p}`).join('\n')}`, `Conclusão: ${texto.conclusao}`,
     vocabulario ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(vocabulario)}` : 'Proponha o vocabulário.'].join('\n\n')
-const respostaDoExemplo = (i: Item) => JSON.stringify({ vocabulario: i.vocabulario, premissas: i.gabarito.premissas, conclusao: i.gabarito.conclusao, classe: i.gabarito.classe })
+/** A resposta certa de um item no formato pedido: a dos exemplos do pedido e a que o treino ensina. */
+export const respostaDoExemplo = (i: Item) => JSON.stringify({ vocabulario: i.vocabulario, premissas: i.gabarito.premissas, conclusao: i.gabarito.conclusao, classe: i.gabarito.classe })
 
 /**
  * As mensagens do pedido: as instruções, até dois exemplos resolvidos (dos exemplos públicos, nunca do conjunto
