@@ -12,7 +12,9 @@ import { validar } from '../logica/validador'
 import { comoDicionario } from './registro'
 import { CLASSES, lerFormula, type Classe, type Item, type Termo } from './avaliacao'
 
-export const PROMPT_FORMALIZACAO = 'formalizacao-v1'
+// v2 (28/10/2026): as regras que faltavam, tiradas da revisão de erros do lote público R- (formalizacao-v1.md §8). A v1,
+// a da nota oficial de 95,8%, está no commit 3cdfaeb.
+export const PROMPT_FORMALIZACAO = 'formalizacao-v2'
 export interface Mensagem { role: 'system' | 'user' | 'assistant'; content: string }
 export interface Proposta { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null; completados?: string[] }
 
@@ -21,18 +23,21 @@ const SISTEMA = `Você formaliza frases curtas em português na linguagem m2 (l�
 Sintaxe do m2:
 - quantificadores ∀x (…) e ∃x (…); conectivos ¬ (não), ∧ (e), ∨ (ou), ⟹ (se… então), ⟺ (se e somente se);
 - predicados começam com maiúscula e usam só letras sem acento (Medico, Paciente, Admira); constantes em minúsculas sem acento (ana, joao); variáveis x, y, z;
-- aplicação: Medico(ana), Admira(ana, joao).
+- aplicação: Medico(ana), Admira(ana, joao);
+- toda variável fica dentro de um ∀ ou ∃ que a introduz: nunca escreva Medico(x) solto; feche todos os parênteses.
 
 Como ler o português:
-- "Todo A é B" = ∀x (A(x) ⟹ B(x)); "Nenhum A é B" = ∀x (A(x) ⟹ ¬B(x)); "Algum A é B" = ∃x (A(x) ∧ B(x));
+- "Todo A é B", "Cada A é B", "Se alguém é A, então é B" = ∀x (A(x) ⟹ B(x)); "Nenhum A é B" = ∀x (A(x) ⟹ ¬B(x)); "Algum A é B" = ∃x (A(x) ∧ B(x));
 - "Algum A não é B" = ∃x (A(x) ∧ ¬B(x)); "Nem todo A é B" = ¬∀x (A(x) ⟹ B(x));
-- "a é A só se é B" = A(a) ⟹ B(a); "ou" é inclusivo (∨);
-- formalize literalmente, sem acrescentar premissas nem conhecimento do mundo.
+- "Todo A admira algum B" = ∀x (A(x) ⟹ ∃y (B(y) ∧ Admira(x, y))); "Existe um B que todo A admira" = ∃y (B(y) ∧ ∀x (A(x) ⟹ Admira(x, y))): a ordem dos quantificadores é a da frase, e as duas não são a mesma coisa;
+- "a é A só se é B" e "a é A apenas se é B" = A(a) ⟹ B(a), só numa direção (não é ⟺); "ou" é inclusivo (∨);
+- "a não é A nem B" = ¬A(a) ∧ ¬B(a);
+- formalize literalmente, sem acrescentar premissas nem conhecimento do mundo. A conclusão também: escreva a que está no texto, mesmo que ela seja falsa ou não siga das premissas; nunca a troque pela que seguiria.
 
 Classifique a conclusão em relação às premissas, na lógica clássica:
 - "segue": toda situação em que as premissas valem, a conclusão vale;
-- "contradiz": toda situação em que as premissas valem, a conclusão é falsa;
-- "independente": nem uma coisa nem outra. Atenção: "Todo A é B" não garante que exista algum A.
+- "contradiz": toda situação em que as premissas valem, a conclusão é falsa (as premissas provam o contrário dela);
+- "independente": nem uma coisa nem outra: há situação com as premissas verdadeiras e a conclusão verdadeira, e outra com a conclusão falsa. Conclusão que só "não segue" é independente, não contradiz. É o caso de afirmar o consequente, negar o antecedente, inverter "todo A é B" para "todo B é A", passar de "algum" para "todo", tirar "a não é B" de "a é A ou B" e "a é A", e tirar "todo A é C" de "todo A é B" e "todo C é B". Atenção: "Todo A é B" não garante que exista algum A.
 
 Responda SÓ com um objeto JSON, sem texto antes ou depois:
 {"vocabulario": [{"simbolo": "...", "tipo": "predicado" ou "constante", "aridade": número, "leitura": "..."}], "premissas": ["..."], "conclusao": "...", "classe": "segue" | "contradiz" | "independente"}

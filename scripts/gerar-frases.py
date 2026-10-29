@@ -3,11 +3,15 @@
 Uso:
   python -I -X utf8 -B scripts/gerar-frases.py validacao avaliacao/validacao-v1.jsonl
   python -I -X utf8 -B scripts/gerar-frases.py treino SAIDA.jsonl [ITENS_POR_CLASSE]
+  python -I -X utf8 -B scripts/gerar-frases.py revisao SAIDA.jsonl [ITENS_POR_CLASSE]
 
 - validacao: 150 itens, 50 por classe, vocabulário de fantasia, só as formas de frase de base. É nele que se escolhem
   pedido, exemplos, votação e o checkpoint do treino; o conjunto fechado não serve para ajustar nada.
 - treino: vocabulário próprio (espaço e campo), formas de frase variadas ("Cada", "Todos os…", "Existe um…",
   "somente se"…) e alguns padrões a mais (e, se e somente se, nem…nem). Por padrão, 1000 itens por classe.
+- revisao: o mesmo vocabulário e as mesmas formas do treino, com semente própria e ids R-: o lote em que se olham os
+  erros um por um (a revisão de erros, especificacao/formalizacao-v1.md §8). Nunca entra no treino (a exportação só
+  aceita V- e T-). Por padrão, 167 itens por classe.
 
 Cada linha: {"padrao": nome, "formas": [índice da forma de cada frase], "item": {...}}. A semente é fixa (o nome do modo): rodar de novo dá o mesmo
 arquivo, byte a byte. A classe de cada padrão é a esperada; a conferência pelo Z3 (testes/frases-geradas.test.ts) é a
@@ -183,7 +187,7 @@ def montar(f):
 
 
 def gerar(modo, por_classe):
-    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'T')
+    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'R' if modo == 'revisao' else 'T')
     # semente fixa pelo nome do modo: o arquivo se refaz igual, e qualquer um confere
     rnd = random.Random(int.from_bytes(hashlib.sha256(f'cosmos-frases-{modo}-v1'.encode()).digest(), 'big'))
     linhas, vistos = [], set()
@@ -216,9 +220,9 @@ def gerar(modo, por_classe):
 
 if __name__ == '__main__':
     modo, saida = sys.argv[1], sys.argv[2]
-    if modo not in ('validacao', 'treino'):
-        sys.exit('modo: validacao ou treino')
-    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 1000
+    if modo not in ('validacao', 'treino', 'revisao'):
+        sys.exit('modo: validacao, treino ou revisao')
+    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 167 if modo == 'revisao' else 1000
     linhas = gerar(modo, por_classe)
     corpo = ''.join(json.dumps(l, ensure_ascii=False) + '\n' for l in linhas).encode('utf-8')
     with open(saida, 'wb') as arq:

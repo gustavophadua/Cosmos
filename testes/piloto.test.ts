@@ -11,6 +11,9 @@
  * do Git) e cada medição fica registrada em medicoes-no-fechado.jsonl: o plano permite 3; uma quarta só com
  * PILOTO_ALEM_DO_LIMITE=declarado, e o registro diz que foi além.
  *
+ * Lote público gerado (a revisão de erros, PILOTO_PUBLICO=gerado): só itens R- ou V- de scripts/gerar-frases.py; vai
+ * ao Ollama e não conta como medição no fechado. PILOTO_FATIA=início-fim roda só esse trecho (um processo por fatia).
+ *
  * Votação (passo D3 do plano, só no Ollama): com PILOTO_VOTOS=n, cada item recebe n respostas com temperatura
  * PILOTO_TEMPERATURA (0,7 por padrão) e sementes 1..n, e todas as que se leem vão para candidatos.jsonl. Quem escolhe
  * a resposta é testes/votacao.test.ts, pelo Z3 (a maior turma de fórmulas equivalentes), que grava respostas.jsonl.
@@ -34,7 +37,8 @@ const dentro = (pasta: string, caminho: string) => { const r = relative(resolve(
 
 it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de cada item', async () => {
   const arquivo = process.env.PILOTO_CONJUNTO ?? PUBLICOS
-  const fechado = resolve(arquivo) !== resolve(PUBLICOS)
+  const gerado = process.env.PILOTO_PUBLICO === 'gerado'
+  const fechado = resolve(arquivo) !== resolve(PUBLICOS) && !gerado
   if (fechado && PROVEDOR !== 'ollama') throw new Error('o conjunto fechado só vai para um modelo local (PILOTO_PROVEDOR=ollama)')
   const registro = join(dirname(resolve(arquivo)), 'medicoes-no-fechado.jsonl')
   let alemDoLimite = false
@@ -45,7 +49,14 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
     alemDoLimite = feitas >= LIMITE_NO_FECHADO
     if (alemDoLimite && process.env.PILOTO_ALEM_DO_LIMITE !== 'declarado') throw new Error(`o conjunto fechado já foi medido ${feitas} vezes (o plano permite ${LIMITE_NO_FECHADO}); para ir além, PILOTO_ALEM_DO_LIMITE=declarado`)
   }
-  const linhas = lerJsonl<Item | { item: Item }>(arquivo).map((l) => ('item' in l ? l.item : l))
+  let linhas = lerJsonl<Item | { item: Item }>(arquivo).map((l) => ('item' in l ? l.item : l))
+  // o lote gerado se reconhece pelos ids: um arquivo com outro id (o fechado, por exemplo) continua tratado como fechado
+  if (gerado && !linhas.every((i) => /^[RV]-\d+$/.test(i.id))) throw new Error('PILOTO_PUBLICO=gerado só aceita itens R- e V- do gerador público')
+  if (process.env.PILOTO_FATIA) {
+    if (fechado) throw new Error('PILOTO_FATIA só no lote público')
+    const [de, ate] = process.env.PILOTO_FATIA.split('-').map(Number)
+    linhas = linhas.slice(de, ate)
+  }
   const exemplos = lerJsonl<Item>(PUBLICOS)
   const modelo = process.env.PILOTO_MODELO ?? (PROVEDOR === 'groq' ? 'openai/gpt-oss-120b' : 'qwen3:4b')
 
@@ -116,7 +127,7 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   const meta = {
     provedor: PROVEDOR, ...identidade, prompt: PROMPT_FORMALIZACAO,
     ...(PROVEDOR === 'ollama' ? { saida: SAIDA_FORMALIZACAO, pensando: false, contexto: 4096, ...(votos ? { votos, temperatura: temperaturaVoto, sementes: `1-${votos}` } : { temperatura: 0, semente: 0 }) } : { temperatura: 0 }),
-    conjunto: fechado ? 'fechado' : PUBLICOS, itens: linhas.length, lidas: respostas.length,
+    conjunto: fechado ? 'fechado' : gerado ? relative(resolve('.'), resolve(arquivo)).replace(/\\/g, '/') : PUBLICOS, ...(process.env.PILOTO_FATIA ? { fatia: process.env.PILOTO_FATIA } : {}), itens: linhas.length, lidas: respostas.length,
     [votos ? 'candidatos_sha256' : 'respostas_sha256']: createHash('sha256').update(corpo).digest('hex'), data: new Date().toISOString(),
   }
   writeFileSync(join(SAIDA!, 'meta.json'), JSON.stringify(meta, null, 2) + '\n')

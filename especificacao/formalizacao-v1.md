@@ -14,6 +14,12 @@ resolvidos tirados dos **exemplos públicos** (nunca do conjunto fechado, e nunc
 resposta pedida é um objeto JSON com vocabulário, premissas, conclusão e classe. Uma medição só vale junto com a versão
 do pedido; mudar o pedido é outra versão.
 
+A versão `formalizacao-v2` (28/10/2026) acrescenta as regras que a revisão de erros (§8) mostrou faltarem: variável
+sempre presa a um quantificador, "cada" e "se alguém é A, então é B", "todo A R algum B" contra "existe um B que todo A
+R", "apenas se" numa direção só, "nem…nem", a conclusão escrita como está no texto mesmo quando falsa, e "independente"
+para a conclusão que só não segue (com as falácias mais comuns como exemplo). A nota oficial de §5b é da v1 (commit
+3cdfaeb).
+
 ## 2. A leitura da resposta
 
 - Tira o raciocínio entre `<think>` e as cercas de código; lê o primeiro objeto JSON.
@@ -170,3 +176,29 @@ enunciado, recusada pelo vínculo, `especificacao/provas-t1/vinculo.py`).
 - As frases do piloto são de um gerador; o uso real tem frases mais variadas.
 - O Groq não treina modelos e só rodaria um modelo treinado no plano Enterprise com base Llama 3.1 8B; um Qwen3
   treinado roda localmente.
+
+## 8. A revisão de erros (28/10/2026)
+
+Para ver onde o modelo erra sem gastar o conjunto fechado: um lote público gerado, com os erros olhados um por um.
+`scripts/gerar-frases.py revisao` gera 501 itens R- (167 por classe, as formas e o vocabulário do treino, semente
+própria); o piloto roda com `PILOTO_PUBLICO=gerado` e `PILOTO_FATIA` (um processo por fatia de 50) e a nota com
+`testes/nota.test.ts`. O lote fica fora do Git e nunca entra no treino (a exportação só aceita V- e T-). Corrigir o
+pedido com base nele é permitido; a medida que vale continua a do conjunto fechado.
+
+Primeira rodada (pedido v1, qwen3:4b na Vega 8, cerca de 30 s por item, 4 h no total):
+
+| | itens |
+|---|---|
+| se leem | 497/501 (99,2%) |
+| fórmulas fiéis | 477/501 (95,2%) |
+| classe certa pelo Z3, a partir das fórmulas do modelo | 487/501 (97,2%) |
+| classe dita certa | 410/501 (81,8%) |
+| completas (fórmulas fiéis e classe dita certa) | 399/501 (79,6%) |
+
+O modelo formaliza bem e classifica mal: nas 167 independentes disse "contradiz" 42 vezes e "segue" 33. Os erros de
+fórmula se concentram em poucos padrões: "todo A R algum B" (10, com ∃ no lugar de ∀ ou a ordem dos quantificadores
+trocada), "nem…nem" lido como ∨ (3), "apenas se" lido como ⟺ (2), a conclusão falsa trocada pela que segue (2), e quatro
+que não se leram (três com a variável solta, sem quantificador, e um parêntese não fechado). A regra do modo automático
+(§3c) aceitaria 414, 399 delas fiéis, e descartaria 87, 78 delas com as fórmulas certas; sem exigir a classe dita, só o
+Z3, aceitaria 497 com 477 fiéis. A conferência pela classe dita quase não separa os erros (15 em 414 contra 20 em 497) e
+joga fora uma em cada seis respostas certas. Daí a v2 do pedido (§1).

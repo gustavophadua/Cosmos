@@ -71,7 +71,7 @@ export function criarConferidorZ3(arquivo: URL): ConferidorZ3 {
 
 /**
  * A formalização pelo Ollama local, servida pela ponte (rotas `ollama/estado` e `ollama`). Só o pedido fixo
- * (formalizacao-v1, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
+ * (PROMPT_FORMALIZACAO, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
  * modelo ou destino. O texto não sai do aparelho. Uma chamada de cada vez; na CPU, cada uma leva cerca de um minuto.
  * Não depende da sessão P0 (15 minutos, feita para a chave do Groq): aqui não há segredo, e a rota vale enquanto o
  * serviço local estiver aberto, presa à mesma origem e ao marcador da ponte.
