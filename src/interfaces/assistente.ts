@@ -34,7 +34,34 @@ const frases = (texto: string) => texto.replace(/\r\n?/g, '\n').split(/\n+|(?<=[
 export function detectar(texto: string): Acao {
   const t = texto.trim()
   if (t.length > 600 || t.split(/\n\s*\n/).filter((p) => p.trim()).length >= 2) return 'revisar'
-  return frases(t).length >= 2 ? 'verificar' : 'afirmacao'
+  return separarArgumento(t) ? 'verificar' : 'afirmacao'
+}
+
+// as marcas de conclusão ("A, B, logo C") e de razão ("C porque A"), como palavra inteira
+const MARCA_CONCLUSAO = /(?<![\p{L}])(logo|ent[aã]o|portanto|por isso|por conseguinte|consequentemente|assim sendo|da[ií] que|dessa forma|desse modo)(?![\p{L}])[,:]?\s*/giu
+const MARCA_RAZAO = /(?<![\p{L}])(porque|pois|j[aá] que|visto que|uma vez que)(?![\p{L}])\s*/iu
+const partes = (s: string) => s.split(/\s*[;,]\s*/).map((p) => p.trim().replace(/^(e|mas|também)\s+/iu, '')).filter((p) => p.length > 1)
+const comPonto = (s: string) => { const t = s.trim().replace(/[\s,;:]+$/, ''); return /[.!?]$/.test(t) ? t : `${t}.` }
+const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+/**
+ * Uma frase só com o argumento dentro: "todo homem parte de Deus, Deus é eterno, logo o homem é eterno" (premissas
+ * separadas por vírgula antes da marca) ou "o homem é eterno porque Deus é eterno". O "então" de "se A, então B" é
+ * uma condicional, não uma conclusão.
+ */
+function argumentoNumaFrase(f: string): { premissas: string[]; conclusao: string } | null {
+  const marcas = [...f.matchAll(MARCA_CONCLUSAO)].filter((m) => m.index! > 0).reverse()
+  for (const m of marcas) {
+    const antes = f.slice(0, m.index).replace(/[\s,;:]+$/, ''), depois = f.slice(m.index! + m[0].length).trim()
+    if (/^(se|caso|quando)\s/iu.test(antes.split(/[,;]/).at(-1)!.trim())) continue
+    const ps = partes(antes)
+    if (ps.length && depois.length > 1) return { premissas: ps.map((p) => comPonto(maiuscula(p))), conclusao: comPonto(maiuscula(depois)) }
+  }
+  const r = MARCA_RAZAO.exec(f)
+  if (r && r.index > 0) {
+    const conclusao = f.slice(0, r.index), ps = partes(f.slice(r.index + r[0].length))
+    if (ps.length && conclusao.trim().length > 1) return { premissas: ps.map((p) => comPonto(maiuscula(p))), conclusao: comPonto(maiuscula(conclusao)) }
+  }
+  return null
 }
 
 /**
@@ -53,6 +80,7 @@ export function respostaAfirmacao(texto: string): string {
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
 export function separarArgumento(texto: string): { premissas: string[]; conclusao: string } | null {
   const fs = frases(texto)
+  if (fs.length === 1) return argumentoNumaFrase(fs[0])
   if (fs.length < 2 || fs.length > 11) return null
   return { premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) }
 }

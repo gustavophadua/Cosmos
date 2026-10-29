@@ -21,6 +21,15 @@ describe('assistente da Conversa', () => {
   it('o argumento: as premissas e, por último, a conclusão', () => {
     expect(separarArgumento('Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.')).toEqual({ premissas: ['Todo cliente tem suporte.', 'A padaria é cliente.'], conclusao: 'Então a padaria tem suporte.' })
     expect(separarArgumento('Uma frase só.')).toBeNull()
+    // numa frase só, com vírgulas e a marca da conclusão (o caso real do dono)
+    expect(separarArgumento('todo homem parte de Deus, Deus é eterno, logo o homem é eterno')).toEqual({ premissas: ['Todo homem parte de Deus.', 'Deus é eterno.'], conclusao: 'O homem é eterno.' })
+    expect(detectar('todo homem parte de Deus, Deus é eterno, logo o homem é eterno')).toBe('verificar')
+    expect(separarArgumento('A padaria tem suporte porque é cliente do plano anual, e todo cliente do plano anual tem suporte')).toEqual({ premissas: ['É cliente do plano anual.', 'Todo cliente do plano anual tem suporte.'], conclusao: 'A padaria tem suporte.' })
+    expect(separarArgumento('Choveu, portanto: a rua molhou.')).toEqual({ premissas: ['Choveu.'], conclusao: 'A rua molhou.' })
+    // o "então" da condicional não é conclusão
+    expect(separarArgumento('Se chover, então a rua molha')).toBeNull()
+    expect(separarArgumento('A loja abre cedo, se chover, então fecha')).toBeNull()
+    expect(separarArgumento('Ele está em São Paulo')).toBeNull()
     expect(separarArgumento('Linha um\nLinha dois')).toEqual({ premissas: ['Linha um'], conclusao: 'Linha dois' })
   })
 
