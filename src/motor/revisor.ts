@@ -116,6 +116,18 @@ export function cenarioEmPortugues(m: Modelo, vocabulario: Termo[]): string[] {
   return linhas
 }
 
+/**
+ * O salto em português: um cenário pequeno com as premissas verdadeiras e a conclusão falsa, pelo motor finito do
+ * Caderno (sem Z3). Undefined se não achar até 4 objetos em 5 segundos; o veredito do Z3 continua valendo.
+ */
+export function cenarioDoSalto(f: { vocabulario: Termo[]; premissas: string[]; conclusao: string }): string[] | undefined {
+  try {
+    const fs = [...f.premissas.map((p) => lerFormula(p, f.vocabulario)), nao(lerFormula(f.conclusao, f.vocabulario))]
+    const b = buscarModelo(fs, { N: 4, limite: 200_000, K: 1, prazo: Date.now() + 5_000 })
+    return b.status === 'modelo' ? cenarioEmPortugues(b.modelo, f.vocabulario) : undefined
+  } catch { return undefined }
+}
+
 export interface PassosRevisor {
   /** a versão do pedido de formalização, para o relatório */
   prompt: string
@@ -170,13 +182,7 @@ export async function revisarPlano(texto: string, passos: PassosRevisor): Promis
     }
     if (classe === 'segue') { revisados.push({ ...base, formulas, veredito: 'provado' }); continue }
     if (classe === 'contradiz') { revisados.push({ ...base, formulas, veredito: 'contradiz' }); continue }
-    // o salto: um cenário pequeno com os apoios verdadeiros e a conclusão falsa, pelo motor finito (sem Z3)
-    let cenario: string[] | undefined
-    try {
-      const fs = [...formulas.premissas.map((p) => lerFormula(p, formulas.vocabulario)), nao(lerFormula(formulas.conclusao, formulas.vocabulario))]
-      const b = buscarModelo(fs, { N: 4, limite: 200_000, K: 1, prazo: Date.now() + 5_000 })
-      if (b.status === 'modelo') cenario = cenarioEmPortugues(b.modelo, formulas.vocabulario)
-    } catch { /* sem cenário: o veredito do Z3 continua valendo */ }
+    const cenario = cenarioDoSalto(formulas)
     revisados.push({ ...base, formulas, veredito: 'salto', ...(cenario ? { cenario } : {}) })
   }
   const conclusoes = new Set(argumentos.map((a) => a.conclusao)), apoios = new Set(argumentos.flatMap((a) => a.apoios))

@@ -15,6 +15,7 @@ import { CadeiaPessoal } from './CadeiaPessoal'
 import { MoedaTeste } from './MoedaTeste'
 import { FormalizacaoAssistida, type ParaRegistro } from './FormalizacaoAssistida'
 import { RevisorPlano } from './RevisorPlano'
+import { tomarParaCadeia } from './ConversaIA'
 import type { Afirmacao } from '../motor/registro'
 import './labs.css'
 
@@ -56,7 +57,8 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
   const [inspecao, setInspecao] = useState<'registro' | 'evidencias'>('registro')
   const [editor, setEditor] = useState(false), [nome, setNome] = useState(''), [formula, setFormula] = useState(''), [dominio, setDominio] = useState('')
   const [log, setLog] = useState<string[]>([]), [resultado, setResultado] = useState<string[] | null>(null)
-  const [paraCadeia, setParaCadeia] = useState<{ formula: string; dominio: string; premissas?: string[]; afirmacao?: Afirmacao } | null>(null)
+  // o registro que veio da Conversa ("Registrar na minha cadeia"), tomado uma vez
+  const [paraCadeia, setParaCadeia] = useState<{ formula: string; dominio: string; premissas?: string[]; afirmacao?: Afirmacao } | null>(tomarParaCadeia)
   const [loteParaCadeia, setLoteParaCadeia] = useState<ParaRegistro[] | null>(null)
   const [fonteEditor, setFonteEditor] = useState<RegistroPublico | null>(null), [conferidas, setConferidas] = useState<VerificacaoFonte[] | null>(null), [conferindo, setConferindo] = useState(false)
   const [gateA, setGateA] = useState(true), [gateB, setGateB] = useState(false)
@@ -105,13 +107,13 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
       <a className="labs-brand" href="#/lab">Cosmos <span>Labs</span></a>
       <div className="labs-project"><span className="labs-project-icon">φ</span><div>Espaço de pesquisa<small>Sessão local</small></div></div>
       <p className="labs-nav-label">ÁREA DE TRABALHO</p>
-      <nav className="labs-sections" aria-label="Seções do Labs">{SECOES.filter(s => s.id !== 'referencias').map((s, i) => <button key={s.id} aria-current={aba === s.id ? 'page' : undefined} onClick={() => navegar(s.id)}><Icone nome={({ biblioteca: 'book', rascunhos: 'file', verificacao: 'shield', formalizar: 'chat', revisar: 'flask', cadeia: 'link', moeda: 'chart' } as const)[s.id as 'biblioteca'] ?? (['book', 'file', 'shield', 'tools'] as const)[i]} />{s.id === 'rascunhos' ? 'Rascunhos' : s.nome}{s.id === 'rascunhos' && <span className="labs-count">{rascunhos.length}</span>}</button>)}<a href="#/certificados"><Icone nome="file" />Evidências</a></nav>
+      <nav className="labs-sections" aria-label="Seções do Labs">{SECOES.filter(s => s.id !== 'referencias').map((s, i) => <button key={s.id} aria-current={aba === s.id ? 'page' : undefined} onClick={() => navegar(s.id)}><Icone nome={({ biblioteca: 'book', rascunhos: 'file', verificacao: 'shield', formalizar: 'chat', revisar: 'flask', cadeia: 'link', moeda: 'chart' } as const)[s.id as 'biblioteca'] ?? (['book', 'file', 'shield', 'tools'] as const)[i]} />{s.id === 'rascunhos' ? 'Rascunhos' : s.nome}{s.id === 'rascunhos' && <span className="labs-count">{rascunhos.length}</span>}</button>)}<a href="#/certificados"><Icone nome="file" />Evidências</a><a href="#/terminal"><Icone nome="chart" />Terminal (demonstração)</a></nav>
       <div className="labs-resources"><button onClick={() => navegar('referencias')}>Ferramentas e fórmulas <span>↗</span></button><p className="labs-nav-label">REGISTROS E EVIDÊNCIAS</p><a href="#/cadeia">Cadeia histórica <span>↗</span></a><a href="#/certificados">Evidências <span>↗</span></a><a href="#/dicionario">Dicionário <span>↗</span></a></div>
       <div className="labs-sidebar-bottom">{navigation}<p>{conta.perfil ? 'Rascunhos cifrados por titular.' : 'Rascunhos só nesta sessão.'}<br />Nenhuma publicação automática.</p></div>
     </aside>
     <main className="labs-main">
       <header className="labs-topbar"><div>Cosmos <span>/</span> Labs <span>/</span> <strong>{secao.nome}</strong></div><span className="labs-local"><i /> Ambiente local</span></header>
-      <section className="labs-page-heading"><div><p className="labs-eyebrow">CONHECIMENTO E EVIDÊNCIAS</p><h1>{aba === 'biblioteca' ? 'Laboratório' : secao.nome}</h1><p>{secao.descricao}</p></div><Button onClick={() => novo()} aria-expanded={editor}>＋ Novo registro</Button></section>
+      <section className="labs-page-heading"><div><p className="labs-eyebrow">AVANÇADO · CONHECIMENTO E EVIDÊNCIAS</p><h1>{aba === 'biblioteca' ? 'Laboratório' : secao.nome}</h1><p>{secao.descricao}</p></div><Button onClick={() => novo()} aria-expanded={editor}>＋ Novo registro</Button></section>
       <div className="labs-mobile-navigation">{navigation}</div>{!conta.perfil && <div className="account-banner"><span>Sem conta, os rascunhos ficam só nesta sessão e somem ao recarregar. Com a conta local, eles ficam cifrados no aparelho.</span><a href="#/conta">Entrar na conta local →</a></div>}{erroDados && <p className="labs-result has-conflict" role="alert">{erroDados} {!conta.perfil && <a href="#/conta">Entrar na conta local →</a>}</p>}
       {editor && <form className="labs-editor" aria-label="Novo rascunho" onSubmit={e => {
         e.preventDefault(); if (!nome.trim() || !formula.trim() || salvando) return

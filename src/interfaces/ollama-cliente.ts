@@ -46,7 +46,8 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
     async conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal) {
       const o = await chamar('ollama/conferir', { vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, classe: p.classe }, 120000, signal)
       if (o.formato !== 'cosmos-ollama-conferencia-v1' || typeof o.aceita !== 'boolean' || typeof o.motivo !== 'string' || !(o.classe_z3 === null || CLASSES.includes(o.classe_z3 as Classe))) throw new ErroIntegracoes('invalido')
-      return { classeZ3: o.classe_z3 as Classe | null, aceita: o.aceita, motivo: o.motivo }
+      const cenario = Array.isArray(o.cenario) && o.cenario.length <= 60 && o.cenario.every((l) => typeof l === 'string' && l.length <= 600) ? o.cenario as string[] : undefined
+      return { classeZ3: o.classe_z3 as Classe | null, aceita: o.aceita, motivo: o.motivo, ...(cenario ? { cenario } : {}) }
     },
     /** O revisor de planos: começa em segundo plano (minutos) e se acompanha por estadoRevisao. */
     async revisar(texto: string, signal?: AbortSignal): Promise<EstadoRevisao> {

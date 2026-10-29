@@ -4,7 +4,7 @@ import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } 
 import { ESQUEMA_RESPOSTA, formalizarComReparo, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
-import { ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
+import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -164,7 +164,9 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
           await descarregarModeloOllama(modelo, opcoes.buscar).catch(() => undefined)
           const c = await opcoes.conferidor.conferir(p)
           if (encerrado) throw new ErroOllama(503, 'indisponivel')
-          enviar(res, 200, { formato: 'cosmos-ollama-conferencia-v1', classe_z3: c.classeZ3, aceita: c.aceita, motivo: c.motivo })
+          // no salto, o cenário que derruba a conclusão, pelo motor finito (a Conversa mostra)
+          const cenario = c.classeZ3 === 'independente' ? cenarioDoSalto(p) : undefined
+          enviar(res, 200, { formato: 'cosmos-ollama-conferencia-v1', classe_z3: c.classeZ3, aceita: c.aceita, motivo: c.motivo, ...(cenario ? { cenario } : {}) })
           return
         }
         const texto = validarTextoFormalizacao(await lerCorpo(req))

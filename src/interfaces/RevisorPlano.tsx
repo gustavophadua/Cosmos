@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { criarClienteOllama, type EstadoRevisao } from './ollama-cliente'
+import './conversa-ia.css'
 import { MAX_TEXTO_REVISOR, relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor, type Veredito } from '../motor/revisor-relatorio'
 
 const FASE: Record<string, string> = { extraindo: 'Separando afirmações e conclusões', traduzindo: 'Traduzindo cada argumento para m2', conferindo: 'O Z3 está conferindo' }
@@ -65,7 +66,6 @@ export function RevisorPlano() {
   const rodando = estado?.estado === 'rodando'
   const relatorio: RelatorioRevisor | undefined = estado?.estado === 'pronto' ? estado.relatorio : undefined
   const conta = (v: Veredito) => relatorio?.argumentos.filter((a) => a.veredito === v).length ?? 0
-  const argumentos = relatorio ? [...relatorio.argumentos.entries()].sort((a, b) => ORDEM.indexOf(a[1].veredito) - ORDEM.indexOf(b[1].veredito)) : []
 
   return <div className="cadeia-pessoal formalizacao revisor">
     <div className="labs-result" role="note"><strong>O que se avalia é o argumento, não a pessoa.</strong>
@@ -94,7 +94,27 @@ export function RevisorPlano() {
       <h3>Resultado</h3>
       <p className="cadeia-previa" role="status">{relatorio.argumentos.length} conclusão(ões): {conta('provado')} provada(s), {conta('salto')} salto(s), {conta('contradiz')} contradição(ões), {conta('incompativel')} com afirmações incompatíveis, {conta('sem-traducao')} sem tradução. {relatorio.afirmacoes.length} afirmações em {relatorio.blocos} trecho(s); extrator {relatorio.extrator}, tradução {relatorio.prompt}.</p>
       {!relatorio.argumentos.length && <p>O extrator não achou nenhuma conclusão apoiada em outras afirmações. O revisor só avalia o que o texto apresenta como consequência ("portanto", "então", "por isso"…).</p>}
-      <ol className="revisor-argumentos">{argumentos.map(([i, a]) => <li key={i} data-veredito={a.veredito}>
+      <CartoesDoRelatorio relatorio={relatorio} />
+      {relatorio.avisos.length > 0 && <p className="has-conflict">{relatorio.avisos.join(' · ')}</p>}
+      <div className="cadeia-acoes">
+        <Button onClick={() => baixar('cosmos-revisao-do-plano.md', relatorioEmMarkdown(relatorio), 'text/markdown')}>Baixar o relatório (.md)</Button>
+        <Button variant="outline" onClick={() => baixar('cosmos-revisao-do-plano.json', JSON.stringify(relatorio, null, 2), 'application/json')}>Baixar os dados (.json)</Button>
+      </div>
+    </section>}
+  </div>
+}
+
+/** Os cartões de um relatório do revisor: um por conclusão (os saltos primeiro) e as afirmações de base. */
+export function CartoesDoRelatorio({ relatorio, baseAntes = false }: { relatorio: RelatorioRevisor; baseAntes?: boolean }) {
+  const argumentos = [...relatorio.argumentos.entries()].sort((a, b) => ORDEM.indexOf(a[1].veredito) - ORDEM.indexOf(b[1].veredito))
+  const base = relatorio.afirmacoes.some((a) => a.papel === 'base') && <>
+    <h3>Afirmações de base</h3>
+    <p>O texto não as prova: são o ponto de partida dele e precisam de fonte (dado, contrato, pesquisa).</p>
+    <ul>{relatorio.afirmacoes.filter((a) => a.papel === 'base').map((a) => <li key={a.id}>{a.texto}</li>)}</ul>
+  </>
+  return <>
+    {baseAntes && base}
+    <ol className="revisor-argumentos">{argumentos.map(([i, a]) => <li key={i} data-veredito={a.veredito}>
         <header><strong>{tituloDoVeredito(a.veredito)}</strong></header>
         <p className="revisor-conclusao">{a.conclusao}</p>
         <small>Apoiada em:</small>
@@ -104,16 +124,6 @@ export function RevisorPlano() {
         {a.formulas && <details><summary>Fórmulas (m2)</summary><code>{[...a.formulas.premissas, `⊢ ${a.formulas.conclusao}`].join('\n')}</code></details>}
         {a.motivo && <small className="has-conflict">{a.motivo}</small>}
       </li>)}</ol>
-      {relatorio.afirmacoes.some((a) => a.papel === 'base') && <>
-        <h3>Afirmações de base</h3>
-        <p>O plano não as prova: são o ponto de partida dele e precisam de fonte (dado, contrato, pesquisa).</p>
-        <ul>{relatorio.afirmacoes.filter((a) => a.papel === 'base').map((a) => <li key={a.id}>{a.texto}</li>)}</ul>
-      </>}
-      {relatorio.avisos.length > 0 && <p className="has-conflict">{relatorio.avisos.join(' · ')}</p>}
-      <div className="cadeia-acoes">
-        <Button onClick={() => baixar('cosmos-revisao-do-plano.md', relatorioEmMarkdown(relatorio), 'text/markdown')}>Baixar o relatório (.md)</Button>
-        <Button variant="outline" onClick={() => baixar('cosmos-revisao-do-plano.json', JSON.stringify(relatorio, null, 2), 'application/json')}>Baixar os dados (.json)</Button>
-      </div>
-    </section>}
-  </div>
+    {!baseAntes && base}
+  </>
 }

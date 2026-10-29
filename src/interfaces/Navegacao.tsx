@@ -5,7 +5,8 @@ import { Icone, type NomeIcone } from './Janela'
 import { CAMINHO_LOGO } from '../ui/logo'
 
 export type Destino = InterfaceProduto | 'integracoes'
-const PRINCIPAIS: [string, string, NomeIcone][] = [['indice', 'Índice', 'grid'], ['i-ai', 'Conversa', 'chat'], ['lab', 'Labs', 'flask'], ['terminal', 'Terminal', 'chart']]
+// a Conversa é o produto (a IA com o Z3); o resto (Labs, cadeia, moeda, Terminal de demonstração) fica no Avançado
+const PRINCIPAIS: [string, string, NomeIcone][] = [['i-ai', 'Conversa', 'chat'], ['lab', 'Avançado', 'flask']]
 export const LICENCAS_URL = 'https://github.com/gustavophadua/Cosmos/blob/main/LICENCAS.md'
 
 export function LogoCosmos({ tamanho = 26 }: { tamanho?: number }) {
