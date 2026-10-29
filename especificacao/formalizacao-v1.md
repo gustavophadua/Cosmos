@@ -266,3 +266,41 @@ premissas, iguais ao gabarito, em 60 a 110 s cada (a pergunta vai duas vezes ao 
 fórmulas fiéis na leva 2 (99,6%); as duas que sobram se leem, têm a contagem certa e passariam no modo automático. É
 uma conferência nos itens que mostraram o defeito, não uma rodada nova: a primeira resposta, a temperatura 0, é a
 mesma, e o reparo só age quando ela falha.
+
+### 8b. Frases escritas por outro modelo (29/10/2026)
+
+As frases R- saem do nosso gerador, com as mesmas formas em que o pedido foi ajustado: medem pouco a variedade. O dono
+pediu ao GPT um lote de frases com perfis e jeitos de falar diferentes (`frases-gpt/`, fora do Git): 200 problemas sem
+gabarito, 150 de 6 famílias de moldes em 25 cenários e 50 de fala livre ("então abre", "não vou usar os dois",
+"pode misturar"). O `gerar.py` do GPT não foi executado: os literais dele foram lidos com `ast`, as frases refeitas e
+conferidas contra o arquivo. Os gabaritos foram feitos à mão (os dos moldes por família) e o Z3 deu a classe esperada
+nos 199 que entraram, com ids G-. Ficou de fora "A ficha azul fica com a ficha verde. Ela está incompleta.": o "ela"
+é ambíguo de propósito, e o certo seria perguntar. Três frases livres admitem mais de uma fórmula razoável; contam na
+classe e a fidelidade sai com e sem elas. Antes de olhar qualquer resposta, a divisão: metade de revisão (famílias 1, 5
+e 6 e 25 livres sorteados) e metade de teste (famílias 2, 3 e 7 e 24 livres), por família, como o próprio lote
+recomenda, para os moldes não vazarem de uma metade para a outra.
+
+Pedido v3 com reparo, sem ajuste nenhum:
+
+| | fórmulas fiéis | classe certa pelo Z3 |
+|---|---|---|
+| todas (199) | 174 (87,4%, IC 82,1–91,3%) | 185 (93,0%) |
+| moldes (150) | 136 (90,7%) | 141 (94,0%) |
+| fala livre (49) | 38 (77,6%, IC 64,1–87,0%) | 44 (89,8%) |
+| metade de revisão (99) | 81 (81,8%) | 88 (88,9%) |
+| metade de teste (100) | 93 (93,0%) | 97 (97,0%) |
+
+O erro dominante, na metade de revisão: o modelo **entorta a premissa para a conclusão seguir**. "Alguém só pode votar
+se estiver credenciado" vira "quem está credenciado pode votar"; "todos os monitores são alunos" vira "todos os alunos
+são monitores" quando a conclusão é a recíproca; um "não" some da conclusão. Em 9 itens, um argumento que não segue saiu
+"segue". Os outros: "ou… ou…, mas não os dois" partido em duas fórmulas com uma premissa perdida, e a restrição do
+sujeito perdida em "nenhuma opinião sem teste" e "toda barraca que aceita cartão".
+
+A v4 do pedido (regras explícitas para "só pode A se B", o sujeito com restrição, o "mas não os dois", e "traduza cada
+premissa como se não conhecesse a conclusão") não foi adotada: na metade de revisão, 83 fórmulas fiéis contra 81 da v3
+(+7 −5, McNemar p = 0,77), e 10 argumentos que não seguem saíram "segue" (eram 9). A regra no pedido não tira o viés; o
+diff está guardado fora do Git. Daí a tradução cega (`formalizarCego`, `cego-v1`): as premissas numa chamada sem a
+conclusão, a conclusão noutra que vê só o vocabulário. A medição dela nas duas metades G- está na seção seguinte,
+quando terminar. Para o treino, o gerador ganhou os modos `treino2` e `revisao2`, com os moldes desses erros (os modos
+antigos se refazem byte a byte como antes).
+

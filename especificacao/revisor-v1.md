@@ -61,15 +61,24 @@ o atalho "Cosmos" na Área de Trabalho, que abre o `Abrir-Cosmos-IA.cmd`. `-Conf
 O teste em 5 a 10 planos reais, cada um conferido à mão: quantas conclusões o extrator achou das que existem, quantas
 ligou aos apoios certos, e quantas o revisor classificou certo. Os planos ficam fora do Git.
 
-## 6. Versão em servidor (planejada, não feita)
+## 6. Versão em servidor
 
 O serviço local foi desenhado para não ter login: aceita só a origem `127.0.0.1` e confia em quem está no computador.
-Abrir isso para a internet exige outra peça, não uma configuração:
+O servidor é outra peça (`src/integracoes/revisor-servidor-node.ts`, `scripts/servidor-revisor.mjs`, testes em
+`testes/revisor-servidor.test.ts`), com o mesmo núcleo (`revisarPlano`):
 
-- conta por cliente (chave de API ou link por e-mail) e HTTPS (proxy reverso);
-- fila por placa (o modelo atende uma revisão de cada vez) e limite por conta;
-- o texto do plano apagado depois de entregue o relatório (prazo curto, escrito nos termos), registros sem conteúdo;
-- termos de uso e de tratamento de dados (LGPD; GDPR para clientes na Europa);
-- uma máquina com placa (o custo e o provedor são decisão do dono; a conta é dele).
+- **Conta por cliente:** `node scripts/servidor-revisor.mjs --nova-conta "Empresa X" --limite 20` cria a conta e mostra
+  a chave uma vez; o arquivo de contas (`privado/revisor/contas.json`, fora do Git, ou `COSMOS_REVISOR_CONTAS`) guarda só
+  o SHA-256 dela. `--contas` lista e `--remover-conta ID` remove, sem reiniciar.
+- **API:** `POST /api/revisoes` com `Authorization: Bearer <chave>` e `{"texto": "..."}` (até 20.000 caracteres) responde
+  202 com o id; `GET /api/revisoes/<id>` dá a posição na fila, o progresso e o relatório; `DELETE` apaga antes do prazo;
+  `GET /api/saude` não pede chave. A revisão de outra conta responde 404.
+- **Fila e limites:** uma revisão de cada vez (o modelo não roda duas); até 2 em andamento por conta, o limite por dia
+  de cada conta, até 20 na fila; 20 chaves erradas por minuto do mesmo endereço bloqueiam o resto do minuto.
+- **Dados:** o texto do plano sai da memória quando a revisão termina; o relatório fica 24 horas e some; nada vai para
+  disco; os registros têm conta, id, tamanho, tempo e quantidade de conclusões, nunca o conteúdo.
+- **Rede:** escuta em `127.0.0.1:4180` por padrão (`COSMOS_REVISOR_HOST`, `COSMOS_REVISOR_PORTA`); o HTTPS fica com um
+  proxy reverso na frente (Caddy ou nginx, com certificado). O Ollama roda no mesmo computador.
 
-O núcleo (`revisarPlano`) é o mesmo: só muda quem chama. Fica para depois do teste do §5.
+Falta, e é do dono: a máquina (com placa; o provedor e o custo), o domínio e o certificado, os termos de uso e de
+tratamento de dados (LGPD; GDPR para clientes na Europa) e a decisão de abrir para clientes, depois do teste do §5.
