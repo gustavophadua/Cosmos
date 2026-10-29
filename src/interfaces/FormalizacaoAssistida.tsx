@@ -84,9 +84,9 @@ export function FormalizacaoAssistida({ levar, levarVarios }: { levar: (r: ParaR
 
   /**
    * O modo automático (especificacao/formalizacao-v1.md §3c): o modelo propõe todas, uma de cada vez, e depois o Z3
-   * confere cada uma no serviço local (o modelo sai da memória antes). Passa só a proposta que se lê e cuja classe
-   * dita pelo modelo é a que o Z3 dá às fórmulas dele; o resto é descartado com o motivo. Nada vai para a cadeia sem
-   * o botão de levar.
+   * confere cada uma no serviço local (o modelo sai da memória antes). Passa a proposta que se lê, tem uma fórmula
+   * para cada premissa do texto e que o Z3 decide; a classe é a do Z3. O resto é descartado com o motivo. Nada vai
+   * para a cadeia sem o botão de levar.
    */
   const rodarLote = async () => {
     if (!local || rodando || ocupado) return
@@ -101,7 +101,11 @@ export function FormalizacaoAssistida({ levar, levarVarios }: { levar: (r: ParaR
         mudar(i, { estado: 'propondo' })
         try {
           const r = await local.formalizar(lista[i].texto)
-          try { mudar(i, { estado: 'esperando', proposta: lerProposta(r.conteudo, null) }) } catch (e) { mudar(i, { estado: 'descartada', motivo: `a resposta não se lê: ${(e as Error).message}` }) }
+          try {
+            const p = lerProposta(r.conteudo, null), n = lista[i].texto.premissas.length
+            // o erro de fórmula mais comum na revisão: o modelo junta duas premissas ou deixa uma de fora
+            mudar(i, p.premissas.length === n ? { estado: 'esperando', proposta: p } : { estado: 'descartada', proposta: p, motivo: `o texto tem ${n} premissa(s) e a proposta ${p.premissas.length}` })
+          } catch (e) { mudar(i, { estado: 'descartada', motivo: `a resposta não se lê: ${(e as Error).message}` }) }
         } catch (e) { mudar(i, { estado: 'descartada', motivo: `o serviço local não respondeu (${(e as Error).message})` }) }
       }
       for (let i = 0; i < lista.length; i++) {
@@ -145,7 +149,7 @@ export function FormalizacaoAssistida({ levar, levarVarios }: { levar: (r: ParaR
 
     {modo === 'automatico' && modelo.provedor === 'ollama' && <section className="labs-surface formalizacao-lote">
       <h3>Automático</h3>
-      <p>Um problema por bloco: as premissas, uma por linha, e a conclusão na última linha; uma linha em branco entre os blocos. O modelo propõe todas; depois o Z3 confere cada uma. Passa só o que se lê e em que a classe que o modelo disse é a que o Z3 dá às fórmulas; o resto é descartado com o motivo. Símbolo que o modelo esqueceu de declarar entra com leitura provisória, marcada.</p>
+      <p>Um problema por bloco: as premissas, uma por linha, e a conclusão na última linha; uma linha em branco entre os blocos. O modelo propõe todas; depois o Z3 confere cada uma. Passa o que se lê, tem uma fórmula para cada premissa e o Z3 decide; a classe é a do Z3, não a que o modelo diz. O resto é descartado com o motivo. Símbolo que o modelo esqueceu de declarar entra com leitura provisória, marcada.</p>
       <form className="cadeia-form" onSubmit={(e) => { e.preventDefault(); void rodarLote() }}>
         <label className="cadeia-largo">Problemas <small>até 50</small><textarea value={loteTexto} onChange={(e) => setLoteTexto(e.target.value)} rows={10} maxLength={60000} disabled={rodando} placeholder={'Todo pássaro tem penas.\nTico não tem penas.\nTico não é pássaro.\n\nTodo médico é paciente.\nAna é médica.\nAna é paciente.'} /></label>
         <label>Domínio<Input value={dominio} onChange={(e) => setDominio(e.target.value)} maxLength={80} disabled={rodando} /></label>

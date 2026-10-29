@@ -1,6 +1,6 @@
 /**
- * O modo automático da formalização com o Z3 de verdade (src/motor/avaliacaoZ3.ts, conferirProposta): passa só a
- * proposta cuja classe dita é a das fórmulas; o resto é descartado com o motivo.
+ * O modo automático da formalização com o Z3 de verdade (src/motor/avaliacaoZ3.ts, conferirProposta): a classe é a
+ * que o Z3 dá às fórmulas, com a dita pelo modelo ou sem ela; premissas inconsistentes são descartadas com o motivo.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { init, killThreads } from 'z3-solver'
@@ -21,12 +21,12 @@ const V: Termo[] = [
 const TICO = { vocabulario: V, premissas: ['∀x (Passaro(x) ⟹ TemPenas(x))', '¬TemPenas(tico)'], conclusao: '¬Passaro(tico)' }
 
 describe('Formalização automática: a conferência pelo Z3', () => {
-  it('aceita quando a classe dita é a do Z3, descarta quando não é ou quando falta', async () => {
+  it('a classe é a do Z3, diga o modelo o que disser', async () => {
     expect(await conferirProposta(api, { ...TICO, classe: 'segue' })).toEqual({ classeZ3: 'segue', aceita: true, motivo: '' })
-    expect(await conferirProposta(api, { ...TICO, classe: 'independente' })).toEqual({ classeZ3: 'segue', aceita: false, motivo: 'o modelo disse independente, o Z3 diz segue' })
-    expect(await conferirProposta(api, { ...TICO, classe: null })).toMatchObject({ classeZ3: 'segue', aceita: false })
+    expect(await conferirProposta(api, { ...TICO, classe: 'independente' })).toEqual({ classeZ3: 'segue', aceita: true, motivo: '' })
+    expect(await conferirProposta(api, { ...TICO, classe: null })).toEqual({ classeZ3: 'segue', aceita: true, motivo: '' })
     // a conclusão trocada pela afirmação: contradiz
-    expect((await conferirProposta(api, { ...TICO, conclusao: 'Passaro(tico)', classe: 'contradiz' })).aceita).toBe(true)
+    expect(await conferirProposta(api, { ...TICO, conclusao: 'Passaro(tico)', classe: 'segue' })).toMatchObject({ classeZ3: 'contradiz', aceita: true })
   })
 
   it('premissas inconsistentes são descartadas, com o motivo', async () => {

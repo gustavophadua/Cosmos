@@ -13,8 +13,9 @@ import { comoDicionario } from './registro'
 import { CLASSES, lerFormula, type Classe, type Item, type Termo } from './avaliacao'
 
 // v2 (28/10/2026): as regras que faltavam, tiradas da revisão de erros do lote público R- (formalizacao-v1.md §8). A v1,
-// a da nota oficial de 95,8%, está no commit 3cdfaeb.
-export const PROMPT_FORMALIZACAO = 'formalizacao-v2'
+// a da nota oficial de 95,8%, está no commit 3cdfaeb. v3 (29/10/2026): uma fórmula por premissa (a v2 deixava premissas
+// de fora nos itens com "só se").
+export const PROMPT_FORMALIZACAO = 'formalizacao-v3'
 export interface Mensagem { role: 'system' | 'user' | 'assistant'; content: string }
 export interface Proposta { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null; completados?: string[] }
 
@@ -32,6 +33,7 @@ Como ler o português:
 - "Todo A admira algum B" = ∀x (A(x) ⟹ ∃y (B(y) ∧ Admira(x, y))); "Existe um B que todo A admira" = ∃y (B(y) ∧ ∀x (A(x) ⟹ Admira(x, y))): a ordem dos quantificadores é a da frase, e as duas não são a mesma coisa;
 - "a é A só se é B" e "a é A apenas se é B" = A(a) ⟹ B(a), só numa direção (não é ⟺); "ou" é inclusivo (∨);
 - "a não é A nem B" = ¬A(a) ∧ ¬B(a);
+- escreva uma fórmula para cada premissa do texto, na mesma ordem: nunca junte duas numa só nem deixe uma de fora, mesmo a que parece repetir o que outra já diz;
 - formalize literalmente, sem acrescentar premissas nem conhecimento do mundo. A conclusão também: escreva a que está no texto, mesmo que ela seja falsa ou não siga das premissas; nunca a troque pela que seguiria.
 
 Classifique a conclusão em relação às premissas, na lógica clássica:

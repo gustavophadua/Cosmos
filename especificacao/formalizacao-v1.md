@@ -18,7 +18,8 @@ A versão `formalizacao-v2` (28/10/2026) acrescenta as regras que a revisão de 
 sempre presa a um quantificador, "cada" e "se alguém é A, então é B", "todo A R algum B" contra "existe um B que todo A
 R", "apenas se" numa direção só, "nem…nem", a conclusão escrita como está no texto mesmo quando falsa, e "independente"
 para a conclusão que só não segue (com as falácias mais comuns como exemplo). A nota oficial de §5b é da v1 (commit
-3cdfaeb).
+3cdfaeb). A `formalizacao-v3` (29/10/2026) pede uma fórmula por premissa, na ordem do texto: a v2 deixava premissas de
+fora.
 
 ## 2. A leitura da resposta
 
@@ -64,7 +65,7 @@ Para não aprovar uma por uma: a pessoa cola vários problemas (as premissas, um
 linha em branco entre eles; até 50), e o Cosmos faz o resto. Primeiro o modelo propõe todas, uma de cada vez; depois o
 serviço local tira o modelo da memória e o Z3, numa thread à parte do processo Node (`src/integracoes/z3-trabalhador-node.ts`),
 confere cada uma (rota `ollama/conferir`). **Passa só a proposta que se lê e em que a classe que o modelo disse é a que o
-Z3 dá às fórmulas dele**; o resto é descartado com o motivo (não se lê, classe diferente, premissas inconsistentes, Z3
+Z3 dá às fórmulas dele**; o resto é descartado com o motivo (até 29/10/2026; ver a regra nova no fim desta seção) (não se lê, classe diferente, premissas inconsistentes, Z3
 sem decidir). A thread do Z3 se encerra antes de cada pedido ao modelo e depois de um minuto parada: os dois juntos não
 cabem na memória deste computador.
 
@@ -76,6 +77,10 @@ mas não pega o erro em que a fórmula errada e a classe errada concordam. Aplic
 regra aceitaria 95 dos 120 itens, 93 deles com as fórmulas fiéis (98%), e descartaria 25 (23 com a classe divergente e 2
 que não se leram), dos quais 22 tinham as fórmulas certas: descarta mais do que o necessário, em troca de quase nada
 errado passar. A classe que o modelo mais erra é "independente".
+
+**A regra desde 29/10/2026** (pela revisão de erros, §8): passa a proposta que se lê, tem uma fórmula para cada premissa
+do texto e que o Z3 decide; a classe é a do Z3, e a que o modelo disse fica só como registro. Proposta com mais ou menos
+premissas que o texto é descartada com o motivo.
 
 **Com o Groq:** só pelo serviço local com o Groq ligado (`node scripts/integracoes-p0.mjs --groq`, com `GROQ_API_KEY` no ambiente,
 em `http://127.0.0.1:4175/cosmos/`): a chave fica no processo Node e nunca chega ao navegador. A tela avisa que o texto
@@ -202,3 +207,25 @@ que não se leram (três com a variável solta, sem quantificador, e um parênte
 (§3c) aceitaria 414, 399 delas fiéis, e descartaria 87, 78 delas com as fórmulas certas; sem exigir a classe dita, só o
 Z3, aceitaria 497 com 477 fiéis. A conferência pela classe dita quase não separa os erros (15 em 414 contra 20 em 497) e
 joga fora uma em cada seis respostas certas. Daí a v2 do pedido (§1).
+
+Segunda rodada, os mesmos 501 com o pedido v2 (28–29/10):
+
+| | v1 | v2 |
+|---|---|---|
+| se leem | 497 | 500 |
+| fórmulas fiéis | 477 (95,2%) | 475 (94,8%) |
+| classe dita certa | 410 (81,8%) | 448 (89,4%) |
+| completas | 399 (79,6%) | 424 (84,6%), McNemar p = 0,004 |
+
+As regras novas consertaram o que miravam ("todo A R algum B" em 9 dos 10, "nem…nem" nos 3) e a classe dita nas
+independentes subiu de 91 para 138 em 167. Mas apareceu um erro novo: em 22 respostas o modelo deixou uma premissa de
+fora (16 delas nos itens com "só se", em que a segunda premissa repete um lado do condicional). Nenhuma resposta da v1
+tinha esse defeito. A contagem é uma conferência mecânica: com ela e o Z3, e sem a classe dita, o modo automático
+aceitaria 478 respostas da v2, só 3 com fórmula errada (99,4%), e não descartaria nenhuma certa; exigir também a classe
+dita aceitaria 427, com as mesmas 3 erradas, e descartaria 51 certas. Daí a regra nova do modo automático (§3c) e a v3
+do pedido (§1).
+
+A medição 2 no conjunto fechado, com a v2, começou em 29/10 às 01:49 e foi interrompida às 01:55, antes de gravar
+qualquer resposta, quando esse defeito apareceu; não conta como medição (o registro do fechado continua com uma). A
+próxima é a da v3, depois de conferida numa segunda leva de 501 itens novos (`gerar-frases.py revisao … 167 2`), em
+que o pedido não foi ajustado.

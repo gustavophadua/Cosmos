@@ -140,7 +140,7 @@ export function CadeiaPessoal({ inicial, lote, aoAssinarLote }: { inicial?: { fo
 
     {lote && lote.length > 0 && <section className="labs-surface cadeia-lote">
       <h3>{lote.length} registro(s) do modo automático</h3>
-      <p>Cada um passou pela conferência do Z3 (a classe que o modelo disse é a das fórmulas). Vão fechados, como os outros, com a afirmação que o Z3 deu, na teoria "{dados.teoriaNome}" e no estado "proposta".</p>
+      <p>Cada um passou pela conferência do Z3 (uma fórmula por premissa, e a classe é a que o Z3 dá às fórmulas). Vão fechados, como os outros, com a afirmação que o Z3 deu, na teoria "{dados.teoriaNome}" e no estado "proposta".</p>
       <ol className="cadeia-elos">{lote.map((r, i) => <li key={i}><span>{i + 1}</span><span>{NOMES_AFIRMACAO[r.afirmacao]} · {r.dominio}</span><code>{r.premissas.join(' ; ')} ⊢ {r.formula}</code></li>)}</ol>
       <Button disabled={ocupado} onClick={() => void executar(async () => {
         let cadeia = estado.cadeia, revelacoes = [...estado.revelacoes], ultima: ConferenciaDaCadeia | null = null
