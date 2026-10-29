@@ -14,10 +14,11 @@ import type { RegistroPublico } from '../v3/catalogo'
 import { CadeiaPessoal } from './CadeiaPessoal'
 import { MoedaTeste } from './MoedaTeste'
 import { FormalizacaoAssistida, type ParaRegistro } from './FormalizacaoAssistida'
+import { RevisorPlano } from './RevisorPlano'
 import type { Afirmacao } from '../motor/registro'
 import './labs.css'
 
-type Aba = 'biblioteca' | 'rascunhos' | 'verificacao' | 'formalizar' | 'cadeia' | 'moeda' | 'referencias'
+type Aba = 'biblioteca' | 'rascunhos' | 'verificacao' | 'formalizar' | 'revisar' | 'cadeia' | 'moeda' | 'referencias'
 type Registro = { id: string; nome: string; formula: string; dominio: string; descricao: string; rascunho?: boolean }
 const MODELOS: Registro[] = AXIOMAS_EXEMPLO.map(r => ({ ...r,
   nome: { '001': 'Indução', '002': 'Simetria', '003': 'Conservação' }[r.id],
@@ -38,6 +39,7 @@ const SECOES = [
   { id: 'rascunhos', nome: 'Meus rascunhos', descricao: 'Organize suas fórmulas antes de verificar ou reunir evidências.' },
   { id: 'verificacao', nome: 'Verificação', descricao: 'Confira as fontes dos rascunhos e procure contradições literais entre eles.' },
   { id: 'formalizar', nome: 'Formalizar', descricao: 'Escreva em português; um modelo propõe a fórmula, o Cosmos lê de volta e você aprova antes de registrar.' },
+  { id: 'revisar', nome: 'Revisar plano', descricao: 'Cole um plano ou projeto: o Cosmos separa o que decorre do que o plano afirma (fato) do que é salto (visão), e o Z3 decide.' },
   { id: 'cadeia', nome: 'Minha cadeia', descricao: 'Seus registros, assinados pela sua chave e presos um ao outro, para levar a outros aparelhos e conferir.' },
   { id: 'moeda', nome: 'Moeda de teste', descricao: 'A rede cosmos-teste-1: unidades de teste sem valor entre os participantes da gênese, num livro assinado que qualquer um confere.' },
   { id: 'referencias', nome: 'Modelos e fórmulas', descricao: 'Consulte equações da física e experimente instrumentos lógicos.' },
@@ -103,7 +105,7 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
       <a className="labs-brand" href="#/lab">Cosmos <span>Labs</span></a>
       <div className="labs-project"><span className="labs-project-icon">φ</span><div>Espaço de pesquisa<small>Sessão local</small></div></div>
       <p className="labs-nav-label">ÁREA DE TRABALHO</p>
-      <nav className="labs-sections" aria-label="Seções do Labs">{SECOES.filter(s => s.id !== 'referencias').map((s, i) => <button key={s.id} aria-current={aba === s.id ? 'page' : undefined} onClick={() => navegar(s.id)}><Icone nome={({ biblioteca: 'book', rascunhos: 'file', verificacao: 'shield', formalizar: 'chat', cadeia: 'link', moeda: 'chart' } as const)[s.id as 'biblioteca'] ?? (['book', 'file', 'shield', 'tools'] as const)[i]} />{s.id === 'rascunhos' ? 'Rascunhos' : s.nome}{s.id === 'rascunhos' && <span className="labs-count">{rascunhos.length}</span>}</button>)}<a href="#/certificados"><Icone nome="file" />Evidências</a></nav>
+      <nav className="labs-sections" aria-label="Seções do Labs">{SECOES.filter(s => s.id !== 'referencias').map((s, i) => <button key={s.id} aria-current={aba === s.id ? 'page' : undefined} onClick={() => navegar(s.id)}><Icone nome={({ biblioteca: 'book', rascunhos: 'file', verificacao: 'shield', formalizar: 'chat', revisar: 'flask', cadeia: 'link', moeda: 'chart' } as const)[s.id as 'biblioteca'] ?? (['book', 'file', 'shield', 'tools'] as const)[i]} />{s.id === 'rascunhos' ? 'Rascunhos' : s.nome}{s.id === 'rascunhos' && <span className="labs-count">{rascunhos.length}</span>}</button>)}<a href="#/certificados"><Icone nome="file" />Evidências</a></nav>
       <div className="labs-resources"><button onClick={() => navegar('referencias')}>Ferramentas e fórmulas <span>↗</span></button><p className="labs-nav-label">REGISTROS E EVIDÊNCIAS</p><a href="#/cadeia">Cadeia histórica <span>↗</span></a><a href="#/certificados">Evidências <span>↗</span></a><a href="#/dicionario">Dicionário <span>↗</span></a></div>
       <div className="labs-sidebar-bottom">{navigation}<p>{conta.perfil ? 'Rascunhos cifrados por titular.' : 'Rascunhos só nesta sessão.'}<br />Nenhuma publicação automática.</p></div>
     </aside>
@@ -136,6 +138,8 @@ export function Labs({ navigation }: { navigation: ReactNode }) {
       {aba === 'cadeia' && <CadeiaPessoal key={`${paraCadeia?.formula ?? ''}|${paraCadeia?.premissas?.join('|') ?? ''}|${loteParaCadeia?.length ?? 0}`} inicial={paraCadeia} lote={loteParaCadeia} aoAssinarLote={() => setLoteParaCadeia(null)} />}
 
       {aba === 'moeda' && <MoedaTeste />}
+
+      {aba === 'revisar' && <RevisorPlano />}
 
       {aba === 'formalizar' && <FormalizacaoAssistida levar={r => { setParaCadeia(r); navegar('cadeia') }} levarVarios={rs => { setLoteParaCadeia(rs); navegar('cadeia') }} />}
 

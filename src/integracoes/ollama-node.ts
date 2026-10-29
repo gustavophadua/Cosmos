@@ -4,6 +4,7 @@ import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } 
 import { ESQUEMA_RESPOSTA, formalizarComReparo, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
+import { ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -69,6 +70,12 @@ export function criarConferidorZ3(arquivo: URL): ConferidorZ3 {
   return { conferir, parar }
 }
 
+/** O texto do plano para o revisor: o único corpo aceito em `ollama/revisar`. */
+export function validarTextoRevisor(x: unknown): string {
+  if (!objetoSimples(x, 'texto') || typeof x.texto !== 'string' || !x.texto.trim() || x.texto.length > MAX_TEXTO_REVISOR) throw new ErroOllama(400, 'invalido')
+  return x.texto
+}
+
 /**
  * A formalização pelo Ollama local, servida pela ponte (rotas `ollama/estado` e `ollama`). Só o pedido fixo
  * (PROMPT_FORMALIZACAO, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
@@ -79,7 +86,32 @@ export function criarConferidorZ3(arquivo: URL): ConferidorZ3 {
 export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   const perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
+  // o extrator do revisor lê um bloco de até 1.500 caracteres e devolve a lista de afirmações: precisa de mais contexto
+  const extrair = criarAdaptadorOllama({ modelo, formato: ESQUEMA_EXTRACAO, temperatura: 0, semente: 0, contexto: 8192, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   let pendente = false, encerrado = false
+  // o revisor roda em segundo plano (minutos); a tela acompanha por `ollama/revisar/estado`. Uma revisão de cada vez, e
+  // enquanto ela roda as outras rotas que usam o modelo respondem "ocupado"
+  let revisao: { id: number; estado: 'rodando' | 'pronto' | 'erro'; fase: string; feito: number; total: number; inicio: number; relatorio?: RelatorioRevisor; erro?: string } | null = null
+  let revisoes = 0
+  const iniciarRevisao = (texto: string) => {
+    const r = revisao = { id: ++revisoes, estado: 'rodando' as const, fase: 'extraindo', feito: 0, total: 0, inicio: Date.now() }
+    pendente = true
+    opcoes.conferidor?.parar()
+    void revisarPlano(texto, {
+      prompt: PROMPT_FORMALIZACAO, extrair, formalizar: perguntar,
+      mensagens: (t) => mensagensDeFormalizacao(t, null, EXEMPLOS),
+      descarregar: () => descarregarModeloOllama(modelo, opcoes.buscar),
+      classificar: async (p) => {
+        if (!opcoes.conferidor) throw new Error('o Z3 não está disponível')
+        const c = await opcoes.conferidor.conferir({ ...p, classe: null })
+        if (c.classeZ3) return c.classeZ3
+        throw new Error(c.motivo || 'o Z3 não decidiu')
+      },
+      progresso: (fase, feito, total) => { if (revisao === r) Object.assign(r, { fase, feito, total }) },
+    }).then((relatorio) => { if (revisao === r) revisao = { ...r, estado: 'pronto', relatorio } },
+      (e) => { if (revisao === r) revisao = { ...r, estado: 'erro', erro: (e as Error).message } })
+      .finally(() => { if (revisao?.id === r.id) pendente = false })
+  }
   const enviar = (res: ServerResponse, status: number, v: unknown) => {
     if (res.destroyed || res.writableEnded) return
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Connection: 'close' })
@@ -105,13 +137,24 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
-          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO })
+          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR })
         } catch (e) {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: /não está instalado/.test((e as Error).message) ? 'sem-modelo' : 'indisponivel', modelo })
         }
         return
       }
+      if (rota === 'ollama/revisar/estado') {
+        const r = revisao
+        enviar(res, 200, r ? { formato: 'cosmos-revisor-estado-v1', id: r.id, estado: r.estado, fase: r.fase, feito: r.feito, total: r.total, ms: Date.now() - r.inicio,
+          ...(r.relatorio ? { relatorio: r.relatorio } : {}), ...(r.erro ? { erro: r.erro } : {}) } : { formato: 'cosmos-revisor-estado-v1', estado: 'livre' })
+        return
+      }
       if (pendente) throw new ErroOllama(429, 'ocupado')
+      if (rota === 'ollama/revisar') {
+        iniciarRevisao(validarTextoRevisor(await lerCorpo(req, 131072)))
+        enviar(res, 202, { formato: 'cosmos-revisor-estado-v1', id: revisao!.id, estado: 'rodando', fase: 'extraindo', feito: 0, total: 0, ms: 0 })
+        return
+      }
       pendente = true
       try {
         if (rota === 'ollama/conferir') {

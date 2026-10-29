@@ -11,8 +11,8 @@
  * do Git) e cada medição fica registrada em medicoes-no-fechado.jsonl: o plano permite 3; uma quarta só com
  * PILOTO_ALEM_DO_LIMITE=declarado, e o registro diz que foi além.
  *
- * Lote público gerado (a revisão de erros, PILOTO_PUBLICO=gerado): só itens R- ou V- de scripts/gerar-frases.py; vai
- * ao Ollama e não conta como medição no fechado. PILOTO_FATIA=início-fim roda só esse trecho (um processo por fatia).
+ * Lote público gerado (a revisão de erros, PILOTO_PUBLICO=gerado): só itens R- ou V- de scripts/gerar-frases.py, ou G-
+ * (frases escritas por outro modelo, com gabarito feito à mão); vai ao Ollama e não conta como medição no fechado. PILOTO_FATIA=início-fim roda só esse trecho (um processo por fatia).
  *
  * Reparo (PILOTO_REPARO=1): a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com
  * o erro (formalizarComReparo, versão REPARO_FORMALIZACAO, a mesma do serviço local); a versão vai para meta.json.
@@ -54,7 +54,7 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   }
   let linhas = lerJsonl<Item | { item: Item }>(arquivo).map((l) => ('item' in l ? l.item : l))
   // o lote gerado se reconhece pelos ids: um arquivo com outro id (o fechado, por exemplo) continua tratado como fechado
-  if (gerado && !linhas.every((i) => /^[RV]-\d+$/.test(i.id))) throw new Error('PILOTO_PUBLICO=gerado só aceita itens R- e V- do gerador público')
+  if (gerado && !linhas.every((i) => /^[RVG]-\d+$/.test(i.id))) throw new Error('PILOTO_PUBLICO=gerado só aceita itens R-, V- e G- de lotes públicos')
   if (process.env.PILOTO_FATIA) {
     if (fechado) throw new Error('PILOTO_FATIA só no lote público')
     const [de, ate] = process.env.PILOTO_FATIA.split('-').map(Number)

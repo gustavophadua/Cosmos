@@ -8,7 +8,7 @@ const ROTAS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   estado: ['GET'], configuracao: ['GET', 'PUT', 'DELETE'], testar: ['POST'], orcamento: ['GET'],
   executar: ['POST'], cancelar: ['POST'], 'contexto-rag': ['POST'],
   groq: ['POST'], 'groq/configuracao': ['GET', 'PUT'], 'groq/estado': ['GET'], 'groq/testar': ['POST'],
-  ollama: ['POST'], 'ollama/estado': ['GET'], 'ollama/conferir': ['POST'],
+  ollama: ['POST'], 'ollama/estado': ['GET'], 'ollama/conferir': ['POST'], 'ollama/revisar': ['POST'], 'ollama/revisar/estado': ['GET'],
 })
 function unico(req: IncomingMessage, nome: string) {
   const valores = req.rawHeaders.filter((_, i) => i % 2 === 0).filter(h => h.toLowerCase() === nome)
@@ -76,7 +76,8 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
         if (!metodos.includes(req.method ?? '')) { recusar(405); return }
         const tipo = unico(req, 'content-type'), tamanho = unico(req, 'content-length')
         if (unico(req, 'content-encoding') || unico(req, 'expect')) { recusar(415); return }
-        if (tamanho !== undefined && (typeof tamanho !== 'string' || !/^\d+$/.test(tamanho) || Number(tamanho) > 16384)) { recusar(413); return }
+        // o texto do plano para o revisor (até 20.000 caracteres) é o único corpo maior que 16 KiB
+        if (tamanho !== undefined && (typeof tamanho !== 'string' || !/^\d+$/.test(tamanho) || Number(tamanho) > (caminho === 'ollama/revisar' ? 131072 : 16384))) { recusar(413); return }
         const temCorpo = req.method === 'PUT' || (req.method === 'POST' && caminho !== 'testar' && caminho !== 'groq/testar')
         if (temCorpo && (typeof tipo !== 'string' || !/^application\/json(?:;\s*charset=utf-8)?$/i.test(tipo))) { recusar(415); return }
         if (!temCorpo && (req.headers['transfer-encoding'] || (tamanho !== undefined && tamanho !== '0'))) { recusar(400); return }

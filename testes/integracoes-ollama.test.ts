@@ -133,6 +133,28 @@ describe('Formalização pelo Ollama local na ponte', () => {
     }, { conferidor })
   })
 
+  it('revisor: o plano roda em segundo plano (extrator, tradução, modelo fora da memória, Z3) e as outras rotas esperam', async () => {
+    const eventos: string[] = []
+    const conferidor: ConferidorZ3 = { async conferir(p) { eventos.push(`z3 ${p.conclusao}`); return { classeZ3: 'segue', aceita: true, motivo: '' } }, parar() { eventos.push('parar') } }
+    const EXTRACAO = JSON.stringify({ afirmacoes: [{ id: 1, texto: 'Nenhum gato gosta de banho.' }, { id: 2, texto: 'Mimi é uma gata.' }, { id: 3, texto: 'Mimi não gosta de banho.' }], argumentos: [{ conclusao: 3, apoios: [1, 2] }] })
+    await ambiente(async (c) => {
+      expect(await c.cliente.estadoRevisao()).toEqual({ estado: 'livre' })
+      expect(await c.cliente.revisar('Nenhum gato gosta de banho. Mimi é uma gata. Então Mimi não gosta de banho.')).toEqual({ estado: 'rodando', id: 1 })
+      let e = await c.cliente.estadoRevisao()
+      for (let i = 0; i < 100 && e.estado === 'rodando'; i++) { await new Promise((r) => setTimeout(r, 20)); e = await c.cliente.estadoRevisao() }
+      expect(e.estado).toBe('pronto')
+      expect(e.relatorio!.argumentos.map((a) => [a.conclusao, a.veredito])).toEqual([['Mimi não gosta de banho.', 'provado']])
+      expect(e.relatorio!.prompt).toMatch(/^formalizacao-v\d+$/)
+      // o extrator com o esquema dele e mais contexto; depois a tradução; o modelo sai da memória antes do Z3
+      const chats = c.pedidos.filter((p) => p.url.endsWith('/api/chat')).map((p) => p.corpo as { format: { required: string[] }; options: { num_ctx: number } })
+      expect(chats.map((x) => [x.format.required.join(), x.options.num_ctx])).toEqual([['afirmacoes,argumentos', 8192], ['vocabulario,premissas,conclusao,classe', 4096]])
+      expect(eventos).toEqual(['parar', 'z3 ¬Banho(mimi)'])
+      expect(c.pedidos.at(-1)!.url).toBe('http://127.0.0.1:11434/api/generate')
+      // texto vazio, grande demais ou com campos a mais: recusado
+      for (const corpo of [{ texto: '' }, { texto: 'x'.repeat(20_001) }, { texto: 'a', extra: 1 }]) expect(await c.chamar({ rota: 'ollama/revisar', metodo: 'POST', corpo })).toBe(400)
+    }, { conferidor, chats: [EXTRACAO, PROPOSTA] })
+  })
+
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {
     await ambiente(async (c) => { expect(await c.chamar({ rota: 'ollama/estado' })).toBe(503) }, { ligado: false })
     await ambiente(async (c) => { expect((await c.cliente.carregar()).estado).toBe('indisponivel') }, { rodando: false })

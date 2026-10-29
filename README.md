@@ -16,6 +16,10 @@ Publicar uma cadeia: copiar o `cadeia.json` exportado e, se quiser abrir registr
 
 Quando um registro revelado nao se sustenta, a CI certifica a afirmacao contraria (segue <-> nao segue, contradiz <-> consistente) e publica esse contra-registro, que as mesmas conferencias independentes conferem; sem ele, o resultado fica como diagnostico do produtor, nao como refutacao. O veredito do Carcara so vale como `valid` sozinho e com codigo de saida 0 (`scripts/testar-veredito-carcara.py`), e os recibos trazem o SHA-256 do executavel que rodou.
 
+## Instalar no Windows (IA local)
+
+Baixe o repositorio (Code > Download ZIP), extraia e abra `Instalar-Cosmos.cmd`. Ele confere o Node.js 22 e o Ollama (e instala pelo winget se faltar, com a sua confirmacao), instala as dependencias, baixa o modelo qwen3:4b (cerca de 2,5 GB) e poe o atalho "Cosmos" na Area de Trabalho. O atalho abre o servico local e o navegador no Labs: Formalizar (frases curtas) e Revisar plano (o texto de um plano ou projeto, com o veredito de cada conclusao: provada ou salto). O texto nao sai do computador. Detalhes e limites: `especificacao/revisor-v1.md`.
+
 ## Desenvolvimento
 
 Node 22.14.0. Instale dependencias com `npm ci`. Execute `npm run typecheck`, `npm test -- --maxWorkers=1` e `npm run build`. `npm run dev` abre o ambiente de desenvolvimento; a base do site publico e `/Cosmos/`. Integracoes locais: `node scripts/integracoes-p0.mjs`. Credenciais de provedor somente no processo servidor, nunca em VITE_*, navegador ou Git. Nenhuma credencial acompanha este repositorio.
