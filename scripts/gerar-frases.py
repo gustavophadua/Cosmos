@@ -4,6 +4,8 @@ Uso:
   python -I -X utf8 -B scripts/gerar-frases.py validacao avaliacao/validacao-v1.jsonl
   python -I -X utf8 -B scripts/gerar-frases.py treino SAIDA.jsonl [ITENS_POR_CLASSE]
   python -I -X utf8 -B scripts/gerar-frases.py revisao SAIDA.jsonl [ITENS_POR_CLASSE] [LEVA]
+  python -I -X utf8 -B scripts/gerar-frases.py treino2 SAIDA.jsonl [ITENS_POR_CLASSE]
+  python -I -X utf8 -B scripts/gerar-frases.py revisao2 SAIDA.jsonl [ITENS_POR_CLASSE]
 
 - validacao: 150 itens, 50 por classe, vocabulário de fantasia, só as formas de frase de base. É nele que se escolhem
   pedido, exemplos, votação e o checkpoint do treino; o conjunto fechado não serve para ajustar nada.
@@ -13,6 +15,11 @@ Uso:
   erros um por um (a revisão de erros, especificacao/formalizacao-v1.md §8). Nunca entra no treino (a exportação só
   aceita V- e T-). Por padrão, 167 itens por classe. LEVA (padrão 1) muda a semente: cada leva é um lote novo, para
   conferir uma correção do pedido em frases que não serviram para fazê-la.
+- treino2 e revisao2 (29/10/2026): os mesmos padrões do treino e mais os moldes tirados dos erros nas frases G-
+  (formalizacao-v1.md §8), em que o modelo entortava a premissa para a conclusão seguir: "só pode A quem é B" (e
+  "alguém só pode A se for B"), "todo A que é B é C", "nenhum A que não é B é C", "ou… mas não os dois" e "faz
+  parte dos / está entre os". Os moldes novos só entram nesses dois modos; os outros se refazem byte a byte como antes.
+  O vocabulário das ações é de nave e de campo, de propósito longe das frases G-, que são teste.
 
 Cada linha: {"padrao": nome, "formas": [índice da forma de cada frase], "item": {...}}. A semente é fixa (o nome do modo): rodar de novo dá o mesmo
 arquivo, byte a byte. A classe de cada padrão é a esperada; a conferência pelo Z3 (testes/frases-geradas.test.ts) é a
@@ -77,6 +84,15 @@ TREINO = {
         ('zelia', 'Zélia', 'f'), ('arthur', 'Arthur', 'm'), ('bianca', 'Bianca', 'f'), ('enzo', 'Enzo', 'm'),
     ],
     'relacoes': [('Chama', 'chama'), ('Avisa', 'avisa'), ('Encontra', 'encontra'), ('Escuta', 'escuta'), ('Treina', 'treina'), ('Elogia', 'elogia'), ('Acompanha', 'acompanha')],
+    # só treino2 e revisao2: "pode …"
+    'acoes': [
+        ('PodePilotar', 'pilotar a nave'), ('PodeAbrirEscotilha', 'abrir a escotilha'), ('PodeLigarReator', 'ligar o reator'),
+        ('PodeSairBase', 'sair da base'), ('PodeUsarLaboratorio', 'usar o laboratório'), ('PodeConsertarRadio', 'consertar o rádio'),
+        ('PodeSubirTorre', 'subir na torre'), ('PodeAcenderFarol', 'acender o farol'), ('PodeGuiarCaravana', 'guiar a caravana'),
+        ('PodeAtravessarPonte', 'atravessar a ponte'), ('PodeTocarSino', 'tocar o sino'), ('PodeOrdenhar', 'ordenhar as vacas'),
+        ('PodeAbrirCeleiro', 'abrir o celeiro'), ('PodeMoerTrigo', 'moer o trigo'), ('PodeTecerManta', 'tecer a manta'),
+        ('PodeColherMel', 'colher o mel'), ('PodeLancarSonda', 'lançar a sonda'), ('PodeTrocarFiltro', 'trocar o filtro'),
+    ],
 }
 
 
@@ -98,6 +114,9 @@ class Frase:
 
     def pessoa(self):
         return self._tirar('pessoas', lambda p: {'simbolo': p[0], 'tipo': 'constante', 'aridade': 0, 'leitura': p[1], 'nome': p[1], 'g': p[2]})
+
+    def acao(self):
+        return self._tirar('acoes', lambda a: {'simbolo': a[0], 'tipo': 'predicado', 'aridade': 1, 'leitura': f'x pode {a[1]}', 'verbo': a[1]})
 
     def relacao(self):
         return self._tirar('relacoes', lambda r: {'simbolo': r[0], 'tipo': 'predicado', 'aridade': 2, 'leitura': f'x {r[1]} y', 'verbo': r[1]})
@@ -141,9 +160,34 @@ def montar(f):
     def todo_rel_algum(a, r, b): return f.forma(f'Todo {a["m"]} {r["verbo"]} algum {b["m"]}.', f'Cada {a["m"]} {r["verbo"]} pelo menos um {b["m"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ ∃y ({b["simbolo"]}(y) ∧ {r["simbolo"]}(x, y)))'
     def algum_todos(a, r, b): return f.forma(f'Há um {b["m"]} que todo {a["m"]} {r["verbo"]}.', f'Existe um {b["m"]} que todo {a["m"]} {r["verbo"]}.'), f'∃y ({b["simbolo"]}(y) ∧ ∀x ({a["simbolo"]}(x) ⟹ {r["simbolo"]}(x, y)))'
 
-    C, P, X, R = f.classe, f.predicado, f.pessoa, f.relacao
-    # (classe esperada, nome, só no treino?, montar)
+    # os moldes dos erros nas frases G- (só treino2 e revisao2)
+    def so_pode(a, b): return f.forma(f'Só pode {a["verbo"]} quem é {b["m"]}.', f'Alguém só pode {a["verbo"]} se for {b["m"]}.', f'Somente quem é {b["m"]} pode {a["verbo"]}.',
+                                      f'Só se pode {a["verbo"]} sendo {b["m"]}.', f'Aqui, alguém só pode {a["verbo"]} se cumprir este requisito: ser {b["m"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
+    def pode(c, a): return f'{c["nome"]} pode {a["verbo"]}.', f'{a["simbolo"]}({c["simbolo"]})'
+    def nao_pode(c, a): return f.forma(f'{c["nome"]} não pode {a["verbo"]}.', f'Não é verdade que {c["nome"]} pode {a["verbo"]}.'), f'¬{a["simbolo"]}({c["simbolo"]})'
+    def todo_que(a, b, c): return f.forma(f'Todo {a["m"]} que é {b["m"]} é {c["m"]}.', f'Cada {a["m"]} que é {b["m"]} é {c["m"]}.', f'Todos os {a["pl"]} que são {b["pl"]} são {c["pl"]}.'), f'∀x (({a["simbolo"]}(x) ∧ {b["simbolo"]}(x)) ⟹ {c["simbolo"]}(x))'
+    def nenhum_sem(a, b, c): return f.forma(f'Nenhum {a["m"]} que não é {b["m"]} é {c["m"]}.', f'Não existe {a["m"]} que não seja {b["m"]} e seja {c["m"]}.'), f'∀x (({a["simbolo"]}(x) ∧ ¬{b["simbolo"]}(x)) ⟹ ¬{c["simbolo"]}(x))'
+    def ou_so_um(c, p, q): return f.forma(f'{c["nome"]} é {p[c["g"]]} ou {q[c["g"]]}, mas não os dois.', f'Ou {c["nome"]} é {p[c["g"]]} ou é {q[c["g"]]}, mas não as duas coisas.'), f'({p["simbolo"]}({c["simbolo"]}) ∨ {q["simbolo"]}({c["simbolo"]})) ∧ ¬({p["simbolo"]}({c["simbolo"]}) ∧ {q["simbolo"]}({c["simbolo"]}))'
+    def grupo(a, b): return f.forma(f'Todos os {a["pl"]} são {b["pl"]}.', f'Todos os {a["pl"]} estão entre os {b["pl"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
+    def no_grupo(c, a): return f.forma(f'{c["nome"]} faz parte dos {a["pl"]}.', f'{c["nome"]} está entre os {a["pl"]}.'), f'{a["simbolo"]}({c["simbolo"]})'
+
+    C, P, X, R, A = f.classe, f.predicado, f.pessoa, f.relacao, f.acao
+    V2 = 'v2'
+    # (classe esperada, nome, só no treino? (V2: só treino2 e revisao2), montar)
     return [
+        ('segue', 'so-pode', V2, lambda: (lambda a, b, c: ([so_pode(a, b), pode(c, a)], eh(c, b)))(A(), P(), X())),
+        ('segue', 'so-pode-tollens', V2, lambda: (lambda a, b, c: ([so_pode(a, b), nao_eh(c, b)], nao_pode(c, a)))(A(), P(), X())),
+        ('segue', 'todo-que', V2, lambda: (lambda a, b, c, x: ([todo_que(a, b, c), eh(x, a), eh(x, b)], eh(x, c)))(C(), P(), P(), X())),
+        ('segue', 'nenhum-sem', V2, lambda: (lambda a, b, c, x: ([nenhum_sem(a, b, c), eh(x, a), eh(x, c)], eh(x, b)))(C(), P(), P(), X())),
+        ('segue', 'ou-so-um', V2, lambda: (lambda c, p, q: ([ou_so_um(c, p, q), eh(c, p)], nao_eh(c, q)))(X(), P(), P())),
+        ('segue', 'grupo-ponens', V2, lambda: (lambda a, b, c: ([grupo(a, b), no_grupo(c, a)], no_grupo(c, b)))(C(), C(), X())),
+        ('contradiz', 'so-pode-negado', V2, lambda: (lambda a, b, c: ([so_pode(a, b), pode(c, a)], nao_eh(c, b)))(A(), P(), X())),
+        ('contradiz', 'ou-so-um-negado', V2, lambda: (lambda c, p, q: ([ou_so_um(c, p, q), nao_eh(c, p)], nao_eh(c, q)))(X(), P(), P())),
+        ('contradiz', 'todo-que-negado', V2, lambda: (lambda a, b, c, x: ([todo_que(a, b, c), eh(x, a), eh(x, b)], nao_eh(x, c)))(C(), P(), P(), X())),
+        ('independente', 'so-pode-volta', V2, lambda: (lambda a, b, c: ([so_pode(a, b), eh(c, b)], pode(c, a)))(A(), P(), X())),
+        ('independente', 'so-pode-volta-negada', V2, lambda: (lambda a, b, c: ([so_pode(a, b), nao_pode(c, a)], nao_eh(c, b)))(A(), P(), X())),
+        ('independente', 'todo-que-sem-restricao', V2, lambda: (lambda a, b, c, x: ([todo_que(a, b, c), eh(x, a)], eh(x, c)))(C(), P(), P(), X())),
+        ('independente', 'grupo-volta', V2, lambda: (lambda a, b, c: ([grupo(a, b), no_grupo(c, b)], no_grupo(c, a)))(C(), C(), X())),
         ('segue', 'barbara', False, lambda: (lambda a, b, c: ([todo(a, b), todo(b, c)], todo(a, c)))(C(), C(), P())),
         ('segue', 'modus-ponens', False, lambda: (lambda a, b, c: ([todo(a, b), eh(c, a)], eh(c, b)))(C(), P(), X())),
         ('segue', 'modus-tollens', False, lambda: (lambda a, b, c: ([todo(a, b), nao_eh(c, b)], nao_eh(c, a)))(C(), P(), X())),
@@ -188,12 +232,13 @@ def montar(f):
 
 
 def gerar(modo, por_classe, leva=1):
-    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'R' if modo == 'revisao' else 'T')
+    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'R' if modo.startswith('revisao') else 'T')
+    v2 = modo in ('treino2', 'revisao2')
     # semente fixa pelo nome do modo (e da leva, a partir da segunda): o arquivo se refaz igual, e qualquer um confere
     rnd = random.Random(int.from_bytes(hashlib.sha256(f'cosmos-frases-{modo}{f"-leva{leva}" if leva > 1 else ""}-v1'.encode()).digest(), 'big'))
     linhas, vistos = [], set()
     for classe in ('segue', 'contradiz', 'independente'):
-        nomes = [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and (variar or not so_treino)]
+        nomes = [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and (v2 if so_treino == 'v2' else (variar or not so_treino))]
         feitos, tentativas = 0, 0
         while feitos < por_classe:
             tentativas += 1
@@ -221,9 +266,9 @@ def gerar(modo, por_classe, leva=1):
 
 if __name__ == '__main__':
     modo, saida = sys.argv[1], sys.argv[2]
-    if modo not in ('validacao', 'treino', 'revisao'):
-        sys.exit('modo: validacao, treino ou revisao')
-    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 167 if modo == 'revisao' else 1000
+    if modo not in ('validacao', 'treino', 'revisao', 'treino2', 'revisao2'):
+        sys.exit('modo: validacao, treino, revisao, treino2 ou revisao2')
+    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 167 if modo.startswith('revisao') else 1000
     leva = int(sys.argv[4]) if len(sys.argv) > 4 and modo == 'revisao' else 1
     linhas = gerar(modo, por_classe, leva)
     corpo = ''.join(json.dumps(l, ensure_ascii=False) + '\n' for l in linhas).encode('utf-8')
