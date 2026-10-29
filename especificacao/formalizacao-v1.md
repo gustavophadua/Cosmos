@@ -153,6 +153,14 @@ fórmula, premissas e afirmação preenchidas.
 classe certa pelo Z3 em 116/120; a classe que o próprio modelo diz acerta 95/120. A meta do dono, 85% de fórmulas
 fiéis, foi batida; os números, os intervalos e os limites estão em `avaliacao-v1.md` §7.
 
+Medição 2 de 3 (29/10/2026, pedido `formalizacao-v3`, o mesmo modelo na Vega 8): **117/120 fórmulas fiéis (97,5%,
+IC 95% 92,9–99,1%)**, classe certa pelo Z3 em 117/120, classe dita em 97/120, completas 97/120 (eram 93). As três que
+faltam não se leram (dois parênteses não fechados, um símbolo fora do vocabulário); todas as que se leram estavam
+fiéis. Item a item contra a medição 1: duas fórmulas a mais, nenhuma a menos (McNemar p = 0,5; completas p = 0,39): a
+melhora não é significativa com 120 itens. O pedido foi ajustado só com os lotes públicos R- (§8), nunca com o fechado.
+Diferença de condição: a medição 1 rodou na CPU, a 2 na placa. Com a regra do modo automático (§3c), as 117 passariam,
+nenhuma errada. Resta uma medição no fechado.
+
 ## 6. A memória de refutações
 
 `src/motor/memoriaRefutacoes.ts`, com o desenho do capítulo 6 da resposta do GPT ao contraponto. Guarda cada tentativa
@@ -229,3 +237,17 @@ A medição 2 no conjunto fechado, com a v2, começou em 29/10 às 01:49 e foi i
 qualquer resposta, quando esse defeito apareceu; não conta como medição (o registro do fechado continua com uma). A
 próxima é a da v3, depois de conferida numa segunda leva de 501 itens novos (`gerar-frases.py revisao … 167 2`), em
 que o pedido não foi ajustado.
+
+Leva 2, 501 itens novos com o pedido v3 (29/10, nenhum texto em comum com a leva 1):
+
+| | leva 2, v3 |
+|---|---|
+| se leem | 501 (100%) |
+| fórmulas fiéis | 495 (98,8%, IC 97,4–99,5%) |
+| classe certa pelo Z3 | 499 (99,6%) |
+| classe dita certa | 448 (89,4%) |
+| completas | 444 (88,6%) |
+
+Sobraram seis fórmulas erradas: quatro com uma premissa de fora (todas em "só se"), uma com a conclusão trocada pela que
+segue e uma que perdeu um "não". O modo automático aceitaria 497, só as duas últimas erradas, e não descartaria nenhuma
+certa. Com isso veio a medição 2 no fechado (§5b).
