@@ -67,12 +67,15 @@ describe('Avaliação de frases curtas', () => {
       expect(sha(a.prova)).toBe(a.sha256_prova)
       expect(sha(a.prova_calendario_original.arquivo)).toBe(a.prova_calendario_original.sha256)
       // a âncora da nota da I-AI v1: o resumo aponta para esta raiz, e as provas são as registradas
-      const n = JSON.parse(readFileSync('src/dados/ancora-iai.json', 'utf8'))
-      expect(n.ancora_do_conjunto).toBe('src/dados/ancora-avaliacao.json')
-      expect(readFileSync(n.alvo, 'utf8').split('\n')).toContain(`conjunto avaliacao-frases-v1 ${p.itens} raiz ${p.raiz}`)
-      expect(sha(n.alvo)).toBe(n.sha256_alvo)
-      expect(sha(n.prova)).toBe(n.sha256_prova)
-      expect(sha(n.prova_calendario_original.arquivo)).toBe(n.prova_calendario_original.sha256)
+      // e a da medição 2, do mesmo jeito
+      for (const arquivo of ['src/dados/ancora-iai.json', 'src/dados/ancora-iai-medicao-2.json']) {
+        const n = JSON.parse(readFileSync(arquivo, 'utf8'))
+        expect(n.ancora_do_conjunto).toBe('src/dados/ancora-avaliacao.json')
+        expect(readFileSync(n.alvo, 'utf8').split('\n')).toContain(`conjunto avaliacao-frases-v1 ${p.itens} raiz ${p.raiz}`)
+        expect(sha(n.alvo)).toBe(n.sha256_alvo)
+        expect(sha(n.prova)).toBe(n.sha256_prova)
+        expect(sha(n.prova_calendario_original.arquivo)).toBe(n.prova_calendario_original.sha256)
+      }
     })
   })
 

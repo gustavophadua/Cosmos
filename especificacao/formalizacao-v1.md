@@ -167,7 +167,8 @@ melhora não é significativa com 120 itens. O pedido foi ajustado só com os lo
 Diferença de condição: a medição 1 rodou na CPU, a 2 na placa. Com a regra do modo automático (§3c), as 117 passariam,
 nenhuma errada. Resta uma medição no fechado. O resumo público da medição 2 (`public/cosmos-iai-v1-medicao-2.txt`: o
 modelo, a configuração, os hashes das respostas e das notas e os números, sem item nenhum) foi enviado ao OpenTimestamps
-em 29/10/2026; a prova `.ots` fica ao lado, à espera da confirmação no Bitcoin.
+em 29/10/2026 e confirmado no Bitcoin no bloco 973687 (2026-10-29T11:32:47Z); a âncora está em
+`src/dados/ancora-iai-medicao-2.json`, e o verificador público confere a prova a cada execução.
 
 ## 6. A memória de refutações
 
