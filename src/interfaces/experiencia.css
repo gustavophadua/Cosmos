@@ -218,3 +218,7 @@
   @media(max-width:800px) { .cadeia-resumo { grid-template-columns:1fr; } .cadeia-elos li { grid-template-columns:32px minmax(0,1fr); } .cadeia-elos li code { grid-column:2; } }
   @media(max-width:600px) { .labs-sections { grid-template-columns:repeat(5,minmax(0,1fr)); } }
 }
+
+/* o Terminal (a rede de teste) usa a página do Avançado sem a barra lateral: uma coluna só */
+.labs-app.terminal-rede { grid-template-columns:minmax(0,1fr); }
+.labs-app.terminal-rede > .labs-main { grid-column:1 / -1; width:100%; max-width:1100px; justify-self:center; }

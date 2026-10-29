@@ -1,17 +1,16 @@
 /** @jsxImportSource react */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { niveisBookDemo, consultarCatalogoLocal } from './dados'
+import { consultarCatalogoLocal } from './dados'
 import { pesquisarPublicos, REGISTROS_PUBLICOS } from '../v3/catalogo'
 import { Labs } from './Labs'
 import { Integracoes } from './Integracoes'
-import { ContaApp, CarteiraLocal, useContaLocal } from './Conta'
+import { ContaApp, useContaLocal } from './Conta'
 import { salvarDadosConta } from '../local/conta'
-import { GraficoMercado } from './Graficos'
 import type { InterfaceProduto } from './config'
 import { Icone } from './Janela'
 import { MoedaCosmos } from './Moeda'
+import { MoedaTeste } from './MoedaTeste'
 import { BarraCosmos, NotaLicenca } from './Navegacao'
 import { criarClienteOllama } from './ollama-cliente'
 import { lerProposta } from '../motor/formalizacao'
@@ -187,26 +186,20 @@ function IAI() {
   </div>
 }
 
+/**
+ * O Terminal: a rede de teste cosmos-teste-1 de verdade (saldos, transferências assinadas, livros recebidos e a conta
+ * da rede), sem preço nem mercado inventados. A moeda Cosmos está em fase de lançamento e ainda não existe; as regras da
+ * rede de teste (especificacao/moeda-teste.md) pedem que a tela diga que as unidades de teste não viram moeda real.
+ */
 function TerminalComercial() {
-  const [intervalo, setIntervalo] = useState('1D'), [lado, setLado] = useState<'BUY' | 'SELL'>('BUY'), [valor, setValor] = useState('100'), [ordens, setOrdens] = useState<string[]>([]), [notice, setNotice] = useState('')
-  const [tick, setTick] = useState(0), [rodando, setRodando] = useState(false), [aba, setAba] = useState('Overview')
-  useEffect(() => { if (!rodando) return; const timer = setInterval(() => setTick(t => t + 1), 4000); return () => clearInterval(timer) }, [rodando])
-  const enviar = () => { const q = Number(valor); if (!Number.isFinite(q) || q <= 0 || q > 1000000) { setNotice('Quantidade de demonstração inválida.'); return } setOrdens(o => [`${lado} · ${q.toFixed(2)} COSM · $19.312 · DEMO`, ...o].slice(0, 5)); setNotice('Ordem registrada somente na demonstração desta aba. Nenhum saldo ou ativo foi transferido.') }
-  return <div className="product-root exchange-app reference-app" data-view={aba} data-side={lado}><BarraCosmos atual="terminal" /><header className="exchange-top"><a className="exchange-wordmark" href="#/terminal"><MoedaCosmos tamanho={42} /><div>Cosmos<small>Terminal · <b>COSM</b></small></div></a><nav>{['Overview', 'Markets', 'Axiom contracts', 'Portfolio'].map(t => <button key={t} aria-pressed={aba === t} className={aba === t ? 'selected' : ''} onClick={() => setAba(t)}>{t}</button>)}</nav><div className="exchange-connection"><span className="exchange-live-dot" /> LOCAL <small>SIMULAÇÃO LOCAL</small></div></header>
-    <div className="exchange-ticker">{[['COSMOS / USD', '19.312', '+12.84%'], ['AXIOM CONTRACTS', '03', 'EXAMPLES'], ['VOL / 24H', '1.24M', '+0.62%'], ['BURN RATE', '5.00%', 'ILLUSTRATIVE'], ['MARKET SESSION', 'LOCAL', 'NO BROADCAST']].map(([n, v, c]) => <div key={n}><span>{n}</span><strong>{v}</strong><small>{c}</small></div>)}<span className="exchange-demo">DEMONSTRAÇÃO · SEM VALOR FINANCEIRO</span></div>
-    <main className="exchange-main"><div className="exchange-title"><div><p>AMBIENTE DE DEMONSTRAÇÃO</p><h1>{{Overview: 'Visão geral', Markets: 'Mercados', 'Axiom contracts': 'Contratos de axiomas', Portfolio: 'Portfólio'}[aba]}</h1><p className="exchange-view-description">{{Overview: 'Carteira, referências de mercado e contratos em um resumo local.', Markets: 'Explore preços e o livro de ofertas de demonstração. Nenhum feed externo.', 'Axiom contracts': 'Consulte ofertas de exemplo e abra a simulação de contratos.', Portfolio: 'Saldo do ledger local, recebimento e transferências assinadas de teste.'}[aba]}</p></div><div className="exchange-date">COSMOS [COSM]<small>SEM CONEXÃO EXTERNA</small></div></div>
-      <div className="exchange-layout" hidden={aba === 'Portfolio'}><aside className="exchange-left"><section className="exchange-wallet"><div className="exchange-panel-label">Carteira local</div><div className="exchange-wallet-top"><MoedaCosmos tamanho={56} girar inclinar /><div><span>PORTFOLIO DE DEMONSTRAÇÃO</span><h2>12,847<span>.3921</span></h2><p>COSMOS <b>[COSM]</b></p></div></div><div className="wallet-usd">≈ $248,136.92 <span>USD</span><span className="chip-demo" title="Valor de demonstração, sem cotação real">DEMO</span><b>↗ +12.84% <small>24H</small></b></div><div className="wallet-sub"><div><span>AVAILABLE · EXAMPLE</span><strong>9,347.3921 <small>COSM</small></strong></div><div><span>STAKED · EXAMPLE</span><strong>3,500.0000 <small>COSM</small></strong></div></div><div className="wallet-actions"><Button disabled title="Recebimento indisponível na demonstração">Receber</Button><Button disabled variant="outline" title="Envio indisponível na demonstração">Enviar</Button><Button disabled variant="outline" title="Staking indisponível na demonstração">Stake</Button></div><p className="wallet-disabled-note">Operações indisponíveis na demonstração.</p><a className="wallet-local-link" href="#/conta">Conta e carteira local ↗</a></section>
-        <section className="exchange-panel market-data"><header><h2>Dados de mercado</h2><span>ILLUSTRATIVE</span></header>{[['Market Cap', '$4.92B'], ['24H Volume', '$312.4M'], ['Circulating Supply', '234.6M COSM'], ['Staking APR', '14.2%']].map(([n, v]) => <div key={n}><span>{n}</span><strong>{v}</strong></div>)}<div className="market-supply-bar"><span /></div><p>Reference market scenario · not a live valuation</p></section>
-        <section className="exchange-panel exchange-insight"><span>CONTRATOS DE AXIOMAS</span><h3>Ofertas com evidências</h3><div>φ ⊢ ψ</div><a href="#/lab">Abrir Labs ↗</a></section></aside>
-      <section className="exchange-center"><section className="exchange-panel price-chart"><header><div className="price-pair"><MoedaCosmos tamanho={24} inclinar /><h2>COSMOS/USD <small>COSM</small></h2><span>SPOT · DEMO</span></div><span>Dados de referência</span></header><div className="exchange-price"><strong>19.312<span>USD</span></strong><span className="chip-demo" title="Preço simulado, sem feed de mercado">DEMO</span><b>+2.197 (+12.84%)</b><div><span>24H HIGH <strong>19.480</strong></span><span>24H LOW <strong>16.980</strong></span><span>VOL <strong>1.24M</strong></span></div></div><div className="chart-toolbar"><div>{['1H', '1D', '1W'].map(t => <button aria-pressed={intervalo === t} key={t} onClick={() => setIntervalo(t)}>{t}</button>)}<span>│</span><span className="chart-type">Candles</span></div><span>Preços simulados</span></div><GraficoMercado intervalo={intervalo} /></section>
-        <section className="exchange-panel axiom-contracts"><header><h2>Axiom contracts <span>03</span></h2><a href="#/hub">Abrir ofertas ↗</a></header><div className="contracts-table"><div className="contracts-head"><span>AXIOM / CONTRACT</span><span>REWARD · TEST</span><span>WINDOW</span><span /></div>{[['φ ⊢ ψ', 'Propositional implication', '80', '14 days'], ['∀x P(x) ⊢ P(a)', 'Universal instantiation', '50', '7 days'], ['√2 × √2 = 2', 'Exact arithmetic', '120', '21 days']].map(([f, n, r, t]) => <div className="contract-row" key={f}><span><strong>{f}</strong><small>{n}</small></span><span>{r} <small>units</small></span><span>{t}</span><a href="#/hub">Inspecionar ↗</a></div>)}</div></section>
-        <section className="exchange-panel local-orders"><header><h2>Ordens desta sessão</h2><span>DEMO ONLY</span></header>{ordens.length ? ordens.map((o, i) => <p key={`${i}-${o}`}>{o}</p>) : <p>Nenhuma ordem simulada. Registre uma ordem na área de simulação.</p>}</section></section>
-      <aside className="exchange-right"><section className="exchange-panel order-book"><header><h2>Livro de ordens <small>COSMOS/USD</small></h2></header><div className="book-columns"><span>PRICE (USD)</span><span>SIZE (COSM)</span><span>TOTAL</span></div><div className="book-asks">{niveisBookDemo('ask').map(r => <div className="book-row" key={r.ask}><i style={{ width: `${r.depth}%` }} /><span>{r.ask}</span><span>{r.size}</span><span>{r.total}</span></div>)}</div><div className="book-mid"><strong>19.312 <span>↑</span></strong><span>≈ $19.31 · DEMO</span></div><div className="book-bids">{niveisBookDemo('bid').map(r => <div className="book-row" key={r.bid}><i style={{ width: `${r.depth}%` }} /><span>{r.bid}</span><span>{r.size}</span><span>{r.total}</span></div>)}</div></section>
-        <section className="exchange-panel recent-trades"><header><h2>Negociações simuladas</h2><button aria-label={rodando ? 'Pausar feed simulado' : 'Retomar feed simulado'} onClick={() => setRodando(!rodando)}>{rodando ? 'Pausar' : 'Iniciar'} simulação</button></header><div className="book-columns"><span>PRICE (USD)</span><span>SIZE</span><span>TICK LOCAL</span></div>{Array.from({ length: 5 }, (_, i) => <div className={`trade-row ${((tick + i) % 3) ? 'buy' : 'sell'}`} key={i}><span>{(19.312 + ((tick + i) % 7 - 3) * .002).toFixed(3)} <small>{(tick + i) % 3 ? 'BUY' : 'SELL'}</small></span><span>{(42.3 + (tick + i) * 17.27 % 900).toFixed(2)}</span><span>#{String(Math.max(0, tick + 5 - i)).padStart(4, '0')}</span></div>)}</section>
-        <section className="exchange-panel order-entry"><h2>Simular uma ordem</h2><p className="order-entry-help">Defina o lado e a quantidade. A ordem fica apenas nesta aba.</p><div className="order-side">{(['BUY', 'SELL'] as const).map(t => <button className={lado === t ? 'active' : ''} key={t} onClick={() => setLado(t)}>{t === 'BUY' ? 'Comprar' : 'Vender'}</button>)}</div><label className="order-reference-price">Preço (USD)<Input aria-label="Preço de referência simulado" readOnly value="19.312" /></label><label>Quantidade (COSMOS)<Input aria-label="Quantidade simulada" type="number" min="0.01" max="1000000" value={valor} onChange={e => setValor(e.target.value)} /></label><p>Preço de referência <b>$19.312</b></p><Button aria-label={lado === 'BUY' ? 'Simular compra de COSMOS' : 'Simular venda de COSMOS'} onClick={enviar}>{lado === 'BUY' ? 'Comprar' : 'Vender'} COSMOS</Button></section></aside></div>
-      {aba === 'Portfolio' && <div className="local-portfolio"><CarteiraLocal /></div>}
-      {notice && <div className="exchange-toast" role="status"><span>{notice}</span><button aria-label="Fechar aviso" onClick={() => setNotice('')}>×</button></div>}
-    </main><footer className="exchange-footer"><span><i /> NETWORK COSMOS / LOCAL</span><span className="terminal-footer-metrics"><span>VOL 24H <strong>1.24M +0.62%</strong></span><span>BURN RATE <strong>5.00%</strong></span><span>MARKET SESSION <strong>LOCAL · NO BROADCAST</strong></span><span>BLOCK — · GAS — · LATENCY —</span></span><span>NO PUBLIC NETWORK · COSM ≠ ATOM</span><span>ALL MARKET VALUES ARE DEMONSTRATION DATA</span><NotaLicenca /></footer>
+  return <div className="product-root labs-app reference-app terminal-rede"><BarraCosmos atual="terminal" />
+    <main className="labs-main">
+      <header className="labs-topbar"><div>Cosmos <span>/</span> Avançado <span>/</span> <strong>Terminal</strong></div><span className="labs-local"><i /> Rede de teste cosmos-teste-1</span></header>
+      <section className="labs-page-heading"><div><p className="labs-eyebrow">TERMINAL · REDE DE TESTE</p><h1>Terminal</h1><p>Saldos, transferências assinadas e livros da rede de teste cosmos-teste-1, conferidos neste aparelho. Nada aqui é simulado.</p></div><MoedaCosmos tamanho={56} /></section>
+      <div className="labs-result has-conflict" role="note"><strong>A moeda Cosmos está em fase de lançamento.</strong><p>Ela ainda não existe: não tem preço, não está à venda e não se compra nem se troca em lugar nenhum. O que funciona aqui é a rede de teste cosmos-teste-1, com unidades de teste sem valor, só entre os participantes convidados. As unidades de teste não viram moeda Cosmos e não dão direito a nada no futuro.</p></div>
+      <MoedaTeste />
+      <NotaLicenca />
+    </main>
   </div>
 }
 
