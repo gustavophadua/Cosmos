@@ -41,3 +41,14 @@
 .iai-guia-comandos button:hover { background:var(--hover, #edf2fc); }
 .iai-guia-comandos small { display:block; color:var(--muted, #5e6673); }
 @media (max-width:760px) { .iai-comandos { left:10px; right:10px; } }
+
+/* a Conversa (iai-v2): limpa, a pergunta no centro quando vazia, o estado da IA embaixo */
+.iai-app .iai-chip button { width:auto; height:auto; min-height:0; padding:0; border-radius:0; font-size:1rem; }
+.iai-app .iai-composer-barra .iai-mais, .iai-app .iai-composer-barra .iai-anexo { width:34px; height:34px; min-height:34px; font-size:18px; }
+.iai-app .iai-estado { text-align:center; color:var(--muted, #5e6673); font-size:12px; margin-top:10px; }
+.iai-app .iai-estado[data-estado="ligada"]::before { content:""; display:inline-block; width:7px; height:7px; margin-right:6px; border-radius:50%; background:#2f8a57; vertical-align:middle; }
+.iai-app .iai-estado a { color:inherit; text-decoration:underline; }
+.iai-app.iai-v2 .iai-welcome h1 { margin:0; }
+.iai-app.iai-v2 .iai-suggestions button { text-align:left; }
+.iai-app.iai-v2 .iai-sidebar-footer .iai-history-note { padding:12px; }
+.iai-app.iai-v2 .iai-answer small strong { font-weight:600; }

@@ -1,11 +1,14 @@
 // O assistente da Conversa: os comandos ("/verificar", "/revisar"…), a escolha automática quando a pessoa não diz qual,
-// e o texto que vai para o cofre. A IA roda no serviço local (Ollama); quem decide é o Z3. Sem o serviço, só /buscar.
+// e o texto que vai para o cofre. A IA roda no serviço local (Ollama); quem decide é o Z3. A afirmação solta (uma frase
+// só) tem resposta sem modelo: não há o que provar, ela precisa de fonte.
 
 import type { Classe, Termo } from '../motor/avaliacao'
 import type { Proposta } from '../motor/formalizacao'
 import { relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor } from '../motor/revisor-relatorio'
 
-export type Comando = 'verificar' | 'revisar' | 'desmistificar' | 'contrariar' | 'buscar'
+export type Comando = 'verificar' | 'revisar' | 'desmistificar' | 'contrariar'
+/** o que a Conversa faz com o texto: um comando de IA, ou a resposta sem modelo para a afirmação solta */
+export type Acao = Comando | 'afirmacao'
 export const COMANDOS: { nome: Comando; titulo: string; descricao: string; exemplo: string; ia: boolean }[] = [
   { nome: 'verificar', titulo: 'Verificar', ia: true, descricao: 'Um argumento curto: a conclusão decorre das premissas? Provado ou salto, com o cenário.',
     exemplo: 'Todo cliente do plano anual tem suporte. A padaria é cliente do plano anual. Então a padaria tem suporte.' },
@@ -15,11 +18,10 @@ export const COMANDOS: { nome: Comando; titulo: string; descricao: string; exemp
     exemplo: 'Todo mundo que trabalha de casa produz menos. A Ana trabalha de casa. Por isso a Ana produz menos que o time.' },
   { nome: 'contrariar', titulo: 'Contrariar', ia: true, descricao: 'Como derrubar a conclusão: o cenário contra ela, ou as premissas que é preciso negar.',
     exemplo: 'Se o servidor cair, o site sai do ar. O site saiu do ar. Então o servidor caiu.' },
-  { nome: 'buscar', titulo: 'Buscar', ia: false, descricao: 'Procura nos registros públicos do Cosmos (F0 a F8), pelo nome, assunto ou hash.', exemplo: 'F2' },
 ]
 
 /** "/contrariar texto" → o comando e o resto; sem barra, o comando escolhido sozinho. */
-export function lerPedido(texto: string, escolhido: Comando | null): { comando: Comando; texto: string; automatico: boolean } {
+export function lerPedido(texto: string, escolhido: Comando | null): { comando: Acao; texto: string; automatico: boolean } {
   const m = /^\/(\p{L}+)\s*([\s\S]*)$/u.exec(texto.trim())
   const nome = m && COMANDOS.find((c) => c.nome === m[1].toLowerCase())
   if (nome) return { comando: nome.nome, texto: m[2].trim(), automatico: false }
@@ -28,11 +30,25 @@ export function lerPedido(texto: string, escolhido: Comando | null): { comando: 
 }
 
 const frases = (texto: string) => texto.replace(/\r\n?/g, '\n').split(/\n+|(?<=[.!?;])\s+(?=\p{Lu}|["“(])/u).map((s) => s.trim()).filter((s) => s.length > 1)
-/** Texto longo ou com parágrafos: revisar; duas frases ou mais: verificar; uma frase curta: buscar. */
-export function detectar(texto: string): Comando {
+/** Texto longo ou com parágrafos: revisar; duas frases ou mais: verificar; uma frase só: a afirmação solta. */
+export function detectar(texto: string): Acao {
   const t = texto.trim()
   if (t.length > 600 || t.split(/\n\s*\n/).filter((p) => p.trim()).length >= 2) return 'revisar'
-  return frases(t).length >= 2 ? 'verificar' : 'buscar'
+  return frases(t).length >= 2 ? 'verificar' : 'afirmacao'
+}
+
+/**
+ * A resposta para uma frase só, sem modelo: não há premissas, então não há o que provar nem derrubar pela lógica; a
+ * afirmação precisa de fonte. A generalização ("todo", "nenhum", "sempre"…) cai com um único caso contrário.
+ */
+export function respostaAfirmacao(texto: string): string {
+  const t = texto.trim().replace(/\s+/g, ' ')
+  if (t.split(' ').length < 3) return 'Escreva um raciocínio (as razões e a conclusão) ou cole um plano, e o Cosmos separa o que decorre dos fatos do que é salto. Toque em + para ver os comandos.'
+  const geral = /^(tod[oa]s?|nenhum[a]?|ningu[eé]m|sempre|nunca|qualquer|cada)(?![\p{L}])/iu.exec(t)
+  const l = [`"${t.slice(0, 300)}" é uma afirmação sozinha: não vem com razões (premissas), então não há o que provar nem derrubar pela lógica. Ela pode até ser verdade, mas quem diz isso é uma fonte (dado, pesquisa, documento), não o raciocínio.`]
+  if (geral) l.push(`É uma generalização ("${geral[1].toLowerCase()}…"): basta um único caso contrário para derrubá-la. Exemplos a favor não a provam; é preciso que não exista nenhum caso contra.`)
+  l.push('Para o Cosmos conferir um raciocínio, escreva as razões e a conclusão. Por exemplo: "Todo cliente do plano anual tem suporte. A padaria é cliente do plano anual. Então a padaria tem suporte."')
+  return l.join('\n\n')
 }
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
 export function separarArgumento(texto: string): { premissas: string[]; conclusao: string } | null {
@@ -53,7 +69,7 @@ export interface ClienteIA {
 }
 
 /** Executa um comando de IA. `ler` lê a proposta do modelo (lerProposta), `progresso` mostra a fase. */
-export async function executar(cliente: ClienteIA, comando: Exclude<Comando, 'buscar'>, texto: string, ler: (conteudo: string) => Proposta,
+export async function executar(cliente: ClienteIA, comando: Comando, texto: string, ler: (conteudo: string) => Proposta,
   progresso: (msg: string) => void, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<ResultadoIA> {
   if (comando === 'revisar' || comando === 'desmistificar') {
     progresso('Separando afirmações e conclusões…')

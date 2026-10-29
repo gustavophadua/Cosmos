@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectar, executar, lerPedido, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
+import { detectar, executar, lerPedido, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
 import { lerProposta } from '../src/motor/formalizacao'
 
 const VOCAB = [{ simbolo: 'Cliente', tipo: 'predicado', aridade: 1, leitura: 'x é cliente' }, { simbolo: 'Suporte', tipo: 'predicado', aridade: 1, leitura: 'x tem suporte' }, { simbolo: 'padaria', tipo: 'constante', aridade: 0, leitura: 'a padaria' }]
@@ -8,10 +8,11 @@ const PROPOSTA = JSON.stringify({ vocabulario: VOCAB, premissas: ['∀x (Cliente
 describe('assistente da Conversa', () => {
   it('o comando vem da barra, do chip ou é escolhido pelo texto', () => {
     expect(lerPedido('/contrariar A é B. Logo C.', null)).toEqual({ comando: 'contrariar', texto: 'A é B. Logo C.', automatico: false })
-    expect(lerPedido('/Buscar F2', null)).toMatchObject({ comando: 'buscar', texto: 'F2' })
+    expect(lerPedido('/Revisar um plano', null)).toMatchObject({ comando: 'revisar', texto: 'um plano' })
     expect(lerPedido('qualquer coisa', 'desmistificar')).toMatchObject({ comando: 'desmistificar', automatico: false })
-    expect(lerPedido('/naoexiste x', null)).toMatchObject({ comando: 'buscar', automatico: true })
-    expect(detectar('F2')).toBe('buscar')
+    expect(lerPedido('/buscar F2', null)).toMatchObject({ comando: 'afirmacao', automatico: true })
+    expect(detectar('Todo humano é burro')).toBe('afirmacao')
+    expect(detectar('sim')).toBe('afirmacao')
     expect(detectar('Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.')).toBe('verificar')
     expect(detectar('Parágrafo um. Outro.\n\nParágrafo dois.')).toBe('revisar')
     expect(detectar('x'.repeat(601))).toBe('revisar')
@@ -51,5 +52,13 @@ describe('assistente da Conversa', () => {
     expect(r).toEqual({ tipo: 'relatorio', comando: 'desmistificar', relatorio })
     expect(passos).toEqual(['Separando afirmações e conclusões…', 'Separando afirmações e conclusões: 1 de 1'])
     expect(resumoEmTexto(r).length).toBeLessThanOrEqual(6000)
+  })
+
+  it('a afirmação solta: sem modelo, diz que precisa de fonte; a generalização cai com um caso contrário', () => {
+    const r = respostaAfirmacao('Todo humano é burro')
+    expect(r).toContain('é uma afirmação sozinha')
+    expect(r).toContain('generalização ("todo…")')
+    expect(r).toContain('um único caso contrário')
+    expect(respostaAfirmacao('O mercado vai crescer')).not.toContain('generalização')
   })
 })
