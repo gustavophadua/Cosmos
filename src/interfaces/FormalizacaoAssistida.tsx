@@ -195,7 +195,7 @@ export function FormalizacaoAssistida({ levar, levarVarios }: { levar: (r: ParaR
         <label className="cadeia-largo">Conclusão<Input value={atual.conclusao} onChange={(e) => setEditadas({ ...atual, conclusao: e.target.value })} /><small>{leituras.conclusao.erro ? '' : 'lê-se: '}{leituras.conclusao.texto}</small></label>
         <label>Afirmação para o registro<select value={afirmacao} onChange={(e) => setAfirmacao(e.target.value as Afirmacao)}><option value="segue">segue das premissas</option><option value="contradiz">contradiz as premissas</option><option value="nao-segue">não segue das premissas</option><option value="consistente">é consistente com as premissas</option></select></label>
         <label>Domínio<Input value={dominio} onChange={(e) => setDominio(e.target.value)} maxLength={80} /></label>
-        <p className="cadeia-previa">O modelo classificou como: {proposta.classe ?? 'sem classe'}. Isso é só uma proposta: o registro afirma, e a verificação confere.</p>
+        <p className="cadeia-previa">{proposta.classe ? `O modelo classificou como: ${proposta.classe}.` : 'A classe fica para o Z3, que confere na verificação.'} Isso é só uma proposta: o registro afirma, e a verificação confere.</p>
         <div className="cadeia-acoes">
           <Button disabled={temErro} onClick={() => { medir(corrigida ? 'corrigida' : 'aprovada'); levar({ formula: atual.conclusao, premissas: atual.premissas, afirmacao, dominio: dominio.trim() || 'geral' }) }}>{corrigida ? 'Aprovar com a correção e levar ao registro' : 'Aprovar e levar ao registro'}</Button>
           <Button variant="outline" onClick={() => { medir('recusada'); setProposta(null); setEditadas(null) }}>Recusar</Button>

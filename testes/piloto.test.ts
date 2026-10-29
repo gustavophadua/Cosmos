@@ -17,6 +17,9 @@
  * Reparo (PILOTO_REPARO=1): a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com
  * o erro (formalizarComReparo, versão REPARO_FORMALIZACAO, a mesma do serviço local); a versão vai para meta.json.
  *
+ * Tradução cega (PILOTO_CEGO=1, só no Ollama): as premissas numa chamada sem a conclusão, a conclusão noutra que vê só o
+ * vocabulário (formalizarCego, versão CEGO_FORMALIZACAO), cada uma com o reparo; a resposta vai sem classe (o Z3 dá).
+ *
  * Votação (passo D3 do plano, só no Ollama): com PILOTO_VOTOS=n, cada item recebe n respostas com temperatura
  * PILOTO_TEMPERATURA (0,7 por padrão) e sementes 1..n, e todas as que se leem vão para candidatos.jsonl. Quem escolhe
  * a resposta é testes/votacao.test.ts, pelo Z3 (a maior turma de fórmulas equivalentes), que grava respostas.jsonl.
@@ -29,7 +32,7 @@ import { criarAdaptadorGroq } from '../src/integracoes/provedores/groq'
 import { criarAdaptadorOllama, descreverModeloOllama } from '../src/integracoes/provedores/ollama'
 import type { ModeloGroq } from '../src/integracoes/groq-contratos'
 import type { Item } from '../src/motor/avaliacao'
-import { ESQUEMA_RESPOSTA, formalizarComReparo, lerProposta, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO, type Mensagem } from '../src/motor/formalizacao'
+import { CEGO_FORMALIZACAO, ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, ESQUEMA_RESPOSTA, formalizarCego, formalizarComReparo, lerProposta, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO, type Mensagem } from '../src/motor/formalizacao'
 
 const PROVEDOR = process.env.PILOTO_PROVEDOR, SAIDA = process.env.PILOTO_SAIDA
 const PUBLICOS = 'avaliacao/exemplos-publicos-v1.jsonl'
@@ -64,11 +67,13 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   const modelo = process.env.PILOTO_MODELO ?? (PROVEDOR === 'groq' ? 'openai/gpt-oss-120b' : 'qwen3:4b')
 
   const votos = Number(process.env.PILOTO_VOTOS ?? 0), temperaturaVoto = Number(process.env.PILOTO_TEMPERATURA ?? 0.7)
-  const reparar = process.env.PILOTO_REPARO === '1'
+  const reparar = process.env.PILOTO_REPARO === '1', cego = process.env.PILOTO_CEGO === '1'
+  if (cego && (votos || PROVEDOR !== 'ollama')) throw new Error('PILOTO_CEGO só no Ollama e sem PILOTO_VOTOS')
   if (reparar && votos) throw new Error('PILOTO_REPARO e PILOTO_VOTOS não se combinam')
   if (votos && (PROVEDOR !== 'ollama' || !Number.isInteger(votos) || votos < 2 || votos > 9)) throw new Error('PILOTO_VOTOS: de 2 a 9, só no Ollama')
   let perguntar: (m: Mensagem[]) => Promise<{ conteudo: string; prompt: number; completion: number }>
   let votantes: typeof perguntar[] = []
+  let perguntarPremissas: typeof perguntar | null = null, perguntarConclusao: typeof perguntar | null = null
   let identidade: Record<string, unknown> = { modelo }
   if (PROVEDOR === 'groq') {
     const groq = criarAdaptadorGroq({ chave: () => process.env.GROQ_API_KEY, prazoMs: 20_000 })
@@ -79,6 +84,10 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   } else if (PROVEDOR === 'ollama') {
     identidade = await descreverModeloOllama(modelo) // só local: o conjunto fechado não sai do aparelho
     perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096 })
+    if (cego) {
+      perguntarPremissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096 })
+      perguntarConclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096 })
+    }
     votantes = Array.from({ length: votos }, (_, k) => criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: temperaturaVoto, semente: k + 1, contexto: 4096 }))
   } else throw new Error('PILOTO_PROVEDOR é groq ou ollama')
 
@@ -108,7 +117,8 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
     let medicao: Record<string, unknown> = { id: item.id }
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
-        const r = reparar ? await formalizarComReparo(perguntar, mensagens, item.vocabulario, item.texto.premissas.length) : { ...(await perguntar(mensagens)), reparo: null }
+        const r = cego ? await formalizarCego(perguntarPremissas!, perguntarConclusao!, item.texto, item.vocabulario, exemplos.filter((e) => e.id !== item.id))
+          : reparar ? await formalizarComReparo(perguntar, mensagens, item.vocabulario, item.texto.premissas.length) : { ...(await perguntar(mensagens)), reparo: null }
         medicao = { id: item.id, ms: Date.now() - inicio, prompt_tokens: r.prompt, completion_tokens: r.completion, ...(r.reparo ? { reparo: r.reparo } : {}) }
         try {
           const p = lerProposta(r.conteudo, item.vocabulario)
@@ -130,7 +140,7 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
   writeFileSync(join(SAIDA!, votos ? 'candidatos.jsonl' : 'respostas.jsonl'), corpo)
   writeFileSync(join(SAIDA!, 'medicoes.jsonl'), medicoes.join('\n') + '\n')
   const meta = {
-    provedor: PROVEDOR, ...identidade, prompt: PROMPT_FORMALIZACAO, ...(reparar ? { reparo: REPARO_FORMALIZACAO } : {}),
+    provedor: PROVEDOR, ...identidade, prompt: PROMPT_FORMALIZACAO, ...(reparar ? { reparo: REPARO_FORMALIZACAO } : {}), ...(cego ? { cego: CEGO_FORMALIZACAO } : {}),
     ...(PROVEDOR === 'ollama' ? { saida: SAIDA_FORMALIZACAO, pensando: false, contexto: 4096, ...(votos ? { votos, temperatura: temperaturaVoto, sementes: `1-${votos}` } : { temperatura: 0, semente: 0 }) } : { temperatura: 0 }),
     conjunto: fechado ? 'fechado' : gerado ? relative(resolve('.'), resolve(arquivo)).replace(/\\/g, '/') : PUBLICOS, ...(process.env.PILOTO_FATIA ? { fatia: process.env.PILOTO_FATIA } : {}), itens: linhas.length, lidas: respostas.length,
     [votos ? 'candidatos_sha256' : 'respostas_sha256']: createHash('sha256').update(corpo).digest('hex'), data: new Date().toISOString(),

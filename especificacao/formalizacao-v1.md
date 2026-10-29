@@ -300,7 +300,31 @@ A v4 do pedido (regras explícitas para "só pode A se B", o sujeito com restri�
 premissa como se não conhecesse a conclusão") não foi adotada: na metade de revisão, 83 fórmulas fiéis contra 81 da v3
 (+7 −5, McNemar p = 0,77), e 10 argumentos que não seguem saíram "segue" (eram 9). A regra no pedido não tira o viés; o
 diff está guardado fora do Git. Daí a tradução cega (`formalizarCego`, `cego-v1`): as premissas numa chamada sem a
-conclusão, a conclusão noutra que vê só o vocabulário. A medição dela nas duas metades G- está na seção seguinte,
-quando terminar. Para o treino, o gerador ganhou os modos `treino2` e `revisao2`, com os moldes desses erros (os modos
+conclusão, a conclusão noutra que vê só o vocabulário. Para o treino, o gerador ganhou os modos `treino2` e `revisao2`, com os moldes desses erros (os modos
 antigos se refazem byte a byte como antes).
 
+### 8c. A tradução cega, medida (29/10/2026)
+
+Mesmo modelo, mesmas regras de leitura do pedido v3, reparo em cada passo; a classe fica para o Z3. Nas duas metades G-:
+
+| | v3 com reparo | v4 (não adotada) | cega (`cego-v1`) |
+|---|---|---|---|
+| fórmulas fiéis, revisão (99) | 81 | 83 | 82 |
+| fórmulas fiéis, teste (100) | 93 | 91 | 92 |
+| classe certa pelo Z3, revisão | 88 | 86 | 93 |
+| classe certa pelo Z3, teste | 97 | 99 | 96 |
+| **não segue, mas saiu "segue"** (revisão + teste) | **9 + 2** | 10 + 0 | **0 + 2** |
+| tempo por argumento (mediana, Vega 8) | 40 s | — | 58 s |
+
+A fidelidade é a mesma (McNemar p = 1,0 nas duas metades); o que muda é o lado do erro. Na v3, 11 argumentos que não
+seguem saíram "provados"; na cega, 2. Os erros que sobram na cega são, na maioria, do lado prudente (um argumento que
+segue saiu "não segue", ou a frase não se leu). Para um revisor, dizer "provado" sem ser é o erro que não pode: a
+tradução cega foi adotada no serviço local (`ollama`, revisor e Conversa) e no servidor do revisor. O pedido de
+formalização de uma vez só continua no piloto e na formalização pelo Groq.
+
+Uma trava a mais, achada na frase de um usuário ("todo homem parte de Deus, Deus é eterno, logo o homem é eterno"): a
+conclusão "o homem é eterno" saiu com a fórmula de "Deus é eterno", o que daria "provado". Nas 199 frases G- isso
+aconteceu uma vez (G-196). Agora, a conclusão que repete a fórmula de uma premissa de texto diferente volta ao modelo
+com o erro; se ele insistir, fica sem conclusão e o argumento sai "não decidido", nunca "provado". A causa de fundo é
+que as regras de leitura não falam do genérico "o A é B" (o homem em geral); é o próximo ajuste, a medir na metade de
+revisão antes de entrar.

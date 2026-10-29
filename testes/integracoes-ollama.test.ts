@@ -8,11 +8,13 @@ import { criarApiIntegracoes } from '../src/integracoes/api-node'
 import { criarPonteIntegracoes } from '../src/integracoes/ponte-node'
 import { validarTextoFormalizacao, type ConferidorZ3, type PropostaParaConferir } from '../src/integracoes/ollama-node'
 import { criarClienteOllama } from '../src/interfaces/ollama-cliente'
-import { ESQUEMA_RESPOSTA, lerProposta } from '../src/motor/formalizacao'
+import { ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, lerProposta } from '../src/motor/formalizacao'
 
 const DIGEST = 'b'.repeat(64)
 const PROPOSTA = JSON.stringify({ vocabulario: [{ simbolo: 'Gato', tipo: 'predicado', aridade: 1, leitura: 'gato' }, { simbolo: 'Banho', tipo: 'predicado', aridade: 1, leitura: 'gosta de banho' }, { simbolo: 'mimi', tipo: 'constante', aridade: 0, leitura: 'Mimi' }],
   premissas: ['∀x (Gato(x) ⟹ ¬Banho(x))', 'Gato(mimi)'], conclusao: '¬Banho(mimi)', classe: 'segue' })
+// a tradução cega devolve as mesmas fórmulas sem classe: a classe fica para o Z3
+const CEGA = JSON.stringify({ ...JSON.parse(PROPOSTA), classe: null })
 const TEXTO = { premissas: ['Nenhum gato gosta de banho.', 'Mimi é uma gata.'], conclusao: 'Mimi não gosta de banho.' }
 
 function ollamaFalso(rodando = true, chats: string[] = []) {
@@ -59,14 +61,19 @@ describe('Formalização pelo Ollama local na ponte', () => {
   it('estado com digest; a proposta sai com o pedido fixo, só para 127.0.0.1, e se lê', async () => ambiente(async (c) => {
     expect(await c.cliente.carregar()).toEqual({ estado: 'pronto', modelo: 'qwen3:4b', digest: DIGEST, ollama: '0.40.12' })
     const r = await c.cliente.formalizar(TEXTO)
-    expect(r).toEqual({ conteudo: PROPOSTA, prompt_tokens: 1100, completion_tokens: 160 })
+    expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 2200, completion_tokens: 320 })
     expect(lerProposta(r.conteudo, null).conclusao).toBe('¬Banho(mimi)')
-    const chat = c.pedidos.find((p) => p.url.endsWith('/api/chat'))!
-    expect(chat.url).toBe('http://127.0.0.1:11434/api/chat')
-    expect(chat.corpo).toMatchObject({ model: 'qwen3:4b', stream: false, think: false, format: ESQUEMA_RESPOSTA, options: { temperature: 0, seed: 0, num_ctx: 4096 } })
-    const mensagens = (chat.corpo as { messages: { role: string; content: string }[] }).messages
-    expect(mensagens[0].role).toBe('system')
-    expect(mensagens.at(-1)!.content).toContain('Mimi não gosta de banho.')
+    // duas chamadas: as premissas sem a conclusão, depois a conclusão sem as premissas
+    const [premissas, conclusao] = c.pedidos.filter((p) => p.url.endsWith('/api/chat'))
+    expect(premissas.url).toBe('http://127.0.0.1:11434/api/chat')
+    expect(premissas.corpo).toMatchObject({ model: 'qwen3:4b', stream: false, think: false, format: ESQUEMA_PREMISSAS, options: { temperature: 0, seed: 0, num_ctx: 4096 } })
+    expect(conclusao.corpo).toMatchObject({ model: 'qwen3:4b', stream: false, think: false, format: ESQUEMA_CONCLUSAO, options: { temperature: 0, seed: 0, num_ctx: 4096 } })
+    const ultima = (x: typeof premissas) => (x.corpo as { messages: { role: string; content: string }[] }).messages.at(-1)!.content
+    expect((premissas.corpo as { messages: { role: string }[] }).messages[0].role).toBe('system')
+    expect(ultima(premissas)).toContain('Mimi é uma gata.')
+    expect(ultima(premissas)).not.toContain('Mimi não gosta de banho.')
+    expect(ultima(conclusao)).toContain('Mimi não gosta de banho.')
+    expect(ultima(conclusao)).not.toContain('Mimi é uma gata.')
     expect(c.pedidos.every((p) => p.url.startsWith('http://127.0.0.1:11434/'))).toBe(true)
   }))
 
@@ -74,15 +81,15 @@ describe('Formalização pelo Ollama local na ponte', () => {
     const SEM_PREMISSA = JSON.stringify({ ...JSON.parse(PROPOSTA), premissas: ['∀x (Gato(x) ⟹ ¬Banho(x))'] })
     await ambiente(async (c) => {
       const r = await c.cliente.formalizar(TEXTO)
-      expect(r).toEqual({ conteudo: PROPOSTA, prompt_tokens: 2200, completion_tokens: 320, reparo: 'o texto tem 2 premissa(s) e a resposta tem 1; escreva uma fórmula para cada premissa, na mesma ordem' })
+      expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 3300, completion_tokens: 480, reparo: 'premissas: o texto tem 2 premissa(s) e a resposta tem 1; escreva uma fórmula para cada premissa, na mesma ordem' })
       const chats = c.pedidos.filter((p) => p.url.endsWith('/api/chat')).map((p) => (p.corpo as { messages: { role: string; content: string }[] }).messages)
-      expect(chats).toHaveLength(2)
+      expect(chats).toHaveLength(3)
       expect(chats[1].slice(0, -2)).toEqual(chats[0])
       expect(chats[1].at(-2)).toEqual({ role: 'assistant', content: SEM_PREMISSA })
       expect(chats[1].at(-1)!.content).toContain('o texto tem 2 premissa(s)')
       // a resposta certa de primeira não volta
       await c.cliente.formalizar(TEXTO)
-      expect(c.pedidos.filter((p) => p.url.endsWith('/api/chat'))).toHaveLength(3)
+      expect(c.pedidos.filter((p) => p.url.endsWith('/api/chat'))).toHaveLength(5)
     }, { chats: [SEM_PREMISSA] })
   })
 
@@ -105,7 +112,7 @@ describe('Formalização pelo Ollama local na ponte', () => {
     // o caso real da tela em 28/10/2026: "sessao-expirada" 15 minutos depois de abrir o serviço
     await new Promise((r) => setTimeout(r, 120))
     expect((await c.cliente.carregar()).estado).toBe('pronto')
-    expect((await c.cliente.formalizar(TEXTO)).conteudo).toBe(PROPOSTA)
+    expect((await c.cliente.formalizar(TEXTO)).conteudo).toBe(CEGA)
   }, { ttlSessaoMs: 50 }))
 
   it('modo automático: a conferência tira o modelo da memória e chama o Z3; pedir ao modelo encerra o Z3', async () => {
@@ -144,10 +151,10 @@ describe('Formalização pelo Ollama local na ponte', () => {
       for (let i = 0; i < 100 && e.estado === 'rodando'; i++) { await new Promise((r) => setTimeout(r, 20)); e = await c.cliente.estadoRevisao() }
       expect(e.estado).toBe('pronto')
       expect(e.relatorio!.argumentos.map((a) => [a.conclusao, a.veredito])).toEqual([['Mimi não gosta de banho.', 'provado']])
-      expect(e.relatorio!.prompt).toMatch(/^formalizacao-v\d+$/)
+      expect(e.relatorio!.prompt).toMatch(/^cego-v\d+ \(formalizacao-v\d+\)$/)
       // o extrator com o esquema dele e mais contexto; depois a tradução; o modelo sai da memória antes do Z3
       const chats = c.pedidos.filter((p) => p.url.endsWith('/api/chat')).map((p) => p.corpo as { format: { required: string[] }; options: { num_ctx: number } })
-      expect(chats.map((x) => [x.format.required.join(), x.options.num_ctx])).toEqual([['afirmacoes,argumentos', 8192], ['vocabulario,premissas,conclusao,classe', 4096]])
+      expect(chats.map((x) => [x.format.required.join(), x.options.num_ctx])).toEqual([['afirmacoes,argumentos', 8192], ['vocabulario,premissas', 4096], ['vocabulario,conclusao', 4096]])
       expect(eventos).toEqual(['parar', 'z3 ¬Banho(mimi)'])
       expect(c.pedidos.at(-1)!.url).toBe('http://127.0.0.1:11434/api/generate')
       // texto vazio, grande demais ou com campos a mais: recusado

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { blocosDoTexto, cenarioEmPortugues, lerExtracao, relatorioEmMarkdown, revisarPlano, type PassosRevisor } from '../src/motor/revisor'
 import { lerFormula, type Termo } from '../src/motor/avaliacao'
 import { buscarModelo, nao } from '../src/motor/motor'
+import { formalizarComReparo } from '../src/motor/formalizacao'
 
 const resposta = (o: unknown) => ({ conteudo: JSON.stringify(o), prompt: 10, completion: 5 })
 
@@ -45,8 +46,7 @@ describe('revisor de planos', () => {
           { id: 3, texto: 'O cliente vai comprar o módulo.' }, { id: 4, texto: 'O cliente precisa controlar o caixa.' }],
         argumentos: [{ conclusao: 3, apoios: [1, 2] }, { conclusao: 4, apoios: [2, 1] }] })
       },
-      formalizar: async () => { ordem.push('formalizar'); return traducoes.shift()! },
-      mensagens: (t) => [{ role: 'user', content: JSON.stringify(t) }],
+      traduzir: (t) => formalizarComReparo(async () => { ordem.push('formalizar'); return traducoes.shift()! }, [{ role: 'user', content: JSON.stringify(t) }], null, t.premissas.length),
       descarregar: async () => { ordem.push('descarregar') },
       classificar: async (p) => { ordem.push('z3'); return p.conclusao === 'Compra(cliente)' ? 'independente' : 'segue' },
     }
@@ -65,9 +65,9 @@ describe('revisor de planos', () => {
   it('o bloco que o extrator não responde vira aviso, e as afirmações incompatíveis aparecem como tal', async () => {
     const vocab = [{ simbolo: 'A', tipo: 'predicado', aridade: 1, leitura: 'x é a' }, { simbolo: 'c', tipo: 'constante', aridade: 0, leitura: 'c' }]
     const r = await revisarPlano('um\n\n' + 'x'.repeat(1600), {
-      prompt: 'p', mensagens: () => [], descarregar: async () => undefined,
+      prompt: 'p', descarregar: async () => undefined,
       extrair: async (m) => m.at(-1)!.content.includes('um') ? resposta({ afirmacoes: [{ id: 1, texto: 'c é a' }, { id: 2, texto: 'c não é a' }, { id: 3, texto: 'c é a e não é' }], argumentos: [{ conclusao: 3, apoios: [1, 2] }] }) : { conteudo: '{', prompt: 0, completion: 0 },
-      formalizar: async () => resposta({ vocabulario: vocab, premissas: ['A(c)', '¬A(c)'], conclusao: 'A(c)', classe: 'segue' }),
+      traduzir: async () => ({ ...resposta({ vocabulario: vocab, premissas: ['A(c)', '¬A(c)'], conclusao: 'A(c)', classe: null }), reparo: null }),
       classificar: async () => { throw new Error('as premissas são inconsistentes') },
     })
     expect(r.blocos).toBe(2)

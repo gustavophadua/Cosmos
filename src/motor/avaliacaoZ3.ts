@@ -33,7 +33,8 @@ async function equivalentes(api: unknown, vocabulario: Termo[], a: string, b: st
 /** A nota de uma resposta para um item. */
 export async function pontuar(api: unknown, item: Item, r: Resposta): Promise<Nota> {
   const nota: Nota = { id: item.id, le: false, classeCerta: r.classe === item.gabarito.classe, premissasFieis: false, conclusaoFiel: false, completa: false, motivo: '' }
-  if (!CLASSES.includes(r.classe)) return { ...nota, classeCerta: false, motivo: 'classe desconhecida' }
+  // sem classe (a tradução cega deixa a classe para o Z3): as fórmulas ainda se avaliam; classe que não é nenhuma das três, não
+  if (r.classe != null && !CLASSES.includes(r.classe)) return { ...nota, classeCerta: false, motivo: 'classe desconhecida' }
   if (!Array.isArray(r.premissas) || !r.premissas.length || typeof r.conclusao !== 'string') return { ...nota, motivo: 'faltam premissas ou conclusão' }
   try { [...r.premissas, r.conclusao].forEach((f) => lerFormula(f, item.vocabulario)) } catch (e) { return { ...nota, motivo: (e as Error).message } }
   nota.le = true

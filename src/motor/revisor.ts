@@ -7,7 +7,7 @@
 
 import type { Classe, Termo } from './avaliacao'
 import { lerFormula } from './avaliacao'
-import { formalizarComReparo, lerProposta, type Mensagem, type Perguntar } from './formalizacao'
+import { lerProposta, type Mensagem, type Perguntar } from './formalizacao'
 import { buscarModelo, nao, type Modelo } from './motor'
 import { MAX_TEXTO_REVISOR, type ArgumentoRevisado, type RelatorioRevisor } from './revisor-relatorio'
 
@@ -132,9 +132,8 @@ export interface PassosRevisor {
   /** a versão do pedido de formalização, para o relatório */
   prompt: string
   extrair: Perguntar
-  formalizar: Perguntar
-  /** as mensagens de formalização de um argumento (o pedido e os exemplos ficam com quem chama) */
-  mensagens: (texto: { premissas: string[]; conclusao: string }) => Mensagem[]
+  /** a formalização de um argumento, com o reparo (o pedido, os exemplos e o modo, cego ou não, ficam com quem chama) */
+  traduzir: (texto: { premissas: string[]; conclusao: string }) => Promise<{ conteudo: string; reparo: string | null }>
   /** tira o modelo da memória antes do Z3 */
   descarregar: () => Promise<void>
   /** a classe pelo Z3; lança com o motivo (premissas inconsistentes, Z3 sem decidir) */
@@ -164,7 +163,7 @@ export async function revisarPlano(texto: string, passos: PassosRevisor): Promis
     passos.progresso?.('traduzindo', i, argumentos.length)
     const t = { premissas: arg.apoios.map(textoDe), conclusao: textoDe(arg.conclusao) }
     try {
-      const r = await formalizarComReparo(passos.formalizar, passos.mensagens(t), null, t.premissas.length)
+      const r = await passos.traduzir(t)
       try { traduzidos.push({ arg, proposta: lerProposta(r.conteudo, null), ...(r.reparo ? { reparo: r.reparo } : {}) }) } catch (e) { traduzidos.push({ arg, motivo: (e as Error).message }) }
     } catch (e) { traduzidos.push({ arg, motivo: (e as Error).message }) }
   }

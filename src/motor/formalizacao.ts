@@ -107,6 +107,101 @@ export async function formalizarComReparo(perguntar: Perguntar, mensagens: Mensa
   return { conteudo: s.conteudo, prompt: r.prompt + s.prompt, completion: r.completion + s.completion, reparo: erro }
 }
 
+/**
+ * A tradução cega (versão CEGO_FORMALIZACAO, 29/10/2026). Nas frases G- (formalizacao-v1.md §8) o modelo entortava a
+ * premissa para a conclusão seguir ("só pode A se B" virava B ⟹ A), e nem uma regra explícita no pedido (a v4, não
+ * adotada) tirou isso. Aqui ele não vê a conclusão enquanto traduz as premissas: primeiro as premissas, numa chamada
+ * sem a conclusão; depois a conclusão, numa chamada que vê só a frase e o vocabulário já em uso, sem as fórmulas das
+ * premissas. As regras de leitura são as do pedido PROMPT_FORMALIZACAO; a classe fica para o Z3 (o modelo não dá).
+ * Cada passo tem o reparo: a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez com o erro.
+ */
+export const CEGO_FORMALIZACAO = 'cego-v1'
+const REGRAS = SISTEMA.slice(0, SISTEMA.indexOf('\n\nClassifique a conclusão'))
+const LEITURA_DO_VOCABULARIO = 'Na leitura, use "x é médico" para predicado de um lugar, "x admira y" para dois lugares e o nome próprio para constante.'
+const SISTEMA_PREMISSAS = `${REGRAS}
+
+Agora você recebe só as premissas de um argumento: a conclusão fica de fora de propósito, para a tradução não se ajustar a ela. Formalize cada premissa exatamente como ela está.
+
+Responda SÓ com um objeto JSON, sem texto antes ou depois:
+{"vocabulario": [{"simbolo": "...", "tipo": "predicado" ou "constante", "aridade": número, "leitura": "..."}], "premissas": ["..."]}
+${LEITURA_DO_VOCABULARIO}`
+const SISTEMA_CONCLUSAO = `${REGRAS}
+
+Agora você recebe uma frase só e o vocabulário que já está em uso. Formalize a frase exatamente como ela está, com os símbolos do vocabulário quando ela fala da mesma coisa; acrescente um símbolo novo só se precisar.
+
+Responda SÓ com um objeto JSON, sem texto antes ou depois, com o vocabulário inteiro (o que já estava e o novo):
+{"vocabulario": [{"simbolo": "...", "tipo": "predicado" ou "constante", "aridade": número, "leitura": "..."}], "conclusao": "..."}
+${LEITURA_DO_VOCABULARIO}`
+const termoDoEsquema = ESQUEMA_RESPOSTA.properties.vocabulario
+export const ESQUEMA_PREMISSAS = { type: 'object', properties: { vocabulario: termoDoEsquema, premissas: ESQUEMA_RESPOSTA.properties.premissas }, required: ['vocabulario', 'premissas'] } as const
+export const ESQUEMA_CONCLUSAO = { type: 'object', properties: { vocabulario: termoDoEsquema, conclusao: ESQUEMA_RESPOSTA.properties.conclusao }, required: ['vocabulario', 'conclusao'] } as const
+
+const pedirVocabulario = (v: Termo[] | null) => v ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(v)}` : 'Proponha o vocabulário.'
+export function mensagensDasPremissas(premissas: string[], vocabulario: Termo[] | null, exemplos: Item[]): Mensagem[] {
+  const entrada = (ps: string[], v: Termo[] | null) => [`Premissas:\n${ps.map((p) => `- ${p}`).join('\n')}`, pedirVocabulario(v)].join('\n\n')
+  const m: Mensagem[] = [{ role: 'system', content: SISTEMA_PREMISSAS }]
+  for (const e of exemplos.slice(0, 2)) m.push({ role: 'user', content: entrada(e.texto.premissas, e.vocabulario) }, { role: 'assistant', content: JSON.stringify({ vocabulario: e.vocabulario, premissas: e.gabarito.premissas }) })
+  m.push({ role: 'user', content: entrada(premissas, vocabulario) })
+  return m
+}
+export function mensagensDaConclusao(conclusao: string, vocabulario: Termo[], exato: boolean, exemplos: Item[]): Mensagem[] {
+  const entrada = (c: string, v: Termo[], usarSo: boolean) => [`Frase: ${c}`, usarSo ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(v)}` : `Vocabulário em uso:\n${JSON.stringify(v)}`].join('\n\n')
+  const m: Mensagem[] = [{ role: 'system', content: SISTEMA_CONCLUSAO }]
+  for (const e of exemplos.slice(0, 2)) m.push({ role: 'user', content: entrada(e.texto.conclusao, e.vocabulario, true) }, { role: 'assistant', content: JSON.stringify({ vocabulario: e.vocabulario, conclusao: e.gabarito.conclusao }) })
+  m.push({ role: 'user', content: entrada(conclusao, vocabulario, exato) })
+  return m
+}
+
+/** Pergunta e, se a resposta não passar em `conferir`, volta uma vez ao modelo com o erro. */
+async function comReparo(perguntar: Perguntar, mensagens: Mensagem[], conferir: (conteudo: string) => string | null) {
+  const r = await perguntar(mensagens)
+  let erro: string | null
+  try { erro = conferir(r.conteudo) } catch (e) { erro = (e as Error).message }
+  if (erro === null) return { ...r, reparo: null as string | null }
+  const s = await perguntar([...mensagens, { role: 'assistant', content: r.conteudo },
+    { role: 'user', content: `Essa resposta tem um erro: ${erro}. Corrija só isso e responda de novo com o objeto JSON completo.` }])
+  return { conteudo: s.conteudo, prompt: r.prompt + s.prompt, completion: r.completion + s.completion, reparo: erro }
+}
+
+/**
+ * As duas chamadas da tradução cega. Devolve a resposta no formato de sempre (vocabulário, premissas, conclusão e
+ * classe null), para lerProposta e para a nota; `perguntarPremissas` e `perguntarConclusao` são o mesmo modelo, com o
+ * esquema de cada passo.
+ */
+export async function formalizarCego(perguntarPremissas: Perguntar, perguntarConclusao: Perguntar, texto: { premissas: string[]; conclusao: string }, vocabulario: Termo[] | null, exemplos: Item[]) {
+  const n = texto.premissas.length
+  // as premissas sozinhas: a conclusão provisória é a primeira premissa, só para lerProposta conferir as fórmulas
+  const lerPremissas = (conteudo: string) => {
+    const o = objetoDaResposta(conteudo) as Record<string, unknown>
+    if (!ehObjeto(o) || !Array.isArray(o.premissas)) throw new Error('falta a lista de premissas')
+    if (o.premissas.length !== n) throw new Error(`o texto tem ${n} premissa(s) e a resposta tem ${o.premissas.length}; escreva uma fórmula para cada premissa, na mesma ordem`)
+    return lerProposta(JSON.stringify({ vocabulario: o.vocabulario, premissas: o.premissas, conclusao: o.premissas[0], classe: null }), vocabulario)
+  }
+  const r1 = await comReparo(perguntarPremissas, mensagensDasPremissas(texto.premissas, vocabulario, exemplos), (c) => { lerPremissas(c); return null })
+  let p1: Proposta
+  try { p1 = lerPremissas(r1.conteudo) } catch {
+    // as premissas não se leram nem depois do reparo: a resposta vai assim mesmo, e a leitura de quem chama recusa
+    return { conteudo: r1.conteudo, prompt: r1.prompt, completion: r1.completion, reparo: r1.reparo }
+  }
+  const emUso = vocabulario ?? p1.vocabulario
+  const juntar = (conteudo: string) => {
+    const o = objetoDaResposta(conteudo) as Record<string, unknown>
+    if (!ehObjeto(o) || typeof o.conclusao !== 'string') throw new Error('falta a conclusão')
+    // a conclusão que repete a fórmula de uma premissa de texto diferente ("o homem é eterno" virando "Deus é eterno"):
+    // daria "segue" sem o texto dizer isso. Volta com o erro; se insistir, fica sem conclusão e não se decide
+    const igual = (a: string, b: string) => a.replace(/\s+/g, '') === b.replace(/\s+/g, '')
+    if (p1.premissas.some((f, i) => igual(f, o.conclusao as string) && !igual(texto.premissas[i], texto.conclusao)))
+      throw new Error('essa fórmula repete uma das premissas, mas a frase é outra; formalize a frase exatamente como ela está, com o sujeito dela')
+    const novos = vocabulario || !Array.isArray(o.vocabulario) ? [] : o.vocabulario.filter((t) => ehObjeto(t) && typeof t.simbolo === 'string' && !emUso.some((u) => u.simbolo === t.simbolo))
+    return JSON.stringify({ vocabulario: [...emUso, ...novos], premissas: p1.premissas, conclusao: o.conclusao, classe: null })
+  }
+  const r2 = await comReparo(perguntarConclusao, mensagensDaConclusao(texto.conclusao, emUso, !!vocabulario, exemplos), (c) => { lerProposta(juntar(c), vocabulario); return null })
+  let conteudo: string
+  try { conteudo = juntar(r2.conteudo) } catch { conteudo = JSON.stringify({ vocabulario: emUso, premissas: p1.premissas, conclusao: '', classe: null }) }
+  const reparos = [r1.reparo && `premissas: ${r1.reparo}`, r2.reparo && `conclusão: ${r2.reparo}`].filter(Boolean)
+  return { conteudo, prompt: r1.prompt + r2.prompt, completion: r1.completion + r2.completion, reparo: reparos.length ? reparos.join('; ') : null }
+}
+
 /** O primeiro objeto JSON da resposta, sem o raciocínio entre <think> e sem cercas de código. */
 function objetoDaResposta(conteudo: string): unknown {
   const limpo = conteudo.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```(?:json)?/g, '')

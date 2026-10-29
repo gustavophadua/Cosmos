@@ -10,7 +10,7 @@ import { dirname } from 'node:path'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { criarAdaptadorOllama, descarregarModeloOllama } from './provedores/ollama'
 import { criarConferidorZ3 } from './ollama-node'
-import { ESQUEMA_RESPOSTA, mensagensDeFormalizacao, PROMPT_FORMALIZACAO } from '../motor/formalizacao'
+import { CEGO_FORMALIZACAO, ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, formalizarCego, PROMPT_FORMALIZACAO } from '../motor/formalizacao'
 import { ESQUEMA_EXTRACAO, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import type { Item } from '../motor/avaliacao'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
@@ -170,14 +170,15 @@ export function criarServicoRevisor(o: OpcoesServidorRevisor) {
 export function revisorOllama(opcoes: { modelo?: string; trabalhadorZ3: URL }): Revisar {
   const modelo = opcoes.modelo ?? 'qwen3:4b'
   const exemplos = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
-  const perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096 })
+  const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096 })
+  const conclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096 })
   const extrair = criarAdaptadorOllama({ modelo, formato: ESQUEMA_EXTRACAO, temperatura: 0, semente: 0, contexto: 8192 })
   const conferidor = criarConferidorZ3(opcoes.trabalhadorZ3)
   return (texto, progresso) => {
     conferidor.parar()
     return revisarPlano(texto, {
-      prompt: PROMPT_FORMALIZACAO, extrair, formalizar: perguntar, progresso,
-      mensagens: (t) => mensagensDeFormalizacao(t, null, exemplos),
+      prompt: `${CEGO_FORMALIZACAO} (${PROMPT_FORMALIZACAO})`, extrair, progresso,
+      traduzir: (t) => formalizarCego(premissas, conclusao, t, null, exemplos),
       descarregar: () => descarregarModeloOllama(modelo),
       classificar: async (p) => {
         const c = await conferidor.conferir({ ...p, classe: null })

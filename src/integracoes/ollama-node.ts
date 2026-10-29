@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Worker } from 'node:worker_threads'
 import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } from './provedores/ollama'
-import { ESQUEMA_RESPOSTA, formalizarComReparo, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
+import { CEGO_FORMALIZACAO, ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, formalizarCego, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
 import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
@@ -78,14 +78,18 @@ export function validarTextoRevisor(x: unknown): string {
 
 /**
  * A formalização pelo Ollama local, servida pela ponte (rotas `ollama/estado` e `ollama`). Só o pedido fixo
- * (PROMPT_FORMALIZACAO, saída presa ao esquema, temperatura 0): o navegador manda premissas e conclusão, nunca mensagens,
- * modelo ou destino. O texto não sai do aparelho. Uma chamada de cada vez; na CPU, cada uma leva cerca de um minuto.
+ * (a tradução cega CEGO_FORMALIZACAO sobre as regras de PROMPT_FORMALIZACAO, saída presa ao esquema de cada passo,
+ * temperatura 0; a classe fica para o Z3): o navegador manda premissas e conclusão, nunca mensagens, modelo ou destino.
+ * O texto não sai do aparelho. Um pedido de cada vez (duas chamadas ao modelo, mais o reparo quando precisa).
  * Não depende da sessão P0 (15 minutos, feita para a chave do Groq): aqui não há segredo, e a rota vale enquanto o
  * serviço local estiver aberto, presa à mesma origem e ao marcador da ponte.
  */
 export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
-  const perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
+  // a tradução cega: as premissas sem a conclusão, depois a conclusão só com o vocabulário (formalizacao-v1.md §8b)
+  const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
+  const conclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
+  const traduzir = (t: { premissas: string[]; conclusao: string }) => formalizarCego(premissas, conclusao, t, null, EXEMPLOS)
   // o extrator do revisor lê um bloco de até 1.500 caracteres e devolve a lista de afirmações: precisa de mais contexto
   const extrair = criarAdaptadorOllama({ modelo, formato: ESQUEMA_EXTRACAO, temperatura: 0, semente: 0, contexto: 8192, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   let pendente = false, encerrado = false
@@ -98,8 +102,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
     pendente = true
     opcoes.conferidor?.parar()
     void revisarPlano(texto, {
-      prompt: PROMPT_FORMALIZACAO, extrair, formalizar: perguntar,
-      mensagens: (t) => mensagensDeFormalizacao(t, null, EXEMPLOS),
+      prompt: `${CEGO_FORMALIZACAO} (${PROMPT_FORMALIZACAO})`, extrair, traduzir,
       descarregar: () => descarregarModeloOllama(modelo, opcoes.buscar),
       classificar: async (p) => {
         if (!opcoes.conferidor) throw new Error('o Z3 não está disponível')
@@ -137,7 +140,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
-          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR })
+          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, cego: CEGO_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR })
         } catch (e) {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: /não está instalado/.test((e as Error).message) ? 'sem-modelo' : 'indisponivel', modelo })
         }
@@ -172,8 +175,8 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
         const texto = validarTextoFormalizacao(await lerCorpo(req))
         opcoes.conferidor?.parar()
         const inicio = Date.now()
-        // a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com o erro (reparo-v1)
-        const r = await formalizarComReparo(perguntar, mensagensDeFormalizacao(texto, null, EXEMPLOS), null, texto.premissas.length)
+        // em cada passo, a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com o erro
+        const r = await traduzir(texto)
         if (encerrado) throw new ErroOllama(503, 'indisponivel')
         enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
       } finally { pendente = false }
