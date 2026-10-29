@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from './ui/button'
 import { criarClienteOllama, type EstadoRevisao } from './ollama-cliente'
-import { MAX_TEXTO_REVISOR, relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor, type Veredito } from '../motor/revisor'
+import { MAX_TEXTO_REVISOR, relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor, type Veredito } from '../motor/revisor-relatorio'
 
 const FASE: Record<string, string> = { extraindo: 'Separando afirmações e conclusões', traduzindo: 'Traduzindo cada argumento para m2', conferindo: 'O Z3 está conferindo' }
 const ORDEM: Veredito[] = ['salto', 'contradiz', 'incompativel', 'provado', 'sem-traducao']

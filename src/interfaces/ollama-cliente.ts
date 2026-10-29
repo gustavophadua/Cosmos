@@ -1,6 +1,6 @@
 import { ErroIntegracoes } from './integracoes-cliente'
 import { CLASSES, type Classe, type Termo } from '../motor/avaliacao'
-import type { RelatorioRevisor } from '../motor/revisor'
+import type { RelatorioRevisor } from '../motor/revisor-relatorio'
 
 export interface EstadoRevisao { estado: 'livre' | 'rodando' | 'pronto' | 'erro'; id?: number; fase?: string; feito?: number; total?: number; ms?: number; relatorio?: RelatorioRevisor; erro?: string }
 const relatorioValido = (r: unknown): r is RelatorioRevisor => typeof r === 'object' && r !== null && (r as RelatorioRevisor).formato === 'cosmos-revisor-v1'
