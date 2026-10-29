@@ -86,6 +86,27 @@ export function mensagensDeFormalizacao(texto: { premissas: string[]; conclusao:
   return m
 }
 
+/**
+ * O reparo (versão REPARO_FORMALIZACAO): a resposta que não se lê, ou que não tem uma fórmula para cada premissa do
+ * texto, volta uma vez ao modelo com o erro, para ele corrigir. Na revisão de erros (formalizacao-v1.md §8) eram
+ * parêntese não fechado, variável sem quantificador e premissa deixada de fora: erros que o modelo conserta quando
+ * sabe onde estão. Uma tentativa só; a segunda resposta vale como vier, e quem a lê continua sendo lerProposta.
+ */
+export const REPARO_FORMALIZACAO = 'reparo-v1'
+export type Perguntar = (m: Mensagem[]) => Promise<{ conteudo: string; prompt: number; completion: number }>
+export async function formalizarComReparo(perguntar: Perguntar, mensagens: Mensagem[], vocabulario: Termo[] | null, premissasDoTexto: number) {
+  const r = await perguntar(mensagens)
+  let erro: string
+  try {
+    const n = lerProposta(r.conteudo, vocabulario).premissas.length
+    if (n === premissasDoTexto) return { ...r, reparo: null }
+    erro = `o texto tem ${premissasDoTexto} premissa(s) e a resposta tem ${n}; escreva uma fórmula para cada premissa, na mesma ordem`
+  } catch (e) { erro = (e as Error).message }
+  const s = await perguntar([...mensagens, { role: 'assistant', content: r.conteudo },
+    { role: 'user', content: `Essa resposta tem um erro: ${erro}. Corrija só isso e responda de novo com o objeto JSON completo.` }])
+  return { conteudo: s.conteudo, prompt: r.prompt + s.prompt, completion: r.completion + s.completion, reparo: erro }
+}
+
 /** O primeiro objeto JSON da resposta, sem o raciocínio entre <think> e sem cercas de código. */
 function objetoDaResposta(conteudo: string): unknown {
   const limpo = conteudo.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```(?:json)?/g, '')

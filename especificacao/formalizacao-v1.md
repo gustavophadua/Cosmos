@@ -21,6 +21,12 @@ para a conclusão que só não segue (com as falácias mais comuns como exemplo)
 3cdfaeb). A `formalizacao-v3` (29/10/2026) pede uma fórmula por premissa, na ordem do texto: a v2 deixava premissas de
 fora.
 
+O reparo (`reparo-v1`, 29/10/2026, `formalizarComReparo`): a resposta que não se lê, ou que não tem uma fórmula para
+cada premissa do texto, volta uma vez ao modelo com o erro do leitor ("'(' na coluna 4 não foi fechado", "o texto tem 2
+premissa(s) e a resposta tem 1"), e a segunda resposta vale como vier. O serviço local repara sempre; o piloto, só com
+`PILOTO_REPARO=1`, e a versão vai para meta.json. Uma medição com reparo é outra configuração: a medição 2 no fechado
+(§5b) foi sem ele.
+
 ## 2. A leitura da resposta
 
 - Tira o raciocínio entre `<think>` e as cercas de código; lê o primeiro objeto JSON.
@@ -159,7 +165,9 @@ faltam não se leram (dois parênteses não fechados, um símbolo fora do vocabu
 fiéis. Item a item contra a medição 1: duas fórmulas a mais, nenhuma a menos (McNemar p = 0,5; completas p = 0,39): a
 melhora não é significativa com 120 itens. O pedido foi ajustado só com os lotes públicos R- (§8), nunca com o fechado.
 Diferença de condição: a medição 1 rodou na CPU, a 2 na placa. Com a regra do modo automático (§3c), as 117 passariam,
-nenhuma errada. Resta uma medição no fechado.
+nenhuma errada. Resta uma medição no fechado. O resumo público da medição 2 (`public/cosmos-iai-v1-medicao-2.txt`: o
+modelo, a configuração, os hashes das respostas e das notas e os números, sem item nenhum) foi enviado ao OpenTimestamps
+em 29/10/2026; a prova `.ots` fica ao lado, à espera da confirmação no Bitcoin.
 
 ## 6. A memória de refutações
 
@@ -251,3 +259,9 @@ Leva 2, 501 itens novos com o pedido v3 (29/10, nenhum texto em comum com a leva
 Sobraram seis fórmulas erradas: quatro com uma premissa de fora (todas em "só se"), uma com a conclusão trocada pela que
 segue e uma que perdeu um "não". O modo automático aceitaria 497, só as duas últimas erradas, e não descartaria nenhuma
 certa. Com isso veio a medição 2 no fechado (§5b).
+
+O reparo (§1), nas quatro respostas da leva 2 que deixaram uma premissa de fora: as quatro voltaram com as duas
+premissas, iguais ao gabarito, em 60 a 110 s cada (a pergunta vai duas vezes ao modelo). Com ele, a v3 chega a 499/501
+fórmulas fiéis na leva 2 (99,6%); as duas que sobram se leem, têm a contagem certa e passariam no modo automático. É
+uma conferência nos itens que mostraram o defeito, não uma rodada nova: a primeira resposta, a temperatura 0, é a
+mesma, e o reparo só age quando ela falha.

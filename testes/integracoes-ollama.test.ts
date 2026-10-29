@@ -15,14 +15,14 @@ const PROPOSTA = JSON.stringify({ vocabulario: [{ simbolo: 'Gato', tipo: 'predic
   premissas: ['∀x (Gato(x) ⟹ ¬Banho(x))', 'Gato(mimi)'], conclusao: '¬Banho(mimi)', classe: 'segue' })
 const TEXTO = { premissas: ['Nenhum gato gosta de banho.', 'Mimi é uma gata.'], conclusao: 'Mimi não gosta de banho.' }
 
-function ollamaFalso(rodando = true) {
+function ollamaFalso(rodando = true, chats: string[] = []) {
   const pedidos: { url: string; corpo: unknown }[] = []
   const buscar = (async (url: string, init?: RequestInit) => {
     pedidos.push({ url, corpo: init?.body ? JSON.parse(init.body as string) : undefined })
     if (!rodando) throw new TypeError('fetch failed')
     const respostas: Record<string, unknown> = {
       '/api/tags': { models: [{ name: 'qwen3:4b', model: 'qwen3:4b', digest: DIGEST }] }, '/api/version': { version: '0.40.12' },
-      '/api/chat': { message: { content: PROPOSTA }, prompt_eval_count: 1100, eval_count: 160 }, '/api/generate': { done: true },
+      '/api/chat': { message: { content: chats.shift() ?? PROPOSTA }, prompt_eval_count: 1100, eval_count: 160 }, '/api/generate': { done: true },
     }
     const caminho = new URL(url).pathname
     return new Response(JSON.stringify(respostas[caminho]), { status: caminho in respostas ? 200 : 404, headers: { 'Content-Type': 'application/json' } })
@@ -31,13 +31,13 @@ function ollamaFalso(rodando = true) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3 } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[] } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as { port: number }).port, origem = `http://127.0.0.1:${port}`
   const api = criarApiIntegracoes({ origemPermitida: origem, ...(o.ttlSessaoMs ? { ttlSessaoMs: o.ttlSessaoMs } : {}) })
-  const falso = ollamaFalso(o.rodando ?? true)
+  const falso = ollamaFalso(o.rodando ?? true, o.chats)
   const chamar = (c: Chamada) => new Promise<number>((resolve, reject) => {
     const corpo = c.corpo === undefined ? undefined : JSON.stringify(c.corpo)
     const headers = Object.fromEntries(Object.entries({ Origin: origem, 'X-Cosmos-P0': '1', ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...c.headers }).filter(([, v]) => v !== undefined)) as Record<string, string>
@@ -69,6 +69,22 @@ describe('Formalização pelo Ollama local na ponte', () => {
     expect(mensagens.at(-1)!.content).toContain('Mimi não gosta de banho.')
     expect(c.pedidos.every((p) => p.url.startsWith('http://127.0.0.1:11434/'))).toBe(true)
   }))
+
+  it('reparo: a resposta com premissa de fora volta uma vez ao modelo com o erro; a segunda vale', async () => {
+    const SEM_PREMISSA = JSON.stringify({ ...JSON.parse(PROPOSTA), premissas: ['∀x (Gato(x) ⟹ ¬Banho(x))'] })
+    await ambiente(async (c) => {
+      const r = await c.cliente.formalizar(TEXTO)
+      expect(r).toEqual({ conteudo: PROPOSTA, prompt_tokens: 2200, completion_tokens: 320, reparo: 'o texto tem 2 premissa(s) e a resposta tem 1; escreva uma fórmula para cada premissa, na mesma ordem' })
+      const chats = c.pedidos.filter((p) => p.url.endsWith('/api/chat')).map((p) => (p.corpo as { messages: { role: string; content: string }[] }).messages)
+      expect(chats).toHaveLength(2)
+      expect(chats[1].slice(0, -2)).toEqual(chats[0])
+      expect(chats[1].at(-2)).toEqual({ role: 'assistant', content: SEM_PREMISSA })
+      expect(chats[1].at(-1)!.content).toContain('o texto tem 2 premissa(s)')
+      // a resposta certa de primeira não volta
+      await c.cliente.formalizar(TEXTO)
+      expect(c.pedidos.filter((p) => p.url.endsWith('/api/chat'))).toHaveLength(3)
+    }, { chats: [SEM_PREMISSA] })
+  })
 
   it('o corpo é só premissas e conclusão: mensagens, modelo ou campos a mais são recusados antes do Ollama', async () => ambiente(async (c) => {
     for (const corpo of [{ ...TEXTO, model: 'outro' }, { messages: [{ role: 'user', content: 'oi' }] }, { premissas: [], conclusao: 'x' }, { premissas: ['a'], conclusao: '' }, { premissas: ['a'.repeat(501)], conclusao: 'b' }])

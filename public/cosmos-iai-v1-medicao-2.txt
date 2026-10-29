@@ -1,0 +1,10 @@
+cosmos-iai-v1-medicao-2
+conjunto avaliacao-frases-v1 120 raiz 80c552d37f2619e87ad0fcc60133272d34f78ace24a90f216bf6c4d8270709a5
+medicao 2 de 3 no conjunto fechado, sem treino, 2026-10-29T10:25:20Z
+modelo qwen3:4b digest 359d7dd4bcdab3d86b87d73ac27966f4dbb9f5efdfcc75d34a8764a09474fae7 ollama 0.40.12 placa Vega 8 (Vulkan)
+pedido formalizacao-v3 saida esquema-json-v1 pensando false temperatura 0 semente 0 contexto 4096 sem reparo
+respostas_sha256 82f6e88fac14d400ef88f148172948ad334ef8c1527b55d8ba43c07608d1634c
+notas_sha256 a1b8a38db308bff93664e2e1956cc59fe7936308230f52aa2c4b5444e882da58
+formulas_fieis 117/120 classe_pelo_z3 117/120 classe_dita 97/120 completas 97/120 lidas 117/120
+medicao 1 (pedido formalizacao-v1, CPU): formulas_fieis 115/120; item a item, 2 a mais e nenhuma a menos (McNemar p 0,5)
+o pedido foi ajustado so com os lotes publicos R- de scripts/gerar-frases.py, nunca com o conjunto fechado

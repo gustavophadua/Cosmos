@@ -36,7 +36,7 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
     async formalizar(texto: { premissas: string[]; conclusao: string }, signal?: AbortSignal) {
       const o = await chamar('ollama', texto, 310000, signal)
       if (o.formato !== 'cosmos-ollama-resposta-v1' || typeof o.conteudo !== 'string' || !Number.isSafeInteger(o.prompt_tokens) || !Number.isSafeInteger(o.completion_tokens)) throw new ErroIntegracoes('invalido')
-      return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number }
+      return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number, ...(typeof o.reparo === 'string' ? { reparo: o.reparo } : {}) }
     },
     /** O modo automático: o Z3 dá a classe das fórmulas do modelo (a primeira abre o Z3). */
     async conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal) {

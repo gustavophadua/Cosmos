@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Worker } from 'node:worker_threads'
 import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } from './provedores/ollama'
-import { ESQUEMA_RESPOSTA, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
+import { ESQUEMA_RESPOSTA, formalizarComReparo, mensagensDeFormalizacao, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
@@ -105,7 +105,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
-          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO })
+          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO })
         } catch (e) {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: /não está instalado/.test((e as Error).message) ? 'sem-modelo' : 'indisponivel', modelo })
         }
@@ -127,9 +127,10 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
         const texto = validarTextoFormalizacao(await lerCorpo(req))
         opcoes.conferidor?.parar()
         const inicio = Date.now()
-        const r = await perguntar(mensagensDeFormalizacao(texto, null, EXEMPLOS))
+        // a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com o erro (reparo-v1)
+        const r = await formalizarComReparo(perguntar, mensagensDeFormalizacao(texto, null, EXEMPLOS), null, texto.premissas.length)
         if (encerrado) throw new ErroOllama(503, 'indisponivel')
-        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio })
+        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
       } finally { pendente = false }
     } catch (e) {
       const erro = e instanceof ErroOllama ? e : new ErroOllama(503, 'indisponivel')
