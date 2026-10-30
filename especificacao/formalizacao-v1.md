@@ -402,3 +402,13 @@ todo", "dona da sua função", "x invalida a existência de y") em 6 s; o Z3 deu
 inclusive "se A não é dona da sua função e B não é dona da sua função, então A não invalida a existência de B". Com a
 razão escrita, "toda pessoa possui senso próprio da realidade…" saiu provado. Nas duas, a primeira resposta veio com a
 lista de premissas vazia e o reparo resolveu: o gasto foi de cerca de 6 mil tokens por argumento.
+
+### 9d. "Vê como" no pedido: não adotado (30/10/2026)
+
+O caso de um usuário ("as pessoas veem as outras como se fossem deuses…") virou `Deus(y)`: "vê B como C" lido como "B é
+C". A `cego-v3` acrescentou às regras: "vê/trata/acha B como C" é uma relação de dois lugares, nunca a propriedade C(b),
+e "os outros" é alguém diferente (x ≠ y). Na metade de revisão G-, contra a `cego-v2`: fórmulas fiéis 83 contra 85
+(+1 −3), classe certa pelo Z3 92 contra 95 (+0 −3), falsos "segue" 0 nos dois. As três perdas não vêm da regra: com o
+pedido mais longo, o modelo pequeno pôs uma premissa a mais, deixou um x solto e inventou um sujeito ("eu"). Pela regra
+de só entrar o que não piora, ficou de fora. O caso continua coberto por outros caminhos: o "entendi" mostra o erro, a
+correção de termos aceita "x vê y como deus" como relação, e o modelo grande na nuvem lê esse tipo de frase.
