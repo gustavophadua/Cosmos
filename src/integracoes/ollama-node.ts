@@ -1,5 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { Worker } from 'node:worker_threads'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { verificarMensagemLocalTeste } from '../v4/carteira'
 import { criarAdaptadorOllama, descarregarModeloOllama, descreverModeloOllama } from './provedores/ollama'
 import { CEGO_FORMALIZACAO, ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, formalizarCego, PROMPT_FORMALIZACAO, REPARO_FORMALIZACAO, SAIDA_FORMALIZACAO } from '../motor/formalizacao'
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
@@ -58,6 +62,59 @@ export function validarPedidoPonte(x: unknown): ArgumentoFormal {
   return { vocabulario, premissas, conclusao, cenario: x.cenario as string[] }
 }
 
+/**
+ * O porteiro da IA local: o modelo só atende quem tem uma sessão aberta pela conta dona deste serviço. A sessão nasce de
+ * um desafio do serviço assinado pela chave da conta (COSMOS/IA/SESSAO/V1), o que exige a senha: outro programa ou outro
+ * usuário do computador, mesmo chamando 127.0.0.1, não usa o modelo. A primeira conta que se liga vira a dona (gravada em
+ * `arquivoDono`); trocar de dona é abrir o serviço com --novo-dono. A sessão cai com 10 minutos parada, como a conta.
+ */
+export interface OpcoesSessaoIA { arquivoDono: string; novoDono?: boolean; ociosoMs?: number }
+export function criarPorteiroIA(o: OpcoesSessaoIA) {
+  const ocioso = o.ociosoMs ?? 10 * 60 * 1000
+  let dono: string | null = null
+  if (!o.novoDono && existsSync(o.arquivoDono)) {
+    try {
+      const j = JSON.parse(readFileSync(o.arquivoDono, 'utf8')) as { formato?: string; pubkey?: string }
+      if (j.formato === 'cosmos-ia-dono-v1' && typeof j.pubkey === 'string' && /^(02|03)[a-f0-9]{64}$/.test(j.pubkey)) dono = j.pubkey
+    } catch { /* arquivo estragado: ninguém é dono até alguém se ligar */ }
+  }
+  const desafios = new Map<string, number>(), sessoes = new Map<string, number>()
+  const limpar = () => { const agora = Date.now(); for (const [d, ate] of desafios) if (ate < agora) desafios.delete(d); for (const [t, ultimo] of sessoes) if (agora - ultimo >= ocioso) sessoes.delete(t) }
+  return {
+    desafio() {
+      limpar()
+      while (desafios.size >= 20) desafios.delete(desafios.keys().next().value!)
+      const d = randomBytes(32).toString('hex')
+      desafios.set(d, Date.now() + 60_000)
+      return { desafio: d, ligada: dono !== null }
+    },
+    abrir(x: unknown) {
+      limpar()
+      if (!objetoSimples(x, 'assinatura,desafio,pubkey') || typeof x.desafio !== 'string' || typeof x.pubkey !== 'string' || typeof x.assinatura !== 'string') throw new ErroOllama(400, 'invalido')
+      if (!desafios.delete(x.desafio)) throw new ErroOllama(401, 'sem-sessao')
+      if (!verificarMensagemLocalTeste(x.pubkey, 'COSMOS/IA/SESSAO/V1', x.desafio, x.assinatura)) throw new ErroOllama(401, 'sem-sessao')
+      if (dono !== null && x.pubkey !== dono) throw new ErroOllama(403, 'outra-conta')
+      if (dono === null) {
+        dono = x.pubkey
+        mkdirSync(dirname(o.arquivoDono), { recursive: true })
+        writeFileSync(o.arquivoDono, JSON.stringify({ formato: 'cosmos-ia-dono-v1', pubkey: dono, ligadoEm: new Date().toISOString() }) + '\n')
+      }
+      while (sessoes.size >= 8) sessoes.delete(sessoes.keys().next().value!)
+      const token = randomBytes(32).toString('hex')
+      sessoes.set(token, Date.now())
+      return { token, ociosoMs: ocioso }
+    },
+    /** Lança 401 sem uma sessão viva no cabeçalho X-Cosmos-Sessao; a viva ganha mais tempo. */
+    conferir(req: IncomingMessage) {
+      limpar()
+      const h = req.headers['x-cosmos-sessao']
+      if (typeof h !== 'string' || !/^[a-f0-9]{64}$/.test(h)) throw new ErroOllama(401, 'sem-sessao')
+      for (const t of sessoes.keys()) if (timingSafeEqual(Buffer.from(t), Buffer.from(h))) { sessoes.set(t, Date.now()); return }
+      throw new ErroOllama(401, 'sem-sessao')
+    },
+  }
+}
+
 export interface ConferidorZ3 { conferir(p: PropostaParaConferir): Promise<Conferencia>; parar(): void }
 /**
  * O Z3 numa thread (z3-trabalhador-node.ts), aberta na primeira conferência e encerrada antes de cada pedido ao modelo,
@@ -108,7 +165,7 @@ export function validarTextoRevisor(x: unknown): string {
  * `nuvem` (só com --groq): o mesmo pedido, as mesmas regras e a mesma tradução cega, pelo modelo grande no Groq, quando a
  * pessoa liga essa opção na Conversa. Aí o texto sai do aparelho (para o Groq); o Z3 continua decidindo aqui.
  */
-export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3
+export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA
   nuvem?: { executar: (p: PedidoGroq) => Promise<{ conteudo: string; usage: { prompt_tokens: number; completion_tokens: number } }>; modelo: ModeloGroq } }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   // a tradução cega: as premissas sem a conclusão, depois a conclusão só com o vocabulário (formalizacao-v1.md §8b)
@@ -117,6 +174,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
   // com o vocabulário corrigido pela pessoa, ele fica fixo nas duas chamadas
   const traduzir = (t: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }) => formalizarCego(premissas, conclusao, t, t.vocabulario ?? null, EXEMPLOS)
   const nuvem = opcoes.nuvem
+  const porteiro = opcoes.sessao ? criarPorteiroIA(opcoes.sessao) : null
   // no Groq não há esquema preso à saída: o pedido já manda responder só com o objeto JSON, e quem lê confere
   const perguntarNuvem = nuvem && (async (messages: { role: 'system' | 'user' | 'assistant'; content: string }[]) => {
     const r = await nuvem.executar({ model: nuvem.modelo, messages, max_tokens: 4096, temperature: 0 })
@@ -174,12 +232,24 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
-          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, cego: CEGO_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR, nuvem: nuvem?.modelo ?? null })
+          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, cego: CEGO_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR, nuvem: nuvem?.modelo ?? null, sessao: porteiro ? 'exigida' : 'livre' })
         } catch (e) {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: /não está instalado/.test((e as Error).message) ? 'sem-modelo' : 'indisponivel', modelo })
         }
         return
       }
+      if (rota === 'ollama/desafio') {
+        if (!porteiro) throw new ErroOllama(404, 'invalido')
+        enviar(res, 200, { formato: 'cosmos-ia-desafio-v1', ...porteiro.desafio() })
+        return
+      }
+      if (rota === 'ollama/sessao') {
+        if (!porteiro) throw new ErroOllama(404, 'invalido')
+        enviar(res, 200, { formato: 'cosmos-ia-sessao-v1', ...porteiro.abrir(await lerCorpo(req, 4096)) })
+        return
+      }
+      // daqui em diante, tudo usa o modelo ou mostra o que ele fez: só com a sessão da conta dona
+      porteiro?.conferir(req)
       if (rota === 'ollama/revisar/estado') {
         const r = revisao
         enviar(res, 200, r ? { formato: 'cosmos-revisor-estado-v1', id: r.id, estado: r.estado, fase: r.fase, feito: r.feito, total: r.total, ms: Date.now() - r.inicio,

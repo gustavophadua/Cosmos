@@ -1,6 +1,6 @@
-import { bytesToHex } from '@noble/hashes/utils.js'
+import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js'
 import { canonicalizarV2, lerCanonicoV2 } from '../v2/canonico'
-import { criarCofreTeste, lerCofreTeste, assinarPerfilLocal, chaveDadosLocaisTeste, assinarOperacaoLocalTeste, derivarEnderecoTeste, type CofreTeste, type PerfilAssinado } from '../v4/carteira'
+import { criarCofreTeste, lerCofreTeste, assinarPerfilLocal, chaveDadosLocaisTeste, assinarOperacaoLocalTeste, derivarEnderecoTeste, assinarMensagemLocalTeste, type CofreTeste, type DominioMensagem, type PerfilAssinado } from '../v4/carteira'
 import { somenteHostLocal } from '../v4/localnet'
 import { dadosVazios, cifrarDadosConta, decifrarDadosConta, type DadosConta, type DadosCifrados } from './dados'
 import { lerLinhaLocal, gravarLinhaLocal, gravarLinhasLocais } from './banco'
@@ -71,6 +71,51 @@ export async function entrarContaLocal(senha: string, apelido: string): Promise<
   if (g !== geracao || localStorage.getItem(STORAGE_COFRE_LOCAL) !== texto) throw new Error('Cofre ou sessão mudou durante o acesso')
   chave = k; cofreAtual = texto; revisaoDados = linha?.revisao ?? 0; atividade = Date.now()
   publicar({ perfil, dados, ledger, erro: '' })
+  // quem precisa da chave da conta só neste momento (a IA local pede uma assinatura): a senha não sai daqui
+  for (const f of aoEntrar) void f((dominio, mensagem) => assinarMensagemLocalTeste(cofre, senha, dominio, mensagem), titular).catch(() => {})
+}
+
+type Assinar = (dominio: DominioMensagem, mensagem: string) => Promise<{ pubkey: string; assinatura: string }>
+const aoEntrar = new Set<(assinar: Assinar, titular: string) => Promise<void>>()
+/** Roda a cada entrada na conta, com uma assinatura pela chave dela (a senha não é exposta). Devolve o cancelamento. */
+export const registrarAoEntrar = (f: (assinar: Assinar, titular: string) => Promise<void>) => { aoEntrar.add(f); return () => { aoEntrar.delete(f) } }
+/** A mesma assinatura com a conta já aberta, pedindo a senha de novo (religar a IA depois que o serviço reiniciou). */
+export async function assinarComSenha(senha: string, dominio: DominioMensagem, mensagem: string) {
+  const a = autenticada()
+  const r = await assinarMensagemLocalTeste(a.cofre, senha, dominio, mensagem)
+  atual(a.geracao)
+  if (r.pubkey !== a.titular) throw new Error('A senha não é desta conta')
+  return r
+}
+
+/**
+ * Linhas seladas: um valor JSON por nome, cifrado com a chave da conta (AES-GCM, preso ao titular e ao nome), fora dos
+ * dados da conta (que têm formato e limite fixos). O histórico completo da IA mora aqui.
+ */
+const SELADO = 'cosmos-selado-v1'
+const aadSelado = (titular: string, nome: string) => new TextEncoder().encode(`COSMOS/SELADO/V1|${titular}|${nome}`)
+const nomeValido = (nome: string) => { if (!/^[a-z0-9:-]{1,64}$/.test(nome)) throw new Error('Nome de linha selada inválido') }
+export async function lerSelado<T>(nome: string): Promise<T | null> {
+  nomeValido(nome)
+  const a = autenticada(), linha = await lerLinhaLocal(`selado:${a.titular}:${nome}`)
+  if (!linha) return null
+  const env = JSON.parse(linha.valor) as { formato: string; iv: string; cifrado: string }
+  if (env.formato !== SELADO || !/^[a-f0-9]{24}$/.test(env.iv) || !/^(?:[a-f0-9]{2})+$/.test(env.cifrado)) throw new Error('Linha selada inválida')
+  const claro = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: hexToBytes(env.iv), additionalData: aadSelado(a.titular, nome) }, a.chave, hexToBytes(env.cifrado))
+  atual(a.geracao)
+  return JSON.parse(new TextDecoder().decode(claro)) as T
+}
+export function gravarSelado(nome: string, valor: unknown): Promise<void> {
+  nomeValido(nome)
+  return serial(async () => {
+    const a = autenticada(), chaveLinha = `selado:${a.titular}:${nome}`
+    const iv = crypto.getRandomValues(new Uint8Array(12)), bytes = new TextEncoder().encode(JSON.stringify(valor))
+    let cifrado: ArrayBuffer
+    try { cifrado = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: aadSelado(a.titular, nome) }, a.chave, bytes) } finally { bytes.fill(0) }
+    atual(a.geracao)
+    const antes = await lerLinhaLocal(chaveLinha)
+    await gravarLinhaLocal(chaveLinha, antes?.revisao ?? 0, JSON.stringify({ formato: SELADO, iv: bytesToHex(iv), cifrado: bytesToHex(new Uint8Array(cifrado)) }))
+  })
 }
 export function salvarDadosConta(mudar: (d: DadosConta) => DadosConta): Promise<void> {
   return serial(async () => {

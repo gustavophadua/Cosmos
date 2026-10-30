@@ -14,7 +14,9 @@ const { build } = await import('vite')
 const origem = 'http://127.0.0.1:4175'
 let ponte, api, server, encerrando = false
 const opcaoOllama = process.argv.find(a => a === '--ollama' || a.startsWith('--ollama='))
-const ollama = opcaoOllama ? (opcaoOllama.includes('=') ? { modelo: opcaoOllama.slice(9) } : {}) : null
+// a IA só atende a conta dona (privado/ia-dono.json, fora do Git); --novo-dono deixa a próxima conta que entrar virar a dona
+const sessao = { arquivoDono: 'privado/ia-dono.json', novoDono: process.argv.includes('--novo-dono') }
+const ollama = opcaoOllama ? { ...(opcaoOllama.includes('=') ? { modelo: opcaoOllama.slice(9) } : {}), sessao } : null
 async function encerrar() {
   if (encerrando) return
   encerrando = true

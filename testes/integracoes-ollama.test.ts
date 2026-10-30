@@ -9,6 +9,10 @@ import { criarPonteIntegracoes } from '../src/integracoes/ponte-node'
 import { validarTextoFormalizacao, type ConferidorZ3, type PropostaParaConferir } from '../src/integracoes/ollama-node'
 import { criarClienteOllama } from '../src/interfaces/ollama-cliente'
 import { ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, lerProposta } from '../src/motor/formalizacao'
+import { assinarMensagemLocalTeste, criarCofreTeste } from '../src/v4/carteira'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const DIGEST = 'b'.repeat(64)
 const PROPOSTA = JSON.stringify({ vocabulario: [{ simbolo: 'Gato', tipo: 'predicado', aridade: 1, leitura: 'gato' }, { simbolo: 'Banho', tipo: 'predicado', aridade: 1, leitura: 'gosta de banho' }, { simbolo: 'mimi', tipo: 'constante', aridade: 0, leitura: 'Mimi' }],
@@ -33,7 +37,7 @@ function ollamaFalso(rodando = true, chats: string[] = []) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[]; groq?: typeof fetch } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[]; groq?: typeof fetch; sessao?: { arquivoDono: string }; token?: () => string | null } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -49,9 +53,9 @@ async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>
   try {
     const endereco = await api.iniciar(), token = api.emitirSessaoLocal().token
     ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.groq ? { groq: { chave: () => 'chave-de-teste-123', buscar: o.groq } } : {}),
-      ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}) } }) })
+      ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}), ...(o.sessao ? { sessao: o.sessao } : {}) } }) })
     const browser: typeof fetch = (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: origem, 'Sec-Fetch-Site': 'same-origin' } })
-    await fn({ cliente: criarClienteOllama(origem, browser), chamar, pedidos: falso.pedidos })
+    await fn({ cliente: criarClienteOllama(origem, browser, o.token), chamar, pedidos: falso.pedidos })
   } finally {
     ponte?.encerrar(); await api.encerrar()
     await new Promise<void>((resolve) => { server.close(() => resolve()); server.closeAllConnections() })
@@ -60,7 +64,7 @@ async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>
 
 describe('Formalização pelo Ollama local na ponte', () => {
   it('estado com digest; a proposta sai com o pedido fixo, só para 127.0.0.1, e se lê', async () => ambiente(async (c) => {
-    expect(await c.cliente.carregar()).toEqual({ estado: 'pronto', modelo: 'qwen3:4b', digest: DIGEST, ollama: '0.40.12' })
+    expect(await c.cliente.carregar()).toEqual({ estado: 'pronto', modelo: 'qwen3:4b', digest: DIGEST, ollama: '0.40.12', sessao: 'livre' })
     const r = await c.cliente.formalizar(TEXTO)
     expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 2200, completion_tokens: 320, modelo: 'qwen3:4b' })
     expect(lerProposta(r.conteudo, null).conclusao).toBe('¬Banho(mimi)')
@@ -207,6 +211,21 @@ describe('Formalização pelo Ollama local na ponte', () => {
       expect((await c.cliente.carregar()).nuvem).toBeUndefined()
       expect(await c.chamar({ rota: 'ollama', metodo: 'POST', corpo: { ...TEXTO, nuvem: true } })).toBe(503)
     })
+  })
+
+  it('com o porteiro: sem a sessão da conta, o modelo não atende; com ela, atende', async () => {
+    const pasta = mkdtempSync(join(tmpdir(), 'cosmos-ia-ponte-'))
+    let token: string | null = null
+    const cofre = await criarCofreTeste('fixture-publica-ponte-ia-2026')
+    await ambiente(async (c) => {
+      expect(await c.cliente.carregar()).toMatchObject({ estado: 'pronto', sessao: 'exigida' })
+      await expect(c.cliente.formalizar(TEXTO)).rejects.toThrow('sessao-expirada')
+      expect(await c.chamar({ rota: 'ollama/revisar/estado' })).toBe(401)
+      expect(c.pedidos.some((p) => p.url.endsWith('/api/chat'))).toBe(false)
+      const d = await c.cliente.desafio()
+      token = (await c.cliente.abrirSessao({ desafio: d.desafio, ...(await assinarMensagemLocalTeste(cofre, 'fixture-publica-ponte-ia-2026', 'COSMOS/IA/SESSAO/V1', d.desafio)) })).token
+      expect((await c.cliente.formalizar(TEXTO)).conteudo).toBe(CEGA)
+    }, { sessao: { arquivoDono: join(pasta, 'ia-dono.json') }, token: () => token })
   })
 
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {

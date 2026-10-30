@@ -9,7 +9,7 @@ const ROTAS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   estado: ['GET'], configuracao: ['GET', 'PUT', 'DELETE'], testar: ['POST'], orcamento: ['GET'],
   executar: ['POST'], cancelar: ['POST'], 'contexto-rag': ['POST'],
   groq: ['POST'], 'groq/configuracao': ['GET', 'PUT'], 'groq/estado': ['GET'], 'groq/testar': ['POST'],
-  ollama: ['POST'], 'ollama/estado': ['GET'], 'ollama/conferir': ['POST'], 'ollama/ponte': ['POST'], 'ollama/revisar': ['POST'], 'ollama/revisar/estado': ['GET'],
+  ollama: ['POST'], 'ollama/estado': ['GET'], 'ollama/conferir': ['POST'], 'ollama/ponte': ['POST'], 'ollama/desafio': ['GET'], 'ollama/sessao': ['POST'], 'ollama/revisar': ['POST'], 'ollama/revisar/estado': ['GET'],
 })
 function unico(req: IncomingMessage, nome: string) {
   const valores = req.rawHeaders.filter((_, i) => i % 2 === 0).filter(h => h.toLowerCase() === nome)

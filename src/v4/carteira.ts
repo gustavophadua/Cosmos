@@ -103,6 +103,26 @@ export async function assinarPerfilLocal(cofre: CofreTeste, senha: string, apeli
     return { perfil, assinatura: bytesToHex(filho.sign(sha256(encoder.encode(canonicalizarV2(perfil))))) }
   })
 }
+/**
+ * Uma mensagem curta assinada pela chave da conta (índice 0), com domínio próprio: hoje, só o desafio do serviço local
+ * da IA ("COSMOS/IA/SESSAO/V1"), que liga o serviço à conta. Não assina operação, perfil nem nada de Bitcoin.
+ */
+const DOMINIOS_MENSAGEM = ['COSMOS/IA/SESSAO/V1'] as const
+export type DominioMensagem = typeof DOMINIOS_MENSAGEM[number]
+const resumoMensagem = (dominio: DominioMensagem, mensagem: string) => {
+  if (!DOMINIOS_MENSAGEM.includes(dominio) || typeof mensagem !== 'string' || mensagem.length < 1 || mensagem.length > 512) throw new Error('Mensagem para assinar inválida')
+  return sha256(encoder.encode(`${dominio}\n${mensagem}`))
+}
+export async function assinarMensagemLocalTeste(cofre: CofreTeste, senha: string, dominio: DominioMensagem, mensagem: string): Promise<{ pubkey: string; assinatura: string }> {
+  const resumo = resumoMensagem(dominio, mensagem)
+  return comFilho(cofre, senha, 0, filho => ({ pubkey: bytesToHex(filho.publicKey!), assinatura: bytesToHex(filho.sign(resumo)) }))
+}
+export function verificarMensagemLocalTeste(pubkey: string, dominio: DominioMensagem, mensagem: string, assinatura: string): boolean {
+  try {
+    if (!/^(02|03)[a-f0-9]{64}$/.test(pubkey) || !/^[a-f0-9]{128}$/.test(assinatura)) return false
+    return new HDKey({ publicKey: hexToBytes(pubkey), versions: VERSOES_TESTE }).verify(resumoMensagem(dominio, mensagem), hexToBytes(assinatura))
+  } catch { return false }
+}
 export function verificarPerfilLocal(p: PerfilAssinado): boolean {
   try {
     canonicalizarV2(p) // rejeita acessores sem executá-los, antes de ler o perfil

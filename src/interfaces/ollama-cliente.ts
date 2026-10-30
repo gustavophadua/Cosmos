@@ -8,24 +8,25 @@ const relatorioValido = (r: unknown): r is RelatorioRevisor => typeof r === 'obj
 /** A ligação que falta: a fórmula, a leitura em português e as premissas que a conclusão ainda usa; ou o motivo de não achar. */
 export interface OpcaoLigacao { ponte: string; leitura: string; essenciais: number[] }
 export type Ligacao = { opcoes: OpcaoLigacao[]; fonte: 'busca' | 'modelo'; outras: number } | { opcoes: []; motivo: string }
-export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'; modelo: string; digest?: string; ollama?: string; nuvem?: string }
+export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'; modelo: string; digest?: string; ollama?: string; nuvem?: string; sessao?: 'exigida' | 'livre' }
 
 /**
  * A formalização pelo Ollama local, pela ponte do serviço local (rotas ollama/estado e ollama). O navegador manda só
  * premissas e conclusão; o pedido, o modelo e as opções ficam no processo Node.
  */
-export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch) {
+export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch, sessao: () => string | null = () => null) {
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem) throw new ErroIntegracoes('sem-servico')
-  async function chamar(rota: 'ollama/estado' | 'ollama' | 'ollama/conferir' | 'ollama/ponte' | 'ollama/revisar' | 'ollama/revisar/estado', corpo: unknown, prazoMs: number, signal?: AbortSignal, limite = 131072) {
+  async function chamar(rota: 'ollama/estado' | 'ollama' | 'ollama/conferir' | 'ollama/ponte' | 'ollama/desafio' | 'ollama/sessao' | 'ollama/revisar' | 'ollama/revisar/estado', corpo: unknown, prazoMs: number, signal?: AbortSignal, limite = 131072) {
     const controle = new AbortController(), abortar = () => controle.abort()
     if (signal?.aborted) controle.abort()
     else signal?.addEventListener('abort', abortar, { once: true })
     const timer = setTimeout(abortar, prazoMs)
     try {
       const r = await buscar(`${origem}/cosmos/__p0/${rota}`, { method: corpo === undefined ? 'GET' : 'POST',
-        headers: { 'X-Cosmos-P0': '1', Accept: 'application/json', ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }) },
+        headers: { 'X-Cosmos-P0': '1', Accept: 'application/json', ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(sessao() ? { 'X-Cosmos-Sessao': sessao()! } : {}) },
         body: corpo === undefined ? undefined : JSON.stringify(corpo), signal: controle.signal, credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'same-origin' })
-      if (!r.ok) throw new ErroIntegracoes(r.status === 401 ? 'sessao-expirada' : r.status === 429 ? 'limite' : r.status === 400 ? 'invalido' : 'sem-servico')
+      // 401: sem a sessão da conta; 403 ao abrir a sessão: o serviço é de outra conta
+      if (!r.ok) throw new ErroIntegracoes(r.status === 401 ? 'sessao-expirada' : r.status === 403 ? 'conflito' : r.status === 429 ? 'limite' : r.status === 400 ? 'invalido' : 'sem-servico')
       if (!r.headers.get('content-type')?.startsWith('application/json')) throw new ErroIntegracoes('invalido')
       const texto = await r.text()
       if (texto.length > limite) throw new ErroIntegracoes('invalido')
@@ -38,7 +39,7 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
       const o = await chamar('ollama/estado', undefined, 15000, signal)
       if (o.formato !== 'cosmos-ollama-v1' || !['pronto', 'sem-modelo', 'indisponivel'].includes(o.estado as string) || typeof o.modelo !== 'string') throw new ErroIntegracoes('invalido')
       return { estado: o.estado as EstadoOllama['estado'], modelo: o.modelo, ...(typeof o.digest === 'string' ? { digest: o.digest } : {}), ...(typeof o.ollama === 'string' ? { ollama: o.ollama } : {}),
-        ...(typeof o.nuvem === 'string' && o.nuvem.length <= 80 ? { nuvem: o.nuvem } : {}) }
+        ...(typeof o.nuvem === 'string' && o.nuvem.length <= 80 ? { nuvem: o.nuvem } : {}), ...(o.sessao === 'exigida' || o.sessao === 'livre' ? { sessao: o.sessao } : {}) }
     },
     /** Na CPU, uma proposta leva cerca de um minuto; o prazo aqui é o mesmo da ponte. */
     async formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: boolean }, signal?: AbortSignal) {
@@ -66,6 +67,17 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
       if (opcoes.length && (o.fonte === 'busca' || o.fonte === 'modelo') && Number.isSafeInteger(o.outras)) return { opcoes, fonte: o.fonte, outras: o.outras as number }
       if (!opcoes.length && typeof o.motivo === 'string') return { opcoes: [], motivo: o.motivo.slice(0, 500) }
       throw new ErroIntegracoes('invalido')
+    },
+    /** O desafio que a conta assina para abrir a sessão da IA; `ligada`: o serviço já tem dona. */
+    async desafio(signal?: AbortSignal): Promise<{ desafio: string; ligada: boolean }> {
+      const o = await chamar('ollama/desafio', undefined, 15000, signal)
+      if (o.formato !== 'cosmos-ia-desafio-v1' || typeof o.desafio !== 'string' || !/^[a-f0-9]{64}$/.test(o.desafio) || typeof o.ligada !== 'boolean') throw new ErroIntegracoes('invalido')
+      return { desafio: o.desafio, ligada: o.ligada }
+    },
+    async abrirSessao(p: { desafio: string; pubkey: string; assinatura: string }, signal?: AbortSignal): Promise<{ token: string; ociosoMs: number }> {
+      const o = await chamar('ollama/sessao', { desafio: p.desafio, pubkey: p.pubkey, assinatura: p.assinatura }, 15000, signal)
+      if (o.formato !== 'cosmos-ia-sessao-v1' || typeof o.token !== 'string' || !/^[a-f0-9]{64}$/.test(o.token) || !Number.isSafeInteger(o.ociosoMs)) throw new ErroIntegracoes('invalido')
+      return { token: o.token, ociosoMs: o.ociosoMs as number }
     },
     /** O revisor de planos: começa em segundo plano (minutos) e se acompanha por estadoRevisao. */
     async revisar(texto: string, signal?: AbortSignal): Promise<EstadoRevisao> {
