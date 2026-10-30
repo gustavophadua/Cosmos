@@ -200,7 +200,11 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   progresso('Procurando as premissas que sustentam a conclusão…')
   const essenciais: number[] = []
   for (let i = 0; i < proposta.premissas.length; i++) {
-    const sem = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas.filter((_, j) => j !== i), conclusao: proposta.conclusao, classe: null })
+    const pedido = { vocabulario: proposta.vocabulario, premissas: proposta.premissas.filter((_, j) => j !== i), conclusao: proposta.conclusao, classe: null }
+    // o Z3 sem decidir não diz que a premissa é essencial: tenta de novo uma vez e, se falhar, não lista nenhuma
+    let sem = await cliente.conferir(pedido)
+    if (sem.classeZ3 === null) sem = await cliente.conferir(pedido)
+    if (sem.classeZ3 === null) return base
     if (sem.classeZ3 !== 'segue') essenciais.push(i)
   }
   return { ...base, essenciais }

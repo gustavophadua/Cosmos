@@ -76,6 +76,25 @@ describe('assistente da Conversa', () => {
     await expect(executar(cliente, 'verificar', 'Uma frase só.', (x) => lerProposta(x, null), () => undefined)).rejects.toThrow('Escreva o argumento em frases')
   })
 
+  it('contrariar: o Z3 sem decidir não vira premissa essencial; tenta de novo uma vez e, se falhar, não lista nenhuma', async () => {
+    let falhas = 0
+    const cliente = (falhar: number): ClienteIA => ({
+      formalizar: async () => ({ conteudo: PROPOSTA }),
+      conferir: async (p) => {
+        if (p.premissas.length === 2) return { classeZ3: 'segue', motivo: '' }
+        if (falhas < falhar) { falhas++; return { classeZ3: null, motivo: 'o Z3 não decidiu as premissas' } }
+        return { classeZ3: 'independente', motivo: '' }
+      },
+      revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+    })
+    const texto = 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.'
+    expect(await executar(cliente(1), 'contrariar', texto, (x) => lerProposta(x, null), () => undefined)).toMatchObject({ classe: 'segue', essenciais: [0, 1] })
+    falhas = 0
+    const r = await executar(cliente(2), 'contrariar', texto, (x) => lerProposta(x, null), () => undefined)
+    expect(r).toMatchObject({ classe: 'segue' })
+    expect(r).not.toHaveProperty('essenciais')
+  })
+
   it('a finalidade ("…, para saberem…") completa a razão; "as próprias" é lido como o sujeito da frase, e a resposta avisa', () => {
     // o caso real do dono (30/10/2026): a finalidade virava uma premissa e "as próprias" virava "x é própria"
     const a = separarArgumento('as pessoas veem as outras como se fossem deuses, porque as próprias não tem senso da realidade do tempo, para saberem que não são eternas')!
