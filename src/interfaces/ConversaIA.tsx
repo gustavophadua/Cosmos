@@ -6,6 +6,7 @@ import { COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, si
 import type { Termo } from '../motor/avaliacao'
 import { CartoesDoRelatorio } from './RevisorPlano'
 import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
+import { lerDeVolta } from '../motor/formalizacao'
 import type { Afirmacao } from '../motor/registro'
 import type { ParaRegistro } from './FormalizacaoAssistida'
 import './conversa-ia.css'
@@ -30,13 +31,17 @@ export function MenuDeComandos({ filtro, ia, aoEscolher }: { filtro: string; ia:
   </div>
 }
 
+/** O que o Cosmos entendeu de cada fórmula, lido de volta em português sem modelo: o erro de tradução aparece aqui. */
+const entendi = (formula: string | undefined, vocabulario: Termo[]) => { if (!formula) return null; try { return lerDeVolta(formula, vocabulario) } catch { return null } }
+const Entendi = ({ texto }: { texto: string | null }) => texto ? <small className="iai-entendi"> entendi: {texto}</small> : null
+
 type TipoNovo = 'um' | 'dois' | 'nome'
 /**
  * Como o Cosmos leu cada termo, e a correção: a pessoa muda a leitura ou acrescenta um termo ("x invalida a existência
  * de y"), e a verificação é refeita com esse vocabulário fixo. Contorna o modelo pequeno nas frases abstratas ("parte do
  * todo" lido como "x é todo").
  */
-function TermosDaLeitura({ vocabulario, aoRefazer }: { vocabulario: Termo[]; aoRefazer?: (v: Termo[]) => void }) {
+function TermosDaLeitura({ vocabulario, aoRefazer, aberto }: { vocabulario: Termo[]; aoRefazer?: (v: Termo[]) => void; aberto?: boolean }) {
   const [editando, setEditando] = useState(false)
   const [leituras, setLeituras] = useState(() => vocabulario.map((t) => t.leitura))
   const [novos, setNovos] = useState<{ tipo: TipoNovo; leitura: string }[]>([])
@@ -55,7 +60,8 @@ function TermosDaLeitura({ vocabulario, aoRefazer }: { vocabulario: Termo[]; aoR
     })
     return [...corrigidos, ...extras].slice(0, 40)
   }
-  if (!editando) return <details className="iai-termos"><summary>Como o Cosmos leu os termos</summary>
+  if (!editando) return <details className="iai-termos" open={aberto}><summary>Como o Cosmos leu os termos</summary>
+    {aberto && <small>Confira antes de aceitar uma ligação: se um termo foi lido errado, as fórmulas e a ligação também saem erradas.</small>}
     <ul>{vocabulario.map((t) => <li key={t.simbolo}><code>{t.simbolo}</code> {t.leitura}</li>)}</ul>
     {aoRefazer && <button type="button" onClick={() => setEditando(true)}>Corrigir os termos</button>}
   </details>
@@ -94,10 +100,11 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     <ol className="revisor-argumentos"><li data-veredito={provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'}>
       <header><strong>{titulo}</strong></header>
       {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
-      <p className="revisor-conclusao">{texto.conclusao}</p>
+      <p className="revisor-conclusao">{texto.conclusao}<Entendi texto={entendi(proposta.conclusao, proposta.vocabulario)} /></p>
       <small>Premissas:</small>
-      <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}</li>)}</ul>
+      <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}<Entendi texto={entendi(proposta.premissas[i], proposta.vocabulario)} /></li>)}</ul>
       {cenario && <><small>{comando === 'contrariar' ? 'O contra-exemplo: um cenário em que todas as premissas valem e a conclusão não.' : 'Um cenário em que todas as premissas valem e a conclusão não:'}</small><ul className="revisor-cenario">{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></>}
+      {classe === 'independente' && <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} aberto />}
       {classe === 'independente' && !achada && <small>{falhou ? `Não achei uma ligação que feche: ${falhou.motivo}.` : 'Para a conclusão valer, falta uma afirmação que ligue as premissas a ela.'}</small>}
       {achada && <div className="iai-ligacao">
         <small>{achada.opcoes.length > 1 ? 'Para a conclusão valer, falta aceitar uma ligação. Qualquer uma destas fecha o argumento (o Z3 conferiu cada uma); qual é a sua?' : 'Para a conclusão valer, falta aceitar:'}</small>
@@ -111,7 +118,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
         <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
       </div>}
       {essenciais && <small>{essenciais.length ? 'Negue uma das premissas marcadas e a conclusão cai; as outras não fazem falta.' : 'Nenhuma premissa sozinha sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
-      <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} />
+      {classe !== 'independente' && <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} />}
       <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
     </li></ol>
     {classe && <div className="iai-cartao-acoes">
