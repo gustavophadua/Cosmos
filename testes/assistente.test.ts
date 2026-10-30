@@ -76,6 +76,17 @@ describe('assistente da Conversa', () => {
     await expect(executar(cliente, 'verificar', 'Uma frase só.', (x) => lerProposta(x, null), () => undefined)).rejects.toThrow('Escreva o argumento em frases')
   })
 
+  it('a finalidade ("…, para saberem…") completa a razão; "as próprias" é lido como o sujeito da frase, e a resposta avisa', () => {
+    // o caso real do dono (30/10/2026): a finalidade virava uma premissa e "as próprias" virava "x é própria"
+    const a = separarArgumento('as pessoas veem as outras como se fossem deuses, porque as próprias não tem senso da realidade do tempo, para saberem que não são eternas')!
+    expect(a.premissas).toEqual(['As pessoas não tem senso da realidade do tempo, para saberem que não são eternas.'])
+    expect(a.conclusao).toBe('As pessoas veem as outras como se fossem deuses.')
+    expect(notasDaLeitura({ texto: a, classe: 'independente' })).toContain('Li "as próprias" como "as pessoas", o sujeito da frase.')
+    // pronome no singular não troca um sujeito no plural; sem sujeito com artigo, nada muda
+    expect(separarArgumento('Os clientes pagam em dia. Ela atrasou. Logo os clientes atrasam.')!.premissas[1]).toBe('Ela atrasou.')
+    expect(separarArgumento('Pedro estuda. Ele passa.')).toEqual({ premissas: ['Pedro estuda.'], conclusao: 'Ele passa.' })
+  })
+
   it('verificar um salto: pede a ligação que falta e o resumo separa fato, visão e lógica', async () => {
     const cliente: ClienteIA = {
       formalizar: async () => ({ conteudo: PROPOSTA }),

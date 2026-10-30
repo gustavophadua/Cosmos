@@ -41,7 +41,10 @@ export function detectar(texto: string): Acao {
 // as marcas de conclusão ("A, B, logo C") e de razão ("C porque A"), como palavra inteira
 const MARCA_CONCLUSAO = /(?<![\p{L}])(logo|ent[aã]o|portanto|por isso|por conseguinte|consequentemente|assim sendo|da[ií] que|dessa forma|desse modo)(?![\p{L}])[,:]?\s*/giu
 const MARCA_RAZAO = /(?<![\p{L}])(porque|pois|j[aá] que|visto que|uma vez que)(?![\p{L}])\s*/iu
+// a oração de finalidade ("…, para saberem que…", "…, a fim de…") completa a anterior: não é uma razão a mais
+const FINALIDADE = /^(para|pra|a fim de|de modo a)(?![\p{L}])/iu
 const partes = (s: string) => s.split(/\s*[;,]\s*/).map((p) => p.trim().replace(/^(e|mas|também)\s+/iu, '')).filter((p) => p.length > 1)
+  .reduce<string[]>((r, p) => (FINALIDADE.test(p) && r.length ? [...r.slice(0, -1), `${r.at(-1)}, ${p}`] : [...r, p]), [])
 const comPonto = (s: string) => { const t = s.trim().replace(/[\s,;:]+$/, ''); return /[.!?]$/.test(t) ? t : `${t}.` }
 const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 /**
@@ -80,6 +83,24 @@ export interface ArgumentoSeparado {
   suposta?: true
   /** as premissas que diziam "geralmente" (e o texto como veio), conferidas como se valessem para todos */
   atenuadas?: { premissa: number; palavra: string; original: string }[]
+  /** "as próprias", "elas"… no começo de uma razão, lidos como o sujeito da frase ("as pessoas") */
+  sujeitos?: { premissa: number; pronome: string; sujeito: string }[]
+}
+// o sujeito da frase (artigo e substantivo no começo da conclusão ou da primeira razão) e os pronomes que voltam a ele
+const SUJEITO = /^(?:(?:logo|então|portanto),?\s+)?((os|as|o|a)\s+\p{L}+)/iu
+const PRONOME = /^(as próprias|os próprios|a própria|o próprio|as mesmas|os mesmos|elas|eles|ela|ele)(?![\p{L}])/iu
+const plural = (s: string) => /^(os|as)\s/iu.test(s) || /^(elas|eles|as |os )/iu.test(s)
+function comSujeito(a: ArgumentoSeparado): ArgumentoSeparado {
+  const achado = SUJEITO.exec(a.conclusao) ?? SUJEITO.exec(a.premissas[0] ?? '')
+  if (!achado) return a
+  const sujeito = achado[1].toLowerCase(), sujeitos: NonNullable<ArgumentoSeparado['sujeitos']> = []
+  const premissas = a.premissas.map((p, i) => {
+    const m = PRONOME.exec(p)
+    if (!m || plural(m[1].toLowerCase() + ' ') !== plural(sujeito)) return p
+    sujeitos.push({ premissa: i, pronome: m[1].toLowerCase(), sujeito })
+    return maiuscula(sujeito) + p.slice(m[1].length)
+  })
+  return sujeitos.length ? { ...a, premissas, sujeitos } : a
 }
 function semAtenuantes(a: ArgumentoSeparado): ArgumentoSeparado {
   const atenuadas: NonNullable<ArgumentoSeparado['atenuadas']> = []
@@ -96,6 +117,7 @@ function semAtenuantes(a: ArgumentoSeparado): ArgumentoSeparado {
 export function notasDaLeitura(r: { texto: ArgumentoSeparado; classe: Classe | null }): string[] {
   const l: string[] = []
   if (r.texto.suposta) l.push('Não havia "logo" nem "então": li as primeiras partes como as razões e a última como a conclusão.')
+  for (const s of r.texto.sujeitos ?? []) l.push(`Li "${s.pronome}" como "${s.sujeito}", o sujeito da frase.`)
   for (const a of r.texto.atenuadas ?? []) {
     l.push(`"${a.original}" diz "${a.palavra}", e a lógica não tem "a maioria": para conferir, li como "${r.texto.premissas[a.premissa]}" (vale para todos).`)
     if (r.classe === 'segue') l.push(`Com "${a.palavra}", a conclusão não decorre: "${a.palavra}" admite exceções, e o caso da conclusão pode ser uma delas. Ela só está provada se a frase valer para todos, e aí essa premissa é uma generalização que precisa de fonte.`)
@@ -123,9 +145,9 @@ export function respostaAfirmacao(texto: string): string {
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
 export function separarArgumento(texto: string): ArgumentoSeparado | null {
   const fs = frases(texto)
-  if (fs.length === 1) { const a = argumentoNumaFrase(fs[0]); return a && semAtenuantes(a) }
+  if (fs.length === 1) { const a = argumentoNumaFrase(fs[0]); return a && semAtenuantes(comSujeito(a)) }
   if (fs.length < 2 || fs.length > 11) return null
-  return semAtenuantes({ premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) })
+  return semAtenuantes(comSujeito({ premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) }))
 }
 
 export type ResultadoIA =
