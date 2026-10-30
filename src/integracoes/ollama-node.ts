@@ -6,6 +6,8 @@ import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
 import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import { buscarPonte, ESQUEMA_PONTE, PONTE, type ArgumentoFormal } from '../motor/ponte'
+import type { ModeloGroq } from './groq-contratos'
+import type { PedidoGroq } from './provedores/groq'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -18,16 +20,18 @@ class ErroOllama extends Error { constructor(readonly status: number, readonly c
  * Premissas e conclusão em texto, e o vocabulário quando a pessoa corrigiu os termos na Conversa: o único corpo aceito.
  * Nada de mensagens, modelo ou opções vindos do navegador.
  */
-export function validarTextoFormalizacao(x: unknown): { premissas: string[]; conclusao: string; vocabulario?: Termo[] } {
-  const o = x as { premissas?: unknown; conclusao?: unknown; vocabulario?: unknown }
+export function validarTextoFormalizacao(x: unknown): { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: true } {
+  const o = x as { premissas?: unknown; conclusao?: unknown; vocabulario?: unknown; nuvem?: unknown }
   const texto = (s: unknown) => typeof s === 'string' && s.trim().length > 0 && s.length <= 500
-  const chaves = typeof x === 'object' && x !== null ? Object.keys(x).sort().join() : ''
+  // "nuvem": true, só esse valor, quando a pessoa ligou o modelo grande na Conversa
+  const chaves = typeof x === 'object' && x !== null ? Object.keys(x).filter((k) => k !== 'vocabulario' && k !== 'nuvem').sort().join() : ''
   if (typeof x !== 'object' || x === null || Array.isArray(x) || Object.getPrototypeOf(x) !== Object.prototype
-      || (chaves !== 'conclusao,premissas' && chaves !== 'conclusao,premissas,vocabulario') || !Array.isArray(o.premissas)
+      || chaves !== 'conclusao,premissas' || (o.nuvem !== undefined && o.nuvem !== true) || !Array.isArray(o.premissas)
       || o.premissas.length < 1 || o.premissas.length > 10 || !o.premissas.every(texto) || !texto(o.conclusao)
       || (o.vocabulario !== undefined && (!Array.isArray(o.vocabulario) || o.vocabulario.length < 1 || o.vocabulario.length > 40 || !o.vocabulario.every(termoValido)))) throw new ErroOllama(400, 'invalido')
   return { premissas: (o.premissas as string[]).map((p) => p.trim()), conclusao: (o.conclusao as string).trim(),
-    ...(o.vocabulario ? { vocabulario: (o.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })) } : {}) }
+    ...(o.vocabulario ? { vocabulario: (o.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })) } : {}),
+    ...(o.nuvem === true ? { nuvem: true as const } : {}) }
 }
 
 export interface PropostaParaConferir { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }
@@ -100,14 +104,24 @@ export function validarTextoRevisor(x: unknown): string {
  * O texto não sai do aparelho. Um pedido de cada vez (duas chamadas ao modelo, mais o reparo quando precisa).
  * Não depende da sessão P0 (15 minutos, feita para a chave do Groq): aqui não há segredo, e a rota vale enquanto o
  * serviço local estiver aberto, presa à mesma origem e ao marcador da ponte.
+ *
+ * `nuvem` (só com --groq): o mesmo pedido, as mesmas regras e a mesma tradução cega, pelo modelo grande no Groq, quando a
+ * pessoa liga essa opção na Conversa. Aí o texto sai do aparelho (para o Groq); o Z3 continua decidindo aqui.
  */
-export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 }) {
+export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3
+  nuvem?: { executar: (p: PedidoGroq) => Promise<{ conteudo: string; usage: { prompt_tokens: number; completion_tokens: number } }>; modelo: ModeloGroq } }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   // a tradução cega: as premissas sem a conclusão, depois a conclusão só com o vocabulário (formalizacao-v1.md §8b)
   const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   const conclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   // com o vocabulário corrigido pela pessoa, ele fica fixo nas duas chamadas
   const traduzir = (t: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }) => formalizarCego(premissas, conclusao, t, t.vocabulario ?? null, EXEMPLOS)
+  const nuvem = opcoes.nuvem
+  // no Groq não há esquema preso à saída: o pedido já manda responder só com o objeto JSON, e quem lê confere
+  const perguntarNuvem = nuvem && (async (messages: { role: 'system' | 'user' | 'assistant'; content: string }[]) => {
+    const r = await nuvem.executar({ model: nuvem.modelo, messages, max_tokens: 4096, temperature: 0 })
+    return { conteudo: r.conteudo, prompt: r.usage.prompt_tokens, completion: r.usage.completion_tokens }
+  })
   // a ligação que falta (ponte.ts): o modelo propõe, o Z3 confere
   const ligacao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PONTE, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   // o extrator do revisor lê um bloco de até 1.500 caracteres e devolve a lista de afirmações: precisa de mais contexto
@@ -160,7 +174,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       if (encerrado) throw new ErroOllama(503, 'encerrado')
       if (rota === 'ollama/estado') {
         try {
-          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, cego: CEGO_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR })
+          enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: 'pronto', ...(await descreverModeloOllama(modelo, opcoes.buscar)), prompt: PROMPT_FORMALIZACAO, cego: CEGO_FORMALIZACAO, saida: SAIDA_FORMALIZACAO, reparo: REPARO_FORMALIZACAO, extrator: EXTRATOR, nuvem: nuvem?.modelo ?? null })
         } catch (e) {
           enviar(res, 200, { formato: 'cosmos-ollama-v1', estado: /não está instalado/.test((e as Error).message) ? 'sem-modelo' : 'indisponivel', modelo })
         }
@@ -207,12 +221,13 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
           return
         }
         const texto = validarTextoFormalizacao(await lerCorpo(req))
+        if (texto.nuvem && !perguntarNuvem) throw new ErroOllama(503, 'sem-nuvem')
         opcoes.conferidor?.parar()
         const inicio = Date.now()
         // em cada passo, a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com o erro
-        const r = await traduzir(texto)
+        const r = texto.nuvem && perguntarNuvem ? await formalizarCego(perguntarNuvem, perguntarNuvem, texto, texto.vocabulario ?? null, EXEMPLOS) : await traduzir(texto)
         if (encerrado) throw new ErroOllama(503, 'indisponivel')
-        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
+        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo: texto.nuvem && nuvem ? nuvem.modelo : modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
       } finally { pendente = false }
     } catch (e) {
       const erro = e instanceof ErroOllama ? e : new ErroOllama(503, 'indisponivel')

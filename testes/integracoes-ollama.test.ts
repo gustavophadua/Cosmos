@@ -33,7 +33,7 @@ function ollamaFalso(rodando = true, chats: string[] = []) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[] } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[]; groq?: typeof fetch } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -48,7 +48,8 @@ async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>
   })
   try {
     const endereco = await api.iniciar(), token = api.emitirSessaoLocal().token
-    ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}) } }) })
+    ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.groq ? { groq: { chave: () => 'chave-de-teste-123', buscar: o.groq } } : {}),
+      ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}) } }) })
     const browser: typeof fetch = (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: origem, 'Sec-Fetch-Site': 'same-origin' } })
     await fn({ cliente: criarClienteOllama(origem, browser), chamar, pedidos: falso.pedidos })
   } finally {
@@ -61,7 +62,7 @@ describe('Formalização pelo Ollama local na ponte', () => {
   it('estado com digest; a proposta sai com o pedido fixo, só para 127.0.0.1, e se lê', async () => ambiente(async (c) => {
     expect(await c.cliente.carregar()).toEqual({ estado: 'pronto', modelo: 'qwen3:4b', digest: DIGEST, ollama: '0.40.12' })
     const r = await c.cliente.formalizar(TEXTO)
-    expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 2200, completion_tokens: 320 })
+    expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 2200, completion_tokens: 320, modelo: 'qwen3:4b' })
     expect(lerProposta(r.conteudo, null).conclusao).toBe('¬Banho(mimi)')
     // duas chamadas: as premissas sem a conclusão, depois a conclusão sem as premissas
     const [premissas, conclusao] = c.pedidos.filter((p) => p.url.endsWith('/api/chat'))
@@ -81,7 +82,7 @@ describe('Formalização pelo Ollama local na ponte', () => {
     const SEM_PREMISSA = JSON.stringify({ ...JSON.parse(PROPOSTA), premissas: ['∀x (Gato(x) ⟹ ¬Banho(x))'] })
     await ambiente(async (c) => {
       const r = await c.cliente.formalizar(TEXTO)
-      expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 3300, completion_tokens: 480, reparo: 'premissas: o texto tem 2 premissa(s) e a resposta tem 1; escreva uma fórmula para cada premissa, na mesma ordem' })
+      expect(r).toEqual({ conteudo: CEGA, prompt_tokens: 3300, completion_tokens: 480, modelo: 'qwen3:4b', reparo: 'premissas: o texto tem 2 premissa(s) e a resposta tem 1; escreva uma fórmula para cada premissa, na mesma ordem' })
       const chats = c.pedidos.filter((p) => p.url.endsWith('/api/chat')).map((p) => (p.corpo as { messages: { role: string; content: string }[] }).messages)
       expect(chats).toHaveLength(3)
       expect(chats[1].slice(0, -2)).toEqual(chats[0])
@@ -182,6 +183,30 @@ describe('Formalização pelo Ollama local na ponte', () => {
       for (const corpo of [{ ...p, classe: null, cenario: [] }, { vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, cenario: 'x' }])
         expect(await c.chamar({ rota: 'ollama/ponte', metodo: 'POST', corpo })).toBe(400)
     }, { conferidor })
+  })
+
+  it('a nuvem (só com --groq): a pessoa pede, as duas chamadas da tradução cega vão ao Groq e não ao Ollama; sem --groq, recusa', async () => {
+    const noGroq: { url: string; corpo: { model: string; messages: { content: string }[] } }[] = []
+    const groq = (async (url: string, init?: RequestInit) => {
+      noGroq.push({ url, corpo: JSON.parse(init!.body as string) })
+      return new Response(JSON.stringify({ choices: [{ message: { content: PROPOSTA } }], usage: { prompt_tokens: 900, completion_tokens: 100, total_tokens: 1000 } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    }) as typeof fetch
+    await ambiente(async (c) => {
+      expect((await c.cliente.carregar()).nuvem).toBe('openai/gpt-oss-120b')
+      const r = await c.cliente.formalizar({ ...TEXTO, nuvem: true })
+      expect(r).toMatchObject({ conteudo: CEGA, modelo: 'openai/gpt-oss-120b', prompt_tokens: 1800, completion_tokens: 200 })
+      expect(noGroq.map((x) => [x.url, x.corpo.model])).toEqual([['https://api.groq.com/openai/v1/chat/completions', 'openai/gpt-oss-120b'], ['https://api.groq.com/openai/v1/chat/completions', 'openai/gpt-oss-120b']])
+      // a mesma regra da tradução cega: a chamada das premissas não vê a conclusão
+      expect(noGroq[0].corpo.messages.at(-1)!.content).not.toContain('Mimi não gosta de banho.')
+      expect(c.pedidos.some((p) => p.url.endsWith('/api/chat'))).toBe(false)
+      // sem pedir, continua local
+      expect((await c.cliente.formalizar(TEXTO)).modelo).toBe('qwen3:4b')
+      expect(await c.chamar({ rota: 'ollama', metodo: 'POST', corpo: { ...TEXTO, nuvem: false } })).toBe(400)
+    }, { groq })
+    await ambiente(async (c) => {
+      expect((await c.cliente.carregar()).nuvem).toBeUndefined()
+      expect(await c.chamar({ rota: 'ollama', metodo: 'POST', corpo: { ...TEXTO, nuvem: true } })).toBe(503)
+    })
   })
 
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {

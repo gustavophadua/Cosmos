@@ -2,6 +2,7 @@ import { request, type IncomingMessage, type ServerResponse } from 'node:http'
 import { criarObservabilidadeP0, observarHttpP0 } from './observabilidade-node'
 import { criarControleGroq } from './groq-node'
 import { criarConferidorZ3, criarControleOllama, type ConferidorZ3 } from './ollama-node'
+import { criarAdaptadorGroq } from './provedores/groq'
 
 const PREFIXO = '/cosmos/__p0/'
 const ROTAS: Readonly<Record<string, readonly string[]>> = Object.freeze({
@@ -37,7 +38,9 @@ export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number
     r.setTimeout(1500, () => { r.destroy(); resolve(false) }); r.on('error', () => resolve(false)); r.end()
   })
   const groq = opcoes.groq ? criarControleGroq({ ...opcoes.groq, sessaoValida }) : null
-  const ollama = opcoes.ollama ? criarControleOllama({ conferidor: criarConferidorZ3(new URL('./z3-trabalhador.mjs', import.meta.url)), ...opcoes.ollama }) : null
+  // com --groq e --ollama juntos, a Conversa pode pedir a tradução ao modelo grande (a pessoa liga; o texto sai para o Groq)
+  const nuvem = opcoes.groq ? { executar: criarAdaptadorGroq({ chave: opcoes.groq.chave, buscar: opcoes.groq.buscar }), modelo: 'openai/gpt-oss-120b' as const } : undefined
+  const ollama = opcoes.ollama ? criarControleOllama({ conferidor: criarConferidorZ3(new URL('./z3-trabalhador.mjs', import.meta.url)), ...(nuvem ? { nuvem } : {}), ...opcoes.ollama }) : null
   const observabilidade = criarObservabilidadeP0()
   observabilidade.registrar({ tipo: 'servico', canal: 'ponte', estado: 'iniciado' })
   return Object.freeze({

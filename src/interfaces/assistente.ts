@@ -129,11 +129,11 @@ export function separarArgumento(texto: string): ArgumentoSeparado | null {
 }
 
 export type ResultadoIA =
-  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao }
+  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao; nuvem?: string }
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
-  formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string }>
+  formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: boolean }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string; modelo?: string }>
   conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal): Promise<{ classeZ3: Classe | null; motivo: string; cenario?: string[] }>
   revisar(texto: string, signal?: AbortSignal): Promise<unknown>
   /** a ligação que falta num salto (ponte.ts); sem ela, o salto vem sem a proposta */
@@ -143,10 +143,12 @@ export interface ClienteIA {
 
 /**
  * Executa um comando de IA. `ler` lê a proposta do modelo (lerProposta), `progresso` mostra a fase. Com `vocabulario`
- * (os termos corrigidos pela pessoa no cartão), a tradução usa só ele.
+ * (os termos corrigidos pela pessoa no cartão), a tradução usa só ele; com `nuvem`, quem traduz é o modelo grande no
+ * Groq (a pessoa ligou; o texto sai do computador). Quem decide continua sendo o Z3, aqui.
  */
 export async function executar(cliente: ClienteIA, comando: Comando, texto: string, ler: (conteudo: string) => Proposta,
-  progresso: (msg: string) => void, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms)), vocabulario?: Termo[]): Promise<ResultadoIA> {
+  progresso: (msg: string) => void, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms)), opcoes: { vocabulario?: Termo[]; nuvem?: boolean } = {}): Promise<ResultadoIA> {
+  const { vocabulario, nuvem } = opcoes
   if (comando === 'revisar' || comando === 'desmistificar') {
     progresso('Separando afirmações e conclusões…')
     await cliente.revisar(texto)
@@ -160,12 +162,12 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   }
   const t = separarArgumento(texto)
   if (!t) throw new Error('Escreva o argumento em frases: as premissas e, por último, a conclusão (por exemplo: "Todo A é B. X é A. Então X é B.").')
-  progresso('O modelo está traduzindo o argumento…')
-  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}) })
+  progresso(nuvem ? 'O modelo grande, na nuvem, está traduzindo o argumento…' : 'O modelo está traduzindo o argumento…')
+  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}), ...(nuvem ? { nuvem } : {}) })
   const proposta = ler(r.conteudo)
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
-  const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}) }
+  const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
   if (comando === 'verificar' && c.classeZ3 === 'independente' && cliente.ponte) {
     // o salto: o que falta para a conclusão valer, proposto pelo modelo e conferido pelo Z3
     progresso('Procurando a ligação que falta…')
@@ -193,7 +195,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
     const md = relatorioEmMarkdown(r.relatorio)
     return md.length <= 6000 ? md : `${md.slice(0, 5900)}\n\n(resumo cortado; baixe o relatório completo na hora da revisão)`
   }
-  const notas = notasDaLeitura(r)
+  const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu neste computador.`] : [])]
   const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
   if (r.ligacao && 'fonte' in r.ligacao) l.push('', ...textoDaLigacao(r.ligacao, r.texto.premissas))

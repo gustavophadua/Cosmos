@@ -15,5 +15,6 @@ if errorlevel 1 (
   pause & exit /b 1
 )
 :pronto
-node scripts\integracoes-p0.mjs --ollama --abrir
+rem Com GROQ_API_KEY no ambiente, a Conversa oferece o modelo grande na nuvem (desligado ate a pessoa ligar).
+if defined GROQ_API_KEY (node scripts\integracoes-p0.mjs --ollama --groq --abrir) else (node scripts\integracoes-p0.mjs --ollama --abrir)
 pause

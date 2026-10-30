@@ -38,7 +38,10 @@ function Turno({ conversa, novo, resultado, progresso, aoRefazer }: { conversa: 
   </section>
 }
 
-type EstadoIA = { estado: 'conectando' } | { estado: 'fora'; local: boolean } | { estado: 'ligada'; cliente: ReturnType<typeof criarClienteOllama>; modelo: string }
+type EstadoIA = { estado: 'conectando' } | { estado: 'fora'; local: boolean } | { estado: 'ligada'; cliente: ReturnType<typeof criarClienteOllama>; modelo: string; nuvem?: string }
+// a escolha do modelo grande na nuvem fica neste aparelho; começa desligada (o texto sai do computador quando liga)
+const NUVEM_ESCOLHIDA = 'cosmos:conversa:nuvem'
+const lerEscolhaNuvem = () => { try { return localStorage.getItem(NUVEM_ESCOLHIDA) === '1' } catch { return false } }
 const ENDERECO_LOCAL = 'http://127.0.0.1:4175/cosmos/#/i-ai'
 
 function IAI() {
@@ -52,6 +55,8 @@ function IAI() {
   // a IA: o serviço local com o Ollama; enquanto não responde, tenta de novo a cada 8 s (o serviço pode estar subindo)
   const [ia, setIa] = useState<EstadoIA>({ estado: 'conectando' })
   const [comando, setComando] = useState<Comando | null>(null), [menu, setMenu] = useState(false)
+  const [usarNuvem, setUsarNuvem] = useState(lerEscolhaNuvem)
+  const escolherNuvem = (sim: boolean) => { setUsarNuvem(sim); try { localStorage.setItem(NUVEM_ESCOLHIDA, sim ? '1' : '0') } catch { /* fica só nesta página */ } }
   const [andamento, setAndamento] = useState<{ id: number; pergunta: string; progresso: string } | null>(null), [, atualizar] = useState(0)
   const input = useRef<HTMLTextAreaElement>(null), rolagem = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -60,7 +65,7 @@ function IAI() {
     let parado = false, timer: ReturnType<typeof setTimeout> | undefined
     const tentar = () => void cliente.carregar().then((o) => {
       if (parado) return
-      if (o.estado === 'pronto') setIa({ estado: 'ligada', cliente, modelo: o.modelo })
+      if (o.estado === 'pronto') setIa({ estado: 'ligada', cliente, modelo: o.modelo, ...(o.nuvem ? { nuvem: o.nuvem } : {}) })
       else { setIa({ estado: 'fora', local: true }); timer = setTimeout(tentar, 8000) }
     }, () => { if (!parado) { setIa({ estado: 'fora', local: true }); timer = setTimeout(tentar, 8000) } })
     tentar()
@@ -133,7 +138,7 @@ function IAI() {
       setAndamento({ id, pergunta, progresso: 'Começando…' }); abrirMensagem(id)
       let resposta: string
       try {
-        const r = await executar(ia.cliente, pedido.comando, pedido.texto, (c) => lerProposta(c, vocabulario ?? null), (progresso) => setAndamento(a => a && { ...a, progresso }), undefined, vocabulario)
+        const r = await executar(ia.cliente, pedido.comando, pedido.texto, (c) => lerProposta(c, vocabulario ?? null), (progresso) => setAndamento(a => a && { ...a, progresso }), undefined, { vocabulario, nuvem: usarNuvem && !!ia.nuvem })
         resultadosIA.set(id, r); resposta = resumoEmTexto(r)
       } catch (e) {
         const m = (e as Error).message
@@ -189,7 +194,9 @@ function IAI() {
               <Button size="icon" aria-label="Enviar" disabled={!query.trim() || salvando} type="submit"><Icone nome="send" /></Button>
             </div>
           </form>
-          <p className="iai-estado" data-estado={ia.estado}>{ia.estado === 'ligada' ? `IA local ligada (${ia.modelo}) · o Z3 decide · o texto não sai deste computador`
+          {ia.estado === 'ligada' && ia.nuvem && <label className="iai-nuvem"><input type="checkbox" checked={usarNuvem} onChange={e => escolherNuvem(e.target.checked)} />
+            Traduzir com o modelo grande na nuvem ({ia.nuvem}, no Groq). Lê melhor frases abstratas; o texto do argumento sai deste computador. O Z3 decide aqui do mesmo jeito.</label>}
+          <p className="iai-estado" data-estado={ia.estado}>{ia.estado === 'ligada' ? (usarNuvem && ia.nuvem ? `Tradução na nuvem (${ia.nuvem}) · o Z3 decide neste computador` : `IA local ligada (${ia.modelo}) · o Z3 decide · o texto não sai deste computador`)
             : ia.estado === 'conectando' ? 'Conectando à IA local…'
             : ia.local ? 'IA local desligada: abra o Ollama e o atalho "Cosmos". Tentando de novo…'
             : <>A IA roda no Cosmos instalado no seu computador: <a href={ENDERECO_LOCAL}>abrir o Cosmos local</a></>}</p>

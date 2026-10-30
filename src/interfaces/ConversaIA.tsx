@@ -100,6 +100,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     <ol className="revisor-argumentos"><li data-veredito={provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'}>
       <header><strong>{titulo}</strong></header>
       {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
+      {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
       <p className="revisor-conclusao">{texto.conclusao}<Entendi texto={entendi(proposta.conclusao, proposta.vocabulario)} /></p>
       <small>Premissas:</small>
       <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}<Entendi texto={entendi(proposta.premissas[i], proposta.vocabulario)} /></li>)}</ul>

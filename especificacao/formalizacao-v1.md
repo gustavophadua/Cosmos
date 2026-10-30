@@ -386,3 +386,19 @@ dados, o qwen3:4b traduziu certo três premissas e a conclusão (só "sem cada p
 o Z3 deu salto e a busca achou, entre outras, "se A é parte do todo e A não é dona da sua função, então A não invalida a
 existência de nenhuma pessoa". A busca entende a conclusão escrita por dentro (`∀x (A(x) ⟹ ∀y (B(y) ⟹ C(x, y)))`), como
 o modelo costuma escrever.
+
+### 9c. O modelo grande na nuvem, opcional (30/10/2026)
+
+Com o serviço aberto com `--ollama --groq` (o lançador `Abrir-Cosmos-IA.cmd` põe `--groq` quando a variável
+`GROQ_API_KEY` existe), a Conversa mostra a opção de traduzir com o `openai/gpt-oss-120b` no Groq. Ela começa
+desligada e fica guardada no aparelho; ligada, o texto do argumento sai do computador (para o Groq), e a tela diz isso.
+O pedido é o mesmo (tradução cega `cego-v2`, as mesmas regras e exemplos, temperatura 0, com o reparo); o Z3 decide
+aqui, e o cartão diz quem traduziu. Escolhemos o gpt-oss-120b (Apache 2.0) e não o Llama, cuja licença põe condições
+em modelo derivado: as traduções que o Z3 aprovar podem virar dado de treino do modelo local (destilação), fora o
+conjunto fechado e a metade de teste das frases G-.
+
+Primeira medida, com o argumento do dono (30/10/2026): o gpt-oss-120b leu todos os termos certo sem correção ("parte do
+todo", "dona da sua função", "x invalida a existência de y") em 6 s; o Z3 deu salto e a busca achou as quatro ligações,
+inclusive "se A não é dona da sua função e B não é dona da sua função, então A não invalida a existência de B". Com a
+razão escrita, "toda pessoa possui senso próprio da realidade…" saiu provado. Nas duas, a primeira resposta veio com a
+lista de premissas vazia e o reparo resolveu: o gasto foi de cerca de 6 mil tokens por argumento.

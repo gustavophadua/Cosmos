@@ -110,7 +110,7 @@ describe('assistente da Conversa', () => {
       formalizar: async (t) => { pedidos.push(t); return { conteudo: PROPOSTA } },
       conferir: async () => ({ classeZ3: 'segue', motivo: '' }), revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
     }
-    await executar(cliente, 'verificar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (c) => lerProposta(c, VOCAB), () => undefined, undefined, VOCAB)
+    await executar(cliente, 'verificar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (c) => lerProposta(c, VOCAB), () => undefined, undefined, { vocabulario: VOCAB })
     expect(pedidos).toEqual([{ premissas: ['Todo cliente tem suporte.', 'A padaria é cliente.'], conclusao: 'Então a padaria tem suporte.', vocabulario: VOCAB }])
   })
 

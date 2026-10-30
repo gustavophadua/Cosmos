@@ -8,7 +8,7 @@ const relatorioValido = (r: unknown): r is RelatorioRevisor => typeof r === 'obj
 /** A ligação que falta: a fórmula, a leitura em português e as premissas que a conclusão ainda usa; ou o motivo de não achar. */
 export interface OpcaoLigacao { ponte: string; leitura: string; essenciais: number[] }
 export type Ligacao = { opcoes: OpcaoLigacao[]; fonte: 'busca' | 'modelo'; outras: number } | { opcoes: []; motivo: string }
-export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'; modelo: string; digest?: string; ollama?: string }
+export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'; modelo: string; digest?: string; ollama?: string; nuvem?: string }
 
 /**
  * A formalização pelo Ollama local, pela ponte do serviço local (rotas ollama/estado e ollama). O navegador manda só
@@ -37,13 +37,15 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
     async carregar(signal?: AbortSignal): Promise<EstadoOllama> {
       const o = await chamar('ollama/estado', undefined, 15000, signal)
       if (o.formato !== 'cosmos-ollama-v1' || !['pronto', 'sem-modelo', 'indisponivel'].includes(o.estado as string) || typeof o.modelo !== 'string') throw new ErroIntegracoes('invalido')
-      return { estado: o.estado as EstadoOllama['estado'], modelo: o.modelo, ...(typeof o.digest === 'string' ? { digest: o.digest } : {}), ...(typeof o.ollama === 'string' ? { ollama: o.ollama } : {}) }
+      return { estado: o.estado as EstadoOllama['estado'], modelo: o.modelo, ...(typeof o.digest === 'string' ? { digest: o.digest } : {}), ...(typeof o.ollama === 'string' ? { ollama: o.ollama } : {}),
+        ...(typeof o.nuvem === 'string' && o.nuvem.length <= 80 ? { nuvem: o.nuvem } : {}) }
     },
     /** Na CPU, uma proposta leva cerca de um minuto; o prazo aqui é o mesmo da ponte. */
-    async formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }, signal?: AbortSignal) {
-      const o = await chamar('ollama', { premissas: texto.premissas, conclusao: texto.conclusao, ...(texto.vocabulario ? { vocabulario: texto.vocabulario } : {}) }, 620000, signal)
+    async formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: boolean }, signal?: AbortSignal) {
+      const o = await chamar('ollama', { premissas: texto.premissas, conclusao: texto.conclusao, ...(texto.vocabulario ? { vocabulario: texto.vocabulario } : {}), ...(texto.nuvem ? { nuvem: true } : {}) }, 620000, signal)
       if (o.formato !== 'cosmos-ollama-resposta-v1' || typeof o.conteudo !== 'string' || !Number.isSafeInteger(o.prompt_tokens) || !Number.isSafeInteger(o.completion_tokens)) throw new ErroIntegracoes('invalido')
-      return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number, ...(typeof o.reparo === 'string' ? { reparo: o.reparo } : {}) }
+      return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number, ...(typeof o.reparo === 'string' ? { reparo: o.reparo } : {}),
+        ...(typeof o.modelo === 'string' && o.modelo.length <= 80 ? { modelo: o.modelo } : {}) }
     },
     /** O modo automático: o Z3 dá a classe das fórmulas do modelo (a primeira abre o Z3). */
     async conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal) {
