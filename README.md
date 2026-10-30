@@ -18,7 +18,7 @@ Quando um registro revelado nao se sustenta, a CI certifica a afirmacao contrari
 
 ## Instalar no Windows (IA local)
 
-Baixe o repositorio (Code > Download ZIP), extraia e abra `Instalar-Cosmos.cmd`. Ele confere o Node.js 22 e o Ollama (e instala pelo winget se faltar, com a sua confirmacao), instala as dependencias, baixa o modelo qwen3:4b (cerca de 2,5 GB) e poe o atalho "Cosmos" na Area de Trabalho. O atalho abre o servico local e o navegador no Labs: Formalizar (frases curtas) e Revisar plano (o texto de um plano ou projeto, com o veredito de cada conclusao: provada ou salto). O texto nao sai do computador. Detalhes e limites: `especificacao/revisor-v1.md`.
+Baixe o repositorio (Code > Download ZIP), extraia e abra `Instalar-Cosmos.cmd`. Ele confere o Node.js 22 e o Ollama (e instala pelo winget se faltar, com a sua confirmacao), instala as dependencias, baixa o modelo qwen3:4b (cerca de 2,5 GB) e poe o atalho "Cosmos" na Area de Trabalho. O atalho abre o servico local e o navegador na Conversa: na primeira vez, crie a conta local (a IA so atende a conta dona). Escreva um raciocinio ou cole um plano: o Cosmos desenha o mapa do argumento (fatos, a ligacao que falta e a conclusao) e o Z3 decide se a conclusao e provada, salto ou contradicao. O texto nao sai do computador, salvo com o modelo grande na nuvem ligado (opcional). Como usar e o kit do teste fechado: `teste-fechado/`. Detalhes e limites: `especificacao/revisor-v1.md` e `especificacao/formalizacao-v1.md`.
 
 ## Desenvolvimento
 
