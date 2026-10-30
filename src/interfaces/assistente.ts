@@ -168,6 +168,9 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
 }
 
 export const TITULO_DA_CLASSE: Record<Classe, string> = { segue: 'Provado: a conclusão decorre das premissas', independente: 'Salto: a conclusão não decorre das premissas', contradiz: 'Contradição: as premissas provam o contrário' }
+/** Provado só com "geralmente" lido como "todos": para o texto como veio, é salto, e o título diz isso. */
+export const provadoSoNaFormaForte = (r: { texto: ArgumentoSeparado; classe: Classe | null }) => r.classe === 'segue' && !!r.texto.atenuadas?.length
+export const TITULO_FORMA_FORTE = 'Salto como está escrito; provado só se valer para todos'
 
 /** O que vai para o cofre: um resumo em texto (o cofre guarda conversas de até 12 mil caracteres). */
 export function resumoEmTexto(r: ResultadoIA): string {
@@ -176,7 +179,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
     return md.length <= 6000 ? md : `${md.slice(0, 5900)}\n\n(resumo cortado; baixe o relatório completo na hora da revisão)`
   }
   const notas = notasDaLeitura(r)
-  const l = [r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
+  const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
   if (r.essenciais) l.push('', 'Para contrariar, é preciso negar uma destas premissas:', ...r.essenciais.map((i) => `- ${r.texto.premissas[i]}`))
   l.push('', 'Fórmulas (m2):', ...r.proposta.premissas.map((p) => `- ${p}`), `- conclusão: ${r.proposta.conclusao}`)

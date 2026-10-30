@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectar, executar, lerPedido, notasDaLeitura, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
+import { detectar, executar, lerPedido, notasDaLeitura, provadoSoNaFormaForte, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
 import { lerProposta } from '../src/motor/formalizacao'
 
 const VOCAB = [{ simbolo: 'Cliente', tipo: 'predicado', aridade: 1, leitura: 'x é cliente' }, { simbolo: 'Suporte', tipo: 'predicado', aridade: 1, leitura: 'x tem suporte' }, { simbolo: 'padaria', tipo: 'constante', aridade: 0, leitura: 'a padaria' }]
@@ -45,6 +45,9 @@ describe('assistente da Conversa', () => {
     expect(provado[1]).toContain('li como "As pessoas são sociaveis." (vale para todos)')
     expect(provado[2]).toContain('Com "geralmente", a conclusão não decorre')
     expect(notasDaLeitura({ texto: a!, classe: 'independente' })).toHaveLength(2)
+    // o título: provado só na forma forte é salto como está escrito
+    expect(provadoSoNaFormaForte({ texto: a!, classe: 'segue' })).toBe(true)
+    expect(provadoSoNaFormaForte({ texto: { premissas: ['A.'], conclusao: 'B.' }, classe: 'segue' })).toBe(false)
     // em frases separadas também; o "geralmente" no meio de frase sai sem deixar espaço sobrando
     expect(separarArgumento('Clientes do plano anual normalmente renovam. A padaria é cliente do plano anual. Então a padaria renova.')!.premissas[0]).toBe('Clientes do plano anual renovam.')
     // lista não é argumento; a condicional partida por vírgulas também não
