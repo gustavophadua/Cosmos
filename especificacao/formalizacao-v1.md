@@ -326,5 +326,19 @@ Uma trava a mais, achada na frase de um usuário ("todo homem parte de Deus, Deu
 conclusão "o homem é eterno" saiu com a fórmula de "Deus é eterno", o que daria "provado". Nas 199 frases G- isso
 aconteceu uma vez (G-196). Agora, a conclusão que repete a fórmula de uma premissa de texto diferente volta ao modelo
 com o erro; se ele insistir, fica sem conclusão e o argumento sai "não decidido", nunca "provado". A causa de fundo é
-que as regras de leitura não falam do genérico "o A é B" (o homem em geral); é o próximo ajuste, a medir na metade de
-revisão antes de entrar.
+que as regras de leitura não falam do genérico "o A é B" (o homem em geral), e uma sonda mostrou mais: com o vocabulário
+na ordem `Homem, deus, Eterno…`, o modelo fazia da frase `Eterno(deus)`; com as constantes no fim, `∀x (Homem(x) ⟹
+Eterno(x))`. A ordem da lista decidia o sujeito.
+
+`cego-v2`: a regra do genérico ("o A é B" falando de A em geral = "todo A é B"; o indivíduo único é constante) nas
+duas chamadas, e na chamada da conclusão os predicados antes das constantes. Na metade de revisão G-, contra a `cego-v1`:
+
+| | cego-v1 | cego-v2 |
+|---|---|---|
+| fórmulas fiéis (99) | 82 | 85 (+3 −0, McNemar p = 0,25) |
+| classe certa pelo Z3 | 93 | 95 (+2 −0) |
+| não segue, mas saiu "segue" | 0 | 0 |
+
+Nenhuma frase piorou; adotada. A metade de teste fica guardada para a próxima conferência. Com o modelo de verdade, a
+frase do usuário sai `∀x (Homem(x) ⟹ ParteDeDeus(x))`, `Eterno(deus)` ⊢ `∀x (Homem(x) ⟹ Eterno(x))`: salto, com o
+cenário de alguém que é homem, é parte de Deus e não é eterno.

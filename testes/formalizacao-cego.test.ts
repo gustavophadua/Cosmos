@@ -71,5 +71,9 @@ describe('tradução cega', () => {
     expect(JSON.parse(mc[2].content)).toEqual({ vocabulario: EXEMPLOS[0].vocabulario, conclusao: EXEMPLOS[0].gabarito.conclusao })
     expect(mp[1].content).not.toContain(EXEMPLOS[0].texto.conclusao)
     expect(mc.at(-1)!.content).toContain('Vocabulário em uso')
+    // cego-v2: na conclusão, os predicados antes das constantes (a ordem da lista decidia o sujeito: "o homem é eterno" virava Eterno(deus))
+    const vocabEmUso = mensagensDaConclusao('O homem é eterno.', [VOCAB[2], VOCAB[0]], false, EXEMPLOS).at(-1)!.content
+    expect(vocabEmUso.indexOf('"PodeVotar"')).toBeLessThan(vocabEmUso.indexOf('"rui"'))
+    expect(mp[0].content).toContain('"O A é B" falando de A em geral')
   })
 })

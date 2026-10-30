@@ -115,8 +115,10 @@ export async function formalizarComReparo(perguntar: Perguntar, mensagens: Mensa
  * premissas. As regras de leitura são as do pedido PROMPT_FORMALIZACAO; a classe fica para o Z3 (o modelo não dá).
  * Cada passo tem o reparo: a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez com o erro.
  */
-export const CEGO_FORMALIZACAO = 'cego-v1'
-const REGRAS = SISTEMA.slice(0, SISTEMA.indexOf('\n\nClassifique a conclusão'))
+export const CEGO_FORMALIZACAO = 'cego-v2'
+// cego-v2: a leitura do genérico "o A é B" (o caso "o homem é eterno", formalizacao-v1.md §8c), só na tradução cega
+const GENERICO = '- "O A é B" falando de A em geral ("o homem é mortal", "o cliente sempre tem razão") = ∀x (A(x) ⟹ B(x)), como "todo A é B"; quando "o A" é um indivíduo só, já nomeado ou único na frase ("o mediador do encontro"), é uma constante.'
+const REGRAS = `${SISTEMA.slice(0, SISTEMA.indexOf('\n\nClassifique a conclusão'))}\n${GENERICO}`
 const LEITURA_DO_VOCABULARIO = 'Na leitura, use "x é médico" para predicado de um lugar, "x admira y" para dois lugares e o nome próprio para constante.'
 const SISTEMA_PREMISSAS = `${REGRAS}
 
@@ -145,7 +147,10 @@ export function mensagensDasPremissas(premissas: string[], vocabulario: Termo[] 
   return m
 }
 export function mensagensDaConclusao(conclusao: string, vocabulario: Termo[], exato: boolean, exemplos: Item[]): Mensagem[] {
-  const entrada = (c: string, v: Termo[], usarSo: boolean) => [`Frase: ${c}`, usarSo ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(v)}` : `Vocabulário em uso:\n${JSON.stringify(v)}`].join('\n\n')
+  // cego-v2: os predicados antes das constantes. Com "deus" logo depois de "Homem", o modelo fazia de "o homem é eterno"
+  // Eterno(deus); com as constantes no fim, ∀x (Homem(x) ⟹ Eterno(x))
+  const ordenar = (v: Termo[]) => [...v.filter((t) => t.tipo !== 'constante'), ...v.filter((t) => t.tipo === 'constante')]
+  const entrada = (c: string, v0: Termo[], usarSo: boolean, v = ordenar(v0)) => [`Frase: ${c}`, usarSo ? `Use exatamente este vocabulário (repita-o na resposta):\n${JSON.stringify(v)}` : `Vocabulário em uso:\n${JSON.stringify(v)}`].join('\n\n')
   const m: Mensagem[] = [{ role: 'system', content: SISTEMA_CONCLUSAO }]
   for (const e of exemplos.slice(0, 2)) m.push({ role: 'user', content: entrada(e.texto.conclusao, e.vocabulario, true) }, { role: 'assistant', content: JSON.stringify({ vocabulario: e.vocabulario, conclusao: e.gabarito.conclusao }) })
   m.push({ role: 'user', content: entrada(conclusao, vocabulario, exato) })
