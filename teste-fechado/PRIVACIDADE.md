@@ -21,6 +21,13 @@ pelo teste sem você exportar e mandar um arquivo.
 - **Modelo grande na nuvem (opcional, começa desligado):** se você ligar, o texto do argumento é enviado ao serviço
   Groq (Groq, Inc., nos Estados Unidos) para ser traduzido, e a tela avisa. Vale a política de privacidade do Groq.
   A decisão (o Z3) continua no seu computador.
+  Ao ativar a nuvem, você autoriza o envio do texto aos Estados Unidos, uma transferência internacional.
+  Segundo a documentação do Groq conferida em 30/10/2026, o conteúdo de inferência não é retido por padrão,
+  mas metadados de uso são coletados e retidos. Há exceções de retenção de conteúdo para recursos que precisam
+  de persistência e para confiabilidade e investigação de abuso; estas últimas podem durar até 30 dias,
+  ou mais por obrigação legal. Este aviso não promete retenção zero.
+  Fonte: https://console.groq.com/docs/your-data. As condições e controles efetivos precisam ser revisados
+  para a conta utilizada, junto com o mecanismo aplicável à transferência internacional.
 - **Relatos de erro exportados:** só se você baixar o arquivo e mandar. Ele contém a pergunta, a tradução, a classe e o
   seu comentário; não contém a sua senha, a sua chave nem o resto do histórico.
 - **Instalação:** os downloads do Node.js, do Ollama, das peças do Cosmos e do modelo vêm dos sites desses projetos.
