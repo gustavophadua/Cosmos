@@ -125,9 +125,13 @@ describe('assistente da Conversa', () => {
     expect(resumoEmTexto(r).length).toBeLessThanOrEqual(6000)
   })
 
-  it('a afirmação solta: sem modelo, diz que precisa de fonte; a generalização cai com um caso contrário', () => {
+  it('a afirmação solta: sem modelo, pede o raciocínio por trás com a própria frase; a generalização cai com um caso contrário', () => {
+    // o caso real do dono (29/10/2026): a resposta antiga só dizia que não havia o que provar
+    const p = respostaAfirmacao('toda pessoa possui senso proprio da realidade, e isso não invalida a visão dos outros')
+    expect(p).toContain('é uma posição')
+    expect(p).toContain('Logo, toda pessoa possui senso proprio da realidade, e isso não invalida a visão dos outros."')
+    expect(p).toContain('a ligação que falta')
     const r = respostaAfirmacao('Todo humano é burro')
-    expect(r).toContain('é uma afirmação sozinha')
     expect(r).toContain('generalização ("todo…")')
     expect(r).toContain('um único caso contrário')
     expect(respostaAfirmacao('O mercado vai crescer')).not.toContain('generalização')

@@ -104,16 +104,20 @@ export function notasDaLeitura(r: { texto: ArgumentoSeparado; classe: Classe | n
 }
 
 /**
- * A resposta para uma frase só, sem modelo: não há premissas, então não há o que provar nem derrubar pela lógica; a
- * afirmação precisa de fonte. A generalização ("todo", "nenhum", "sempre"…) cai com um único caso contrário.
+ * A resposta para uma frase só, sem modelo. Uma frase solta costuma ser uma posição, e a posição tem um raciocínio por
+ * trás: a resposta pede esse raciocínio com a própria frase da pessoa ("…, logo [a frase]") e diz o que o Cosmos faz
+ * com ele (se não decorrer, mostra a ligação que falta). A generalização ("todo", "nenhum"…) cai com um caso contrário.
  */
 export function respostaAfirmacao(texto: string): string {
   const t = texto.trim().replace(/\s+/g, ' ')
   if (t.split(' ').length < 3) return 'Escreva um raciocínio (as razões e a conclusão) ou cole um plano, e o Cosmos separa o que decorre dos fatos do que é salto. Toque em + para ver os comandos.'
   const geral = /^(tod[oa]s?|nenhum[a]?|ningu[eé]m|sempre|nunca|qualquer|cada)(?![\p{L}])/iu.exec(t)
-  const l = [`"${t.slice(0, 300)}" é uma afirmação sozinha: não vem com razões (premissas), então não há o que provar nem derrubar pela lógica. Ela pode até ser verdade, mas quem diz isso é uma fonte (dado, pesquisa, documento), não o raciocínio.`]
+  const frase = t.slice(0, 300).replace(/[.!?]+$/, '')
+  const l = [`"${frase}" é uma posição. Sozinha, ela não tem o que provar: o Cosmos trabalha com o raciocínio por trás dela.`,
+    `Por que você pensa isso? Escreva as razões, uma por frase, e termine com "logo" e a sua frase. Por exemplo: "[primeira razão]. [segunda razão]. Logo, ${frase[0].toLowerCase()}${frase.slice(1)}."`,
+    'Ou: o que você tira disso? Escreva a sua frase, as outras razões e, no fim, "logo" e a conclusão.',
+    'O Z3 confere se a conclusão decorre das razões. Se não decorrer, o Cosmos mostra a ligação que falta: a visão que você precisa aceitar para ela ficar de pé, separada dos fatos que precisam de fonte.']
   if (geral) l.push(`É uma generalização ("${geral[1].toLowerCase()}…"): basta um único caso contrário para derrubá-la. Exemplos a favor não a provam; é preciso que não exista nenhum caso contra.`)
-  l.push('Para o Cosmos conferir um raciocínio, escreva as razões e a conclusão. Por exemplo: "Todo cliente do plano anual tem suporte. A padaria é cliente do plano anual. Então a padaria tem suporte."')
   return l.join('\n\n')
 }
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
