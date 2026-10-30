@@ -17,7 +17,7 @@
  * Reparo (PILOTO_REPARO=1): a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com
  * o erro (formalizarComReparo, versão REPARO_FORMALIZACAO, a mesma do serviço local); a versão vai para meta.json.
  *
- * Tradução cega (PILOTO_CEGO=1, só no Ollama): as premissas numa chamada sem a conclusão, a conclusão noutra que vê só o
+ * Tradução cega (PILOTO_CEGO=1, no Ollama ou no Groq): as premissas numa chamada sem a conclusão, a conclusão noutra que vê só o
  * vocabulário (formalizarCego, versão CEGO_FORMALIZACAO), cada uma com o reparo; a resposta vai sem classe (o Z3 dá).
  *
  * Votação (passo D3 do plano, só no Ollama): com PILOTO_VOTOS=n, cada item recebe n respostas com temperatura
@@ -68,7 +68,7 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
 
   const votos = Number(process.env.PILOTO_VOTOS ?? 0), temperaturaVoto = Number(process.env.PILOTO_TEMPERATURA ?? 0.7)
   const reparar = process.env.PILOTO_REPARO === '1', cego = process.env.PILOTO_CEGO === '1'
-  if (cego && (votos || PROVEDOR !== 'ollama')) throw new Error('PILOTO_CEGO só no Ollama e sem PILOTO_VOTOS')
+  if (cego && votos) throw new Error('PILOTO_CEGO e PILOTO_VOTOS não se combinam')
   if (reparar && votos) throw new Error('PILOTO_REPARO e PILOTO_VOTOS não se combinam')
   if (votos && (PROVEDOR !== 'ollama' || !Number.isInteger(votos) || votos < 2 || votos > 9)) throw new Error('PILOTO_VOTOS: de 2 a 9, só no Ollama')
   let perguntar: (m: Mensagem[]) => Promise<{ conteudo: string; prompt: number; completion: number }>
@@ -81,6 +81,8 @@ it.runIf(!!PROVEDOR && !!SAIDA)('piloto: o modelo propõe a formalização de ca
       const r = await groq({ model: modelo as ModeloGroq, messages, max_tokens: 4096, temperature: 0 })
       return { conteudo: r.conteudo, prompt: r.usage.prompt_tokens, completion: r.usage.completion_tokens }
     }
+    // no Groq não há esquema preso à saída: as duas chamadas da tradução cega usam o mesmo adaptador (como o serviço)
+    if (cego) { perguntarPremissas = perguntar; perguntarConclusao = perguntar }
   } else if (PROVEDOR === 'ollama') {
     identidade = await descreverModeloOllama(modelo) // só local: o conjunto fechado não sai do aparelho
     perguntar = criarAdaptadorOllama({ modelo, formato: ESQUEMA_RESPOSTA, temperatura: 0, semente: 0, contexto: 4096 })

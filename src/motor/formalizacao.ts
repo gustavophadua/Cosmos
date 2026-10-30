@@ -115,6 +115,8 @@ export async function formalizarComReparo(perguntar: Perguntar, mensagens: Mensa
  * premissas. As regras de leitura são as do pedido PROMPT_FORMALIZACAO; a classe fica para o Z3 (o modelo não dá).
  * Cada passo tem o reparo: a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez com o erro.
  */
+/** As definições das três classes do pedido, para quem pergunta a classe direto a um modelo (a comparação "sozinho"). */
+export const DEFINICAO_CLASSES = SISTEMA.slice(SISTEMA.indexOf('Classifique a conclusão'), SISTEMA.indexOf('\n\nResponda SÓ'))
 export const CEGO_FORMALIZACAO = 'cego-v2'
 // cego-v2: a leitura do genérico "o A é B" (o caso "o homem é eterno", formalizacao-v1.md §8c), só na tradução cega
 const GENERICO = '- "O A é B" falando de A em geral ("o homem é mortal", "o cliente sempre tem razão") = ∀x (A(x) ⟹ B(x)), como "todo A é B"; quando "o A" é um indivíduo só, já nomeado ou único na frase ("o mediador do encontro"), é uma constante.'

@@ -48,6 +48,28 @@ export async function importarConversasAntigas(antigas: ConversaLocal[], fios: n
   if (!antigas.length) await gravarSelado('ia-indice', { formato: 'cosmos-historico-ia-v1', mensagens: [] } satisfies Indice)
   return indice
 }
+/**
+ * Os relatos de "isso está errado": ficam cifrados na conta, como o histórico, e só saem do aparelho se a pessoa
+ * exportar o arquivo e mandar. Cada um leva a pergunta, a tradução (vocabulário e fórmulas), a classe e o comentário.
+ */
+export interface RelatoErro { em: string; mensagem: number; pergunta: string; comentario: string; classe: string | null; traducao?: { vocabulario: unknown; premissas: string[]; conclusao: string } }
+export const MAX_RELATOS = 500
+export async function lerRelatosErro(): Promise<RelatoErro[]> {
+  const r = await lerSelado<{ formato: string; relatos: RelatoErro[] }>('ia-relatos')
+  return r?.formato === 'cosmos-relatos-erro-v1' && Array.isArray(r.relatos) ? r.relatos : []
+}
+export async function gravarRelatoErro(m: MensagemIA, comentario: string): Promise<RelatoErro[]> {
+  const r = m.resultado
+  const relato: RelatoErro = { em: new Date().toISOString(), mensagem: m.id, pergunta: m.pergunta, comentario: comentario.trim().slice(0, 2000),
+    classe: r?.tipo === 'argumento' ? r.classe : null,
+    ...(r?.tipo === 'argumento' ? { traducao: { vocabulario: r.proposta.vocabulario, premissas: r.proposta.premissas, conclusao: r.proposta.conclusao } } : {}) }
+  const relatos = [...(await lerRelatosErro()), relato].slice(-MAX_RELATOS)
+  await gravarSelado('ia-relatos', { formato: 'cosmos-relatos-erro-v1', relatos })
+  return relatos
+}
+/** O arquivo que a pessoa exporta (e decide mandar): sem a chave da conta, sem o histórico, só os relatos. */
+export const arquivoDeRelatos = (relatos: RelatoErro[]) => JSON.stringify({ formato: 'cosmos-relatos-erro-v1', exportadoEm: new Date().toISOString(), relatos }, null, 2)
+
 /** As conversas para a lateral: agrupadas pelo fio, a mais recente primeiro, com o título da primeira pergunta. */
 export function conversasDoIndice(indice: EntradaIA[]): { fio: number; titulo: string; ultima: string }[] {
   const porFio = new Map<number, EntradaIA[]>()

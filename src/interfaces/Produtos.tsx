@@ -10,11 +10,11 @@ import { MoedaCosmos } from './Moeda'
 import { MoedaTeste } from './MoedaTeste'
 import { BarraCosmos, NotaLicenca } from './Navegacao'
 import { clienteIA, esquecerSessaoIA, ligarComSenha, obterSessaoIA, observarSessaoIA } from './sessao-ia'
-import { abrirHistoricoIA, conversasDoIndice, gravarMensagemIA, lerMensagemIA, type EntradaIA, type MensagemIA } from './historico-ia'
+import { abrirHistoricoIA, arquivoDeRelatos, conversasDoIndice, gravarMensagemIA, gravarRelatoErro, lerMensagemIA, lerRelatosErro, type EntradaIA, type MensagemIA } from './historico-ia'
 import { lerProposta } from '../motor/formalizacao'
 import type { Termo } from '../motor/avaliacao'
 import { COMANDOS, executar, lerPedido, respostaAfirmacao, resumoEmTexto, type Comando, type ResultadoIA } from './assistente'
-import { CartaoIA, MenuDeComandos } from './ConversaIA'
+import { CartaoIA, MenuDeComandos, RelatarErro } from './ConversaIA'
 import './produtos.css'
 import './referencia.css'
 import './experiencia.css'
@@ -28,12 +28,13 @@ const cache = new Map<number, MensagemIA>()
 // os fios do formato antigo (só ids, neste navegador): servem uma vez, para importar as conversas do cofre
 const lerFiosAntigos = (dono: string): number[][] => { try { const v = JSON.parse(localStorage.getItem(`cosmos:conversa:fios:${dono.slice(0, 16)}`) ?? '[]'); return Array.isArray(v) ? v.filter((f): f is number[] => Array.isArray(f) && f.every(Number.isSafeInteger)) : [] } catch { return [] } }
 
-function TurnoIA({ turno, novo, progresso, aoRefazer }: { turno: Turno; novo: boolean; progresso?: string; aoRefazer?: (r: ResultadoIA, v: Termo[]) => void }) {
+function TurnoIA({ turno, novo, progresso, aoRefazer, aoRelatar }: { turno: Turno; novo: boolean; progresso?: string; aoRefazer?: (r: ResultadoIA, v: Termo[]) => void; aoRelatar?: (t: Turno, comentario: string) => Promise<void> }) {
   const { resultado } = turno
   return <section className="iai-turno" data-id={turno.id} data-novo={novo ? '' : undefined}>
     <div className="iai-question">{turno.pergunta}</div>
     <div className="iai-answer"><span className="iai-answer-avatar" aria-hidden="true">C</span><div><small><strong>Cosmos</strong></small>
-      {progresso !== undefined ? <p className="iai-progresso" role="status">{progresso}</p> : resultado ? <CartaoIA resultado={resultado} aoRefazer={aoRefazer && ((v) => aoRefazer(resultado, v))} /> : turno.resposta ? <p>{turno.resposta}</p> : <p className="iai-progresso">Abrindo…</p>}</div></div>
+      {progresso !== undefined ? <p className="iai-progresso" role="status">{progresso}</p> : resultado ? <CartaoIA resultado={resultado} aoRefazer={aoRefazer && ((v) => aoRefazer(resultado, v))} /> : turno.resposta ? <p>{turno.resposta}</p> : <p className="iai-progresso">Abrindo…</p>}
+      {progresso === undefined && turno.resposta && aoRelatar && <RelatarErro aoRelatar={(c) => aoRelatar(turno, c)} />}</div></div>
   </section>
 }
 
@@ -182,6 +183,18 @@ function IAI() {
     finally { setAndamento(null); setSalvando(false) }
   }
   // "Refazer com estes termos": a mesma verificação, com o vocabulário que a pessoa corrigiu, como mensagem nova
+  // os relatos de erro: quantos há (para a lateral) e o arquivo que a pessoa exporta e decide mandar
+  const [relatos, setRelatos] = useState(0)
+  useEffect(() => { if (dono) void lerRelatosErro().then((r) => setRelatos(r.length), () => undefined) }, [dono])
+  const relatar = async (t: Turno, comentario: string) => {
+    const m = cache.get(t.id) ?? await lerMensagemIA(t.id)
+    if (!m) throw new Error('mensagem não encontrada')
+    setRelatos((await gravarRelatoErro(m, comentario)).length)
+  }
+  const exportarRelatos = async () => {
+    const url = URL.createObjectURL(new Blob([arquivoDeRelatos(await lerRelatosErro())], { type: 'application/json' })), a = document.createElement('a')
+    a.href = url; a.download = 'cosmos-relatos-de-erro.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
   const refazer = (r: ResultadoIA, vocabulario: Termo[]) => {
     if (r.tipo !== 'argumento' || salvando) return
     void enviar(`/verificar ${[...r.texto.premissas, r.texto.conclusao].join('\n')}`, vocabulario)
@@ -205,12 +218,12 @@ function IAI() {
         <div className="iai-history"><p>{indice === null ? 'Abrindo o histórico…' : conversas.length ? 'Conversas' : 'Nenhuma conversa ainda'}</p>
           {conversas.map(c => <button key={c.fio} className={fio === c.fio ? 'active' : ''} onClick={() => { setFio(c.fio); setNovo(null); setSidebar(false) }}>{c.titulo}</button>)}
         </div>
-        <div className="iai-sidebar-footer"><p className="iai-history-note"><Icone nome="shield" /> Cifradas com a sua senha, neste computador. Só a sua conta usa a IA.</p><button onClick={() => setDark(!dark)} aria-label="Alternar tema">{dark ? 'Tema claro' : 'Tema escuro'}</button></div>
+        <div className="iai-sidebar-footer">{relatos > 0 && <p className="iai-relatos">Relatos de erro ({relatos}) · <button type="button" onClick={() => void exportarRelatos()}>exportar</button></p>}<p className="iai-history-note"><Icone nome="shield" /> Cifradas com a sua senha, neste computador. Só a sua conta usa a IA.</p><button onClick={() => setDark(!dark)} aria-label="Alternar tema">{dark ? 'Tema claro' : 'Tema escuro'}</button></div>
       </aside>
       <main className="iai-main"><header className="iai-mobile-header"><button className="iai-mobile-menu" aria-label="Abrir conversas" aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}>☰</button><span>Conversa</span><button aria-label="Nova conversa" onClick={novaConversa}>＋</button></header>
         <div className={`iai-content ${turnos.length ? 'has-conversation' : ''}`} ref={rolagem}>
           {turnos.length ? <article className="iai-conversation" aria-label="Conversa com o Cosmos" aria-live="polite">
-            {turnos.map(t => <TurnoIA key={t.id} turno={t} novo={t.id === novo} progresso={andamento?.id === t.id ? andamento.progresso : undefined} aoRefazer={sessaoPronta ? refazer : undefined} />)}
+            {turnos.map(t => <TurnoIA key={t.id} turno={t} novo={t.id === novo} progresso={andamento?.id === t.id ? andamento.progresso : undefined} aoRefazer={sessaoPronta ? refazer : undefined} aoRelatar={relatar} />)}
           </article> : <section className="iai-welcome">
             <h1>O que você quer verificar?</h1>
             <p>Escreva um raciocínio ou cole um plano. O Cosmos desenha o argumento, separa os fatos da visão e o Z3 diz o que decorre e o que é salto.</p>

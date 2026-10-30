@@ -7,7 +7,7 @@ const { build } = await import('vite')
 
 // Entrada manual. P0 padrão sem rede. --groq habilita P1 explicitamente.
 // --ollama liga a formalização pelo Ollama local (127.0.0.1:11434; --ollama=modelo troca o qwen3:4b): nada sai do aparelho.
-// --abrir abre o navegador padrão no Labs quando o serviço estiver pronto (o lançador "Abrir-Cosmos-IA.cmd").
+// --abrir abre o navegador padrão na Conversa quando o serviço estiver pronto (o lançador "Abrir-Cosmos-IA.cmd").
 // GROQ_API_KEY é consultada SOMENTE em runtime Node após ação de teste/envio.
 // Não há leitura dotenv, impressão ou inclusão da chave no bundle.
 // envDir:false impede carregamento dotenv, separado do servidor/dev já existente.
@@ -55,10 +55,10 @@ try {
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4175, '127.0.0.1', resolve) })
   process.once('SIGINT', () => { void encerrar() })
   process.once('SIGTERM', () => { void encerrar() })
-  console.log(`Cosmos local: ${origem}/cosmos/#/integracoes (${process.argv.includes('--groq') ? 'P1 Groq habilitado; teste somente por ação explícita' : 'P0 simulado, sem provedor externo'})`)
+  console.log(`Cosmos: ${origem}/cosmos/#/i-ai (entre na sua conta para usar a Conversa) · integrações: ${origem}/cosmos/#/integracoes (${process.argv.includes('--groq') ? 'P1 Groq habilitado; teste somente por ação explícita' : 'P0 simulado, sem provedor externo'})`)
   if (ollama) console.log(`Formalização pelo Ollama local (${ollama.modelo ?? 'qwen3:4b'}): ${origem}/cosmos/, Labs → Formalizar`)
   if (process.argv.includes('--abrir')) {
-    const url = `${origem}/cosmos/#/lab`
+    const url = `${origem}/cosmos/#/i-ai`
     const [cmd, args] = process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', url]] : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]]
     spawn(cmd, args, { detached: true, stdio: 'ignore' }).on('error', () => console.log(`Abra no navegador: ${url}`)).unref()
     console.log('Para fechar o Cosmos, feche esta janela.')

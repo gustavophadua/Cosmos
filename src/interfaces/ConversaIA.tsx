@@ -35,6 +35,18 @@ export function MenuDeComandos({ filtro, ia, aoEscolher }: { filtro: string; ia:
 /** O que o Cosmos entendeu de cada fórmula, lido de volta em português sem modelo: o erro de tradução aparece aqui. */
 const entendi = (formula: string | undefined, vocabulario: Termo[]) => { if (!formula) return null; try { return lerDeVolta(formula, vocabulario) } catch { return null } }
 
+/** "Isso está errado": um comentário opcional e o relato fica cifrado na conta (só sai se a pessoa exportar). */
+export function RelatarErro({ aoRelatar }: { aoRelatar: (comentario: string) => Promise<void> }) {
+  const [aberto, setAberto] = useState(false), [comentario, setComentario] = useState(''), [estado, setEstado] = useState<'' | 'enviando' | 'feito' | 'erro'>('')
+  if (estado === 'feito') return <p className="iai-relato-feito">Obrigado: o relato ficou guardado na sua conta. Para mandar, use "exportar" na lateral.</p>
+  if (!aberto) return <button type="button" className="iai-relatar" onClick={() => setAberto(true)}>Isso está errado</button>
+  return <form className="iai-relato" onSubmit={e => { e.preventDefault(); setEstado('enviando'); void aoRelatar(comentario).then(() => setEstado('feito'), () => setEstado('erro')) }}>
+    <label>O que está errado? (opcional)<textarea rows={2} maxLength={2000} value={comentario} onChange={e => setComentario(e.target.value)} placeholder='Ex.: "as próprias" não é uma categoria; a frase quer dizer…' /></label>
+    <div className="iai-cartao-acoes"><button type="submit" disabled={estado === 'enviando'}>Guardar o relato</button><button type="button" onClick={() => setAberto(false)}>Cancelar</button></div>
+    {estado === 'erro' && <small role="alert">Não foi possível guardar. Confira se a conta continua aberta.</small>}
+  </form>
+}
+
 type TipoNovo = 'um' | 'dois' | 'nome'
 /**
  * Como o Cosmos leu cada termo, e a correção: a pessoa muda a leitura ou acrescenta um termo ("x invalida a existência

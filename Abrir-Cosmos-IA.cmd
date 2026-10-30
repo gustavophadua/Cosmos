@@ -1,5 +1,5 @@
 @echo off
-rem Abre o Cosmos com a formalizacao pelo Ollama local: confere o Ollama, sobe o servico e abre o navegador no Labs.
+rem Abre o Cosmos com a IA local: confere o Ollama, sobe o servico e abre a Conversa no navegador.
 chcp 65001 >nul
 cd /d "%~dp0"
 where node >nul 2>nul || (echo O Node.js não está instalado. Instale o Node 22 e abra de novo. & pause & exit /b 1)

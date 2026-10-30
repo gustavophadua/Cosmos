@@ -137,6 +137,7 @@ if ($Conferir) {
   Write-Host 'Tudo pronto: abra o atalho "Cosmos" na Área de Trabalho.' -ForegroundColor Green
   exit 0
 }
-Write-Host 'Pronto. Abra o atalho "Cosmos" na Área de Trabalho: ele liga o serviço e abre o navegador no Labs.' -ForegroundColor Green
+Write-Host 'Pronto. Abra o atalho "Cosmos" na Área de Trabalho: ele liga o serviço e abre a Conversa no navegador.' -ForegroundColor Green
+Write-Host 'Na primeira vez, crie a sua conta (apelido e senha de 12 caracteres ou mais): a IA fica presa a ela.'
 Write-Host 'Em computador com placa integrada AMD (Radeon Vega), o modelo fica cerca de duas vezes mais rápido com a'
 Write-Host 'variável OLLAMA_IGPU_ENABLE=1 (setx OLLAMA_IGPU_ENABLE 1 e reabrir o Ollama). Ela não é ligada sozinha.'

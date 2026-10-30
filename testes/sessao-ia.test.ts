@@ -8,7 +8,7 @@ import { criarCofreTeste, assinarMensagemLocalTeste, verificarMensagemLocalTeste
 import { assinarComSenha, bloquearContaLocal, entrarContaLocal, gravarSelado, lerSelado, obterContaLocal, registrarAoEntrar, STORAGE_COFRE_LOCAL } from '../src/local/conta'
 import { lerLinhaLocal } from '../src/local/banco'
 import { criarPorteiroIA } from '../src/integracoes/ollama-node'
-import { abrirHistoricoIA, conversasDoIndice, gravarMensagemIA, lerMensagemIA } from '../src/interfaces/historico-ia'
+import { abrirHistoricoIA, arquivoDeRelatos, conversasDoIndice, gravarMensagemIA, gravarRelatoErro, lerMensagemIA, lerRelatosErro } from '../src/interfaces/historico-ia'
 
 // Credenciais públicas exclusivamente de fixture; nunca são credenciais pessoais do aparelho.
 const SENHA = 'fixture-publica-sessao-ia-2026', OUTRA = 'fixture-publica-outra-conta-2026'
@@ -76,6 +76,21 @@ describe('a IA presa à conta', () => {
     const enorme = { ...resultado, relatorio: { ...resultado.relatorio, avisos: ['x'.repeat(120_000)] } }
     await gravarMensagemIA({ id: 5, fio: 5, pergunta: 'Enorme', resposta: 'resumo', resultado: enorme, em: '2026-10-30T11:00:00.000Z' }, indice)
     expect((await lerMensagemIA(5))?.resultado).toBeUndefined()
+  })
+})
+
+describe('os relatos de "isso está errado"', () => {
+  it('ficam cifrados na conta com a tradução, e o arquivo exportado leva só os relatos', async () => {
+    await entrar()
+    const proposta = { vocabulario: [{ simbolo: 'Propria', tipo: 'predicado' as const, aridade: 1, leitura: 'x é própria' }], premissas: ['∀x (Propria(x) ⟹ ¬Senso(x))'], conclusao: '∀x (Propria(x))', classe: null }
+    const resultado = { tipo: 'argumento' as const, comando: 'verificar' as const, texto: { premissas: ['As próprias não têm senso.'], conclusao: 'Logo…' }, proposta, classe: 'independente' as const }
+    const relatos = await gravarRelatoErro({ id: 7, fio: 7, pergunta: 'as pessoas veem as outras como deuses…', resposta: 'Salto', resultado, em: '2026-10-30T12:00:00.000Z' }, '"as próprias" não é uma categoria')
+    expect(relatos).toHaveLength(1)
+    expect(await lerRelatosErro()).toMatchObject([{ mensagem: 7, classe: 'independente', comentario: '"as próprias" não é uma categoria', traducao: { premissas: proposta.premissas } }])
+    const arquivo = JSON.parse(arquivoDeRelatos(relatos))
+    expect(Object.keys(arquivo).sort()).toEqual(['exportadoEm', 'formato', 'relatos'])
+    const titular = obterContaLocal().perfil!.perfil.pubkey
+    expect((await lerLinhaLocal(`selado:${titular}:ia-relatos`))!.valor).not.toContain('categoria')
   })
 })
 
