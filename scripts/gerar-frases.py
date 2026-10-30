@@ -6,6 +6,7 @@ Uso:
   python -I -X utf8 -B scripts/gerar-frases.py revisao SAIDA.jsonl [ITENS_POR_CLASSE] [LEVA]
   python -I -X utf8 -B scripts/gerar-frases.py treino2 SAIDA.jsonl [ITENS_POR_CLASSE]
   python -I -X utf8 -B scripts/gerar-frases.py revisao2 SAIDA.jsonl [ITENS_POR_CLASSE]
+  python -I -X utf8 -B scripts/gerar-frases.py visao SAIDA.jsonl [ITENS_POR_CLASSE]
 
 - validacao: 150 itens, 50 por classe, vocabulário de fantasia, só as formas de frase de base. É nele que se escolhem
   pedido, exemplos, votação e o checkpoint do treino; o conjunto fechado não serve para ajustar nada.
@@ -20,6 +21,12 @@ Uso:
   "alguém só pode A se for B"), "todo A que é B é C", "nenhum A que não é B é C", "ou… mas não os dois" e "faz
   parte dos / está entre os". Os moldes novos só entram nesses dois modos; os outros se refazem byte a byte como antes.
   O vocabulário das ações é de nave e de campo, de propósito longe das frases G-, que são teste.
+- visao (30/10/2026): frases de visão de mundo, com ids W-, para o treino. Vocabulário abstrato ("parte do todo",
+  "necessário ao todo", "dono da própria função", "x invalida a existência de y"), todos os moldes do treino2 e três
+  famílias novas, com peso triplo: o genérico ("O humano é mortal" = todo humano é mortal), a relação negada entre
+  grupos ("Nenhum A R um B") e a ligação que a fecha ("Quem é P não R nenhum B"), que é a forma do argumento do dono
+  (formalizacao-v1.md §9), em versões que fecham (segue), que contradizem e que dão salto (independente). Por padrão,
+  300 itens por classe.
 
 Cada linha: {"padrao": nome, "formas": [índice da forma de cada frase], "item": {...}}. A semente é fixa (o nome do modo): rodar de novo dá o mesmo
 arquivo, byte a byte. A classe de cada padrão é a esperada; a conferência pelo Z3 (testes/frases-geradas.test.ts) é a
@@ -51,6 +58,44 @@ VALIDACAO = {
         ('kiara', 'Kiara', 'f'), ('leandro', 'Leandro', 'm'), ('mirela', 'Mirela', 'f'), ('nestor', 'Nestor', 'm'),
     ],
     'relacoes': [('Desafia', 'desafia'), ('Protege', 'protege'), ('Inveja', 'inveja'), ('Procura', 'procura')],
+}
+# visão de mundo: só nomes com forma masculina (os moldes dizem "Todo …", "Nenhum …"). Palavras raras de propósito: a primeira
+# lista, de palavras comuns, colidiu com o conjunto fechado na conferência de scripts/anti-vazamento.py (que só dá contagens)
+VISAO = {
+    'classes': [
+        ('Arauto', 'arauto', 'arauta', 'arautos'), ('Cronista', 'cronista', 'cronista', 'cronistas'), ('Pajem', 'pajem', 'pajem', 'pajens'),
+        ('Alquimista', 'alquimista', 'alquimista', 'alquimistas'), ('Cartografo', 'cartógrafo', 'cartógrafa', 'cartógrafos'), ('Sineiro', 'sineiro', 'sineira', 'sineiros'),
+        ('Barqueiro', 'barqueiro', 'barqueira', 'barqueiros'), ('Ourives', 'ourives', 'ourives', 'ourives'), ('Copista', 'copista', 'copista', 'copistas'),
+        ('Faroleiro', 'faroleiro', 'faroleira', 'faroleiros'), ('Relojoeiro', 'relojoeiro', 'relojoeira', 'relojoeiros'), ('Boticario', 'boticário', 'boticária', 'boticários'),
+        ('Acolito', 'acólito', 'acólita', 'acólitos'), ('Curandeiro', 'curandeiro', 'curandeira', 'curandeiros'), ('Zelador', 'zelador', 'zeladora', 'zeladores'),
+        ('Almocreve', 'almocreve', 'almocreve', 'almocreves'),
+    ],
+    'adjetivos': [
+        ('ParteDoTodo', 'parte do todo', 'parte do todo', 'parte do todo'), ('NecessarioAoTodo', 'necessário ao todo', 'necessária ao todo', 'necessários ao todo'),
+        ('DonoDaPropriaFuncao', 'dono da própria função', 'dona da própria função', 'donos da própria função'),
+        ('ResponsavelPelosAtos', 'responsável pelos próprios atos', 'responsável pelos próprios atos', 'responsáveis pelos próprios atos'),
+        ('DignoDeRespeito', 'digno de respeito', 'digna de respeito', 'dignos de respeito'), ('Insubstituivel', 'insubstituível', 'insubstituível', 'insubstituíveis'),
+        ('Transitorio', 'transitório', 'transitória', 'transitórios'), ('Singular', 'singular', 'singular', 'singulares'),
+        ('Interdependente', 'interdependente', 'interdependente', 'interdependentes'), ('Perene', 'perene', 'perene', 'perenes'),
+        ('Imperfeito', 'imperfeito', 'imperfeita', 'imperfeitos'), ('Sereno', 'sereno', 'serena', 'serenos'),
+        ('ComSensoProprio', 'dono de um senso próprio da realidade', 'dona de um senso próprio da realidade', 'donos de um senso próprio da realidade'),
+        ('GuardiaoDaMemoria', 'guardião da memória', 'guardiã da memória', 'guardiões da memória'),
+    ],
+    'pessoas': [
+        ('anselmo', 'Anselmo', 'm'), ('berenice', 'Berenice', 'f'), ('caetano', 'Caetano', 'm'), ('dalva', 'Dalva', 'f'), ('evaristo', 'Evaristo', 'm'),
+        ('filomena', 'Filomena', 'f'), ('genaro', 'Genaro', 'm'), ('hortencia', 'Hortência', 'f'), ('isidoro', 'Isidoro', 'm'), ('jandira', 'Jandira', 'f'),
+        ('leopoldo', 'Leopoldo', 'm'), ('marieta', 'Marieta', 'f'), ('nicanor', 'Nicanor', 'm'), ('odete', 'Odete', 'f'), ('prudencio', 'Prudêncio', 'm'),
+        ('rosalina', 'Rosalina', 'f'), ('saturnino', 'Saturnino', 'm'), ('teodora', 'Teodora', 'f'),
+    ],
+    'relacoes': [
+        ('InvalidaExistenciaDe', 'invalida a existência de'), ('HonraPerspectivaDe', 'honra a perspectiva de'), ('Acolhe', 'acolhe'),
+        ('Silencia', 'silencia'), ('Anula', 'anula'), ('Desmerece', 'desmerece'), ('Reconhece', 'reconhece'), ('Hostiliza', 'hostiliza'),
+    ],
+    'acoes': [
+        ('PodeDecidirPeloTodo', 'decidir pelo todo'), ('PodeFalarPorTodos', 'falar por todos'), ('PodeAnularOutraVisao', 'anular outra visão'),
+        ('PodeReescreverMemoria', 'reescrever a memória'), ('PodeGuardarArquivo', 'guardar o arquivo'), ('PodeAbencoarColheita', 'abençoar a colheita'),
+        ('PodeAcenderFogueira', 'acender a fogueira'), ('PodeConvocarConselho', 'convocar o conselho'),
+    ],
 }
 TREINO = {
     'classes': [
@@ -171,10 +216,26 @@ def montar(f):
     def grupo(a, b): return f.forma(f'Todos os {a["pl"]} são {b["pl"]}.', f'Todos os {a["pl"]} estão entre os {b["pl"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
     def no_grupo(c, a): return f.forma(f'{c["nome"]} faz parte dos {a["pl"]}.', f'{c["nome"]} está entre os {a["pl"]}.'), f'{a["simbolo"]}({c["simbolo"]})'
 
+    # só no modo visao: o genérico, a relação negada entre grupos e a ligação que a fecha
+    def generico(a, b): return f.forma(f'O {a["m"]} é {b["m"]}.', f'Os {a["pl"]} são {b["pl"]}.'), f'∀x ({a["simbolo"]}(x) ⟹ {b["simbolo"]}(x))'
+    def nenhum_rel(a, r, b): return f.forma(f'Nenhum {a["m"]} {r["verbo"]} um {b["m"]}.', f'Nenhum {a["m"]} {r["verbo"]} algum {b["m"]}.'), f'∀x ∀y (({a["simbolo"]}(x) ∧ {b["simbolo"]}(y)) ⟹ ¬{r["simbolo"]}(x, y))'
+    def quem_rel(p, r, b): return f.forma(f'Quem é {p["m"]} não {r["verbo"]} nenhum {b["m"]}.', f'Ninguém que seja {p["m"]} {r["verbo"]} um {b["m"]}.'), f'∀x ∀y (({p["simbolo"]}(x) ∧ {b["simbolo"]}(y)) ⟹ ¬{r["simbolo"]}(x, y))'
+    def nao_rel(c, r, d): return f'{c["nome"]} não {r["verbo"]} {d["nome"]}.', f'¬{r["simbolo"]}({c["simbolo"]}, {d["simbolo"]})'
+
     C, P, X, R, A = f.classe, f.predicado, f.pessoa, f.relacao, f.acao
-    V2 = 'v2'
+    V2, VI = 'v2', 'visao'
     # (classe esperada, nome, só no treino? (V2: só treino2 e revisao2), montar)
     return [
+        ('segue', 'generico-barbara', VI, lambda: (lambda a, b, c: ([generico(a, b), todo(b, c)], generico(a, c)))(C(), C(), P())),
+        ('segue', 'generico-instancia', VI, lambda: (lambda a, b, c: ([generico(a, b), eh(c, a)], eh(c, b)))(C(), P(), X())),
+        ('segue', 'ponte-rel', VI, lambda: (lambda a, p, r, b: ([todo(a, p), quem_rel(p, r, b)], nenhum_rel(a, r, b)))(C(), P(), R(), C())),
+        ('segue', 'rel-instancia', VI, lambda: (lambda a, r, b, x, y: ([nenhum_rel(a, r, b), eh(x, a), eh(y, b)], nao_rel(x, r, y)))(C(), R(), C(), X(), X())),
+        ('contradiz', 'generico-negado', VI, lambda: (lambda a, b, c: ([generico(a, b), eh(c, a)], nao_eh(c, b)))(C(), P(), X())),
+        ('contradiz', 'rel-instancia-negada', VI, lambda: (lambda a, r, b, x, y: ([nenhum_rel(a, r, b), eh(x, a), eh(y, b)], rel(x, r, y)))(C(), R(), C(), X(), X())),
+        ('contradiz', 'ponte-rel-negada', VI, lambda: (lambda a, p, r, b, x, y: ([todo(a, p), quem_rel(p, r, b), eh(x, a), eh(y, b)], rel(x, r, y)))(C(), P(), R(), C(), X(), X())),
+        ('independente', 'generico-volta', VI, lambda: (lambda a, b: ([todo(a, b)], generico(b, a)))(C(), C())),
+        ('independente', 'sem-ponte-rel', VI, lambda: (lambda a, p, r, b, q: ([todo(a, p), todo(b, q)], nenhum_rel(a, r, b)))(C(), P(), R(), C(), P())),
+        ('independente', 'ponte-rel-volta', VI, lambda: (lambda a, p, r, b: ([quem_rel(p, r, b), todo(p, a)], nenhum_rel(a, r, b)))(C(), C(), R(), C())),
         ('segue', 'so-pode', V2, lambda: (lambda a, b, c: ([so_pode(a, b), pode(c, a)], eh(c, b)))(A(), P(), X())),
         ('segue', 'so-pode-tollens', V2, lambda: (lambda a, b, c: ([so_pode(a, b), nao_eh(c, b)], nao_pode(c, a)))(A(), P(), X())),
         ('segue', 'todo-que', V2, lambda: (lambda a, b, c, x: ([todo_que(a, b, c), eh(x, a), eh(x, b)], eh(x, c)))(C(), P(), P(), X())),
@@ -232,13 +293,15 @@ def montar(f):
 
 
 def gerar(modo, por_classe, leva=1):
-    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (TREINO, True, 'R' if modo.startswith('revisao') else 'T')
-    v2 = modo in ('treino2', 'revisao2')
+    vocab, variar, prefixo = (VALIDACAO, False, 'V') if modo == 'validacao' else (VISAO, True, 'W') if modo == 'visao' else (TREINO, True, 'R' if modo.startswith('revisao') else 'T')
+    v2, visao = modo in ('treino2', 'revisao2', 'visao'), modo == 'visao'
     # semente fixa pelo nome do modo (e da leva, a partir da segunda): o arquivo se refaz igual, e qualquer um confere
     rnd = random.Random(int.from_bytes(hashlib.sha256(f'cosmos-frases-{modo}{f"-leva{leva}" if leva > 1 else ""}-v1'.encode()).digest(), 'big'))
     linhas, vistos = [], set()
     for classe in ('segue', 'contradiz', 'independente'):
-        nomes = [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and (v2 if so_treino == 'v2' else (variar or not so_treino))]
+        nomes = [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and (visao if so_treino == 'visao' else v2 if so_treino == 'v2' else (variar or not so_treino))]
+        if visao:  # as famílias novas com peso triplo
+            nomes += [nome for c, nome, so_treino, _ in montar(Frase(vocab, rnd, variar)) if c == classe and so_treino == 'visao'] * 2
         feitos, tentativas = 0, 0
         while feitos < por_classe:
             tentativas += 1
@@ -266,9 +329,9 @@ def gerar(modo, por_classe, leva=1):
 
 if __name__ == '__main__':
     modo, saida = sys.argv[1], sys.argv[2]
-    if modo not in ('validacao', 'treino', 'revisao', 'treino2', 'revisao2'):
-        sys.exit('modo: validacao, treino, revisao, treino2 ou revisao2')
-    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 167 if modo.startswith('revisao') else 1000
+    if modo not in ('validacao', 'treino', 'revisao', 'treino2', 'revisao2', 'visao'):
+        sys.exit('modo: validacao, treino, revisao, treino2, revisao2 ou visao')
+    por_classe = 50 if modo == 'validacao' else int(sys.argv[3]) if len(sys.argv) > 3 else 167 if modo.startswith('revisao') else 300 if modo == 'visao' else 1000
     leva = int(sys.argv[4]) if len(sys.argv) > 4 and modo == 'revisao' else 1
     linhas = gerar(modo, por_classe, leva)
     corpo = ''.join(json.dumps(l, ensure_ascii=False) + '\n' for l in linhas).encode('utf-8')
