@@ -12,6 +12,7 @@ import { MoedaTeste } from './MoedaTeste'
 import { BarraCosmos, NotaLicenca } from './Navegacao'
 import { criarClienteOllama } from './ollama-cliente'
 import { lerProposta } from '../motor/formalizacao'
+import type { Termo } from '../motor/avaliacao'
 import { COMANDOS, executar, lerPedido, respostaAfirmacao, resumoEmTexto, type Comando, type ResultadoIA } from './assistente'
 import { CartaoIA, MenuDeComandos } from './ConversaIA'
 import './produtos.css'
@@ -29,11 +30,11 @@ const chaveFios = (dono: string) => `cosmos:conversa:fios:${dono.slice(0, 16)}`
 const lerFios = (dono: string): number[][] => { try { const v = JSON.parse(localStorage.getItem(chaveFios(dono)) ?? '[]'); return Array.isArray(v) ? v.filter((f): f is number[] => Array.isArray(f) && f.every(Number.isSafeInteger)).slice(0, 50) : [] } catch { return [] } }
 const gravarFios = (dono: string, fios: number[][]) => { try { localStorage.setItem(chaveFios(dono), JSON.stringify(fios.slice(0, 50))) } catch { /* sem armazenamento: as conversas viram uma por mensagem ao recarregar */ } }
 
-function Turno({ conversa, novo, resultado, progresso }: { conversa: Conversa; novo: boolean; resultado?: ResultadoIA; progresso?: string }) {
+function Turno({ conversa, novo, resultado, progresso, aoRefazer }: { conversa: Conversa; novo: boolean; resultado?: ResultadoIA; progresso?: string; aoRefazer?: (r: ResultadoIA, v: Termo[]) => void }) {
   return <section className="iai-turno" data-id={conversa.id} data-novo={novo ? '' : undefined}>
     <div className="iai-question">{conversa.pergunta}</div>
     <div className="iai-answer"><span className="iai-answer-avatar" aria-hidden="true">C</span><div><small><strong>Cosmos</strong></small>
-      {progresso !== undefined ? <p className="iai-progresso" role="status">{progresso}</p> : resultado ? <CartaoIA resultado={resultado} /> : <p>{conversa.resposta}</p>}</div></div>
+      {progresso !== undefined ? <p className="iai-progresso" role="status">{progresso}</p> : resultado ? <CartaoIA resultado={resultado} aoRefazer={aoRefazer && ((v) => aoRefazer(resultado, v))} /> : <p>{conversa.resposta}</p>}</div></div>
   </section>
 }
 
@@ -113,7 +114,7 @@ function IAI() {
     setFio(novoFio); setNovo(id)
     setFios(fs => doFio ? fs.map(f => (f.includes(fio[0]) ? novoFio : f)) : [novoFio, ...fs])
   }
-  const enviar = async (texto = query) => {
+  const enviar = async (texto = query, vocabulario?: Termo[]) => {
     if (!texto.trim() || salvando) return
     const pedido = lerPedido(texto.normalize('NFC'), comando), id = historico.reduce((m, h) => Math.max(m, h.id), andamento?.id ?? 0) + 1
     if (!pedido.texto) { if (pedido.comando !== 'afirmacao') setComando(pedido.comando); setQuery(''); return }
@@ -132,7 +133,7 @@ function IAI() {
       setAndamento({ id, pergunta, progresso: 'Começando…' }); abrirMensagem(id)
       let resposta: string
       try {
-        const r = await executar(ia.cliente, pedido.comando, pedido.texto, (c) => lerProposta(c, null), (progresso) => setAndamento(a => a && { ...a, progresso }))
+        const r = await executar(ia.cliente, pedido.comando, pedido.texto, (c) => lerProposta(c, vocabulario ?? null), (progresso) => setAndamento(a => a && { ...a, progresso }), undefined, vocabulario)
         resultadosIA.set(id, r); resposta = resumoEmTexto(r)
       } catch (e) {
         const m = (e as Error).message
@@ -142,6 +143,11 @@ function IAI() {
       atualizar(n => n + 1)
     } catch { setErro('Não foi possível guardar a conversa. Confira a conta e o espaço do cofre (até 50 mensagens).') }
     finally { setAndamento(null); setSalvando(false) }
+  }
+  // "Refazer com estes termos": a mesma verificação, com o vocabulário que a pessoa corrigiu, como mensagem nova
+  const refazer = (r: ResultadoIA, vocabulario: Termo[]) => {
+    if (r.tipo !== 'argumento' || salvando) return
+    void enviar(`/verificar ${[...r.texto.premissas, r.texto.conclusao].join('\n')}`, vocabulario)
   }
   const lerArquivo = (f: File | undefined) => {
     if (!f) return
@@ -164,7 +170,7 @@ function IAI() {
       <main className="iai-main"><header className="iai-mobile-header"><button className="iai-mobile-menu" aria-label="Abrir conversas" aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}>☰</button><span>Conversa</span><button aria-label="Nova conversa" onClick={novaConversa}>＋</button></header>
         <div className={`iai-content ${turnos.length ? 'has-conversation' : ''}`} ref={rolagem}>
           {turnos.length ? <article className="iai-conversation" aria-label="Conversa com o Cosmos" aria-live="polite">
-            {turnos.map(c => <Turno key={c.id} conversa={c} novo={c.id === novo} resultado={resultadosIA.get(c.id)} progresso={andamento?.id === c.id ? andamento.progresso : undefined} />)}
+            {turnos.map(c => <Turno key={c.id} conversa={c} novo={c.id === novo} resultado={resultadosIA.get(c.id)} progresso={andamento?.id === c.id ? andamento.progresso : undefined} aoRefazer={ligada ? refazer : undefined} />)}
           </article> : <section className="iai-welcome">
             <h1>O que você quer verificar?</h1>
             <p>Escreva um raciocínio ou cole um plano. O Cosmos traduz para lógica e o Z3 separa o que decorre dos fatos do que é salto.</p>

@@ -41,6 +41,13 @@ describe('a ligação que falta', () => {
     expect(todas.opcoes[0].leitura).toContain('A não é dona da sua função')
   })
 
+  it('a conclusão escrita por dentro ("∀x (… ⟹ ∀y (…))", como o modelo escreveu) dá as mesmas ligações, lidas por inteiro', async () => {
+    const r = await buscarPonte(null, juiz(VISAO), { ...ARG, premissas: [ARG.premissas[2]], conclusao: '∀x (Pessoa(x) ⟹ ∀y (Pessoa(y) ⟹ ¬(Invalida(x, y))))' })
+    if (!('fonte' in r)) throw new Error(r.motivo)
+    expect(r.opcoes[0]).toMatchObject({ ponte: '∀x ∀y (¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y) ⟹ ¬Invalida(x, y))',
+      leitura: 'Para quaisquer A e B: se A não é dona da sua função e B não é dona da sua função, então A não invalida a existência de B.' })
+  })
+
   it('conclusão sobre todos ("o homem é eterno"): a ligação parte do que as premissas dizem', async () => {
     const r = await buscarPonte(null, juiz(HOMEM), { vocabulario: HOMEM, premissas: ['∀x (Homem(x) ⟹ ParteDeDeus(x))', 'Eterno(deus)'], conclusao: '∀x (Homem(x) ⟹ Eterno(x))' })
     expect(r).toEqual({ opcoes: [{ ponte: '∀x (ParteDeDeus(x) ⟹ Eterno(x))', leitura: 'Para qualquer A: se A é parte de Deus, então A é eterno.', essenciais: [0] }], fonte: 'busca', outras: 0 })

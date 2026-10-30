@@ -98,6 +98,11 @@ describe('Formalização pelo Ollama local na ponte', () => {
       expect(await c.chamar({ rota: 'ollama', metodo: 'POST', corpo })).toBe(400)
     expect(c.pedidos.some((p) => p.url.endsWith('/api/chat'))).toBe(false)
     expect(() => validarTextoFormalizacao(Object.assign(Object.create({ herdado: 1 }), TEXTO))).toThrow()
+    // o vocabulário corrigido na Conversa: aceito só no formato dos termos
+    const vocab = [{ simbolo: 'ParteDoTodo', tipo: 'predicado', aridade: 1, leitura: 'x é parte do todo' }]
+    expect(validarTextoFormalizacao({ ...TEXTO, vocabulario: vocab })).toEqual({ ...TEXTO, vocabulario: vocab })
+    for (const vocabulario of [[], [{ ...vocab[0], extra: 1 }], [{ ...vocab[0], simbolo: '1x' }], 'x'])
+      expect(() => validarTextoFormalizacao({ ...TEXTO, vocabulario })).toThrow()
   }))
 
   it('origem, marcador e método fora da política barrados antes do Ollama', async () => ambiente(async (c) => {

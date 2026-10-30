@@ -373,3 +373,16 @@ com a ligação para Minha cadeia, como provado.
 O que esta peça não resolve: a tradução de frases abstratas pelo modelo pequeno (o mesmo argumento, traduzido pelo
 qwen3:4b, saiu com "x é todo" no lugar de "x é parte do todo"). Isso fica com a correção do vocabulário na tela e com o
 treino.
+
+### 9b. Corrigir os termos (30/10/2026)
+
+O cartão da Conversa mostra como o Cosmos leu cada termo e deixa a pessoa corrigir a leitura ou acrescentar um termo
+(propriedade, relação entre dois ou nome). A verificação é refeita com esse vocabulário fixo nas duas chamadas da
+tradução cega (a rota `ollama` aceita o vocabulário junto com o texto, só no formato dos termos). Leitura mudada ganha
+símbolo novo, tirado dela ("x é parte do todo" → `ParteDoTodo`), porque o modelo lê o nome do símbolo junto.
+
+No argumento do dono, com "parte do todo", "necessária ao todo", "dona da sua função" e "x invalida a existência de y"
+dados, o qwen3:4b traduziu certo três premissas e a conclusão (só "sem cada pessoa, o todo não existiria" saiu torta);
+o Z3 deu salto e a busca achou, entre outras, "se A é parte do todo e A não é dona da sua função, então A não invalida a
+existência de nenhuma pessoa". A busca entende a conclusão escrita por dentro (`∀x (A(x) ⟹ ∀y (B(y) ⟹ C(x, y)))`), como
+o modelo costuma escrever.

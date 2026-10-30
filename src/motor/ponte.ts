@@ -155,7 +155,12 @@ function literalDe(f: Formula): Alvo['literal'] {
 function alvoDaConclusao(conclusao: string, v: Termo[]): Alvo | null {
   let f = lerFormula(conclusao, v)
   const vars: string[] = []
-  while (f.k === 'forall') { vars.push(f.v); f = f.corpo }
+  // "∀x (Pessoa(x) ⟹ ∀y (Pessoa(y) ⟹ C(x, y)))" é o mesmo que "∀x ∀y (Pessoa(x) ∧ Pessoa(y) ⟹ C(x, y))": o "então" é C
+  for (;;) {
+    if (f.k === 'forall') { vars.push(f.v); f = f.corpo; continue }
+    if (f.k === 'imp' && f.r.k === 'forall') { f = f.r; continue }
+    break
+  }
   if (vars.length) {
     const cons = f.k === 'imp' ? f.r : f
     return { vars, texto: imprimir(cons), literal: literalDe(cons) }

@@ -14,26 +14,34 @@ export const MODELO_OLLAMA_PADRAO = 'qwen3:4b'
 
 class ErroOllama extends Error { constructor(readonly status: number, readonly codigo: string) { super(codigo) } }
 
-/** Premissas e conclusão em texto: o único corpo aceito. Nada de mensagens, modelo ou opções vindos do navegador. */
-export function validarTextoFormalizacao(x: unknown): { premissas: string[]; conclusao: string } {
-  const o = x as { premissas?: unknown; conclusao?: unknown }
+/**
+ * Premissas e conclusão em texto, e o vocabulário quando a pessoa corrigiu os termos na Conversa: o único corpo aceito.
+ * Nada de mensagens, modelo ou opções vindos do navegador.
+ */
+export function validarTextoFormalizacao(x: unknown): { premissas: string[]; conclusao: string; vocabulario?: Termo[] } {
+  const o = x as { premissas?: unknown; conclusao?: unknown; vocabulario?: unknown }
   const texto = (s: unknown) => typeof s === 'string' && s.trim().length > 0 && s.length <= 500
+  const chaves = typeof x === 'object' && x !== null ? Object.keys(x).sort().join() : ''
   if (typeof x !== 'object' || x === null || Array.isArray(x) || Object.getPrototypeOf(x) !== Object.prototype
-      || Object.keys(x).sort().join() !== 'conclusao,premissas' || !Array.isArray(o.premissas)
-      || o.premissas.length < 1 || o.premissas.length > 10 || !o.premissas.every(texto) || !texto(o.conclusao)) throw new ErroOllama(400, 'invalido')
-  return { premissas: (o.premissas as string[]).map((p) => p.trim()), conclusao: (o.conclusao as string).trim() }
+      || (chaves !== 'conclusao,premissas' && chaves !== 'conclusao,premissas,vocabulario') || !Array.isArray(o.premissas)
+      || o.premissas.length < 1 || o.premissas.length > 10 || !o.premissas.every(texto) || !texto(o.conclusao)
+      || (o.vocabulario !== undefined && (!Array.isArray(o.vocabulario) || o.vocabulario.length < 1 || o.vocabulario.length > 40 || !o.vocabulario.every(termoValido)))) throw new ErroOllama(400, 'invalido')
+  return { premissas: (o.premissas as string[]).map((p) => p.trim()), conclusao: (o.conclusao as string).trim(),
+    ...(o.vocabulario ? { vocabulario: (o.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })) } : {}) }
 }
 
 export interface PropostaParaConferir { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }
 const objetoSimples = (x: unknown, chaves: string): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x)
   && Object.getPrototypeOf(x) === Object.prototype && Object.keys(x).sort().join() === chaves
 /** A proposta já lida no navegador, para o Z3 conferir: vocabulário, fórmulas e a classe dita. Só isso. */
+function termoValido(t: unknown) {
+  return objetoSimples(t, 'aridade,leitura,simbolo,tipo') && typeof t.simbolo === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(t.simbolo)
+    && (t.tipo === 'predicado' || t.tipo === 'constante') && Number.isInteger(t.aridade) && (t.aridade as number) >= 0 && (t.aridade as number) <= 4 && typeof t.leitura === 'string' && t.leitura.length <= 80
+}
 export function validarPropostaConferir(x: unknown): PropostaParaConferir {
   const formula = (s: unknown) => typeof s === 'string' && s.trim().length > 0 && s.length <= 1000
-  const termo = (t: unknown) => objetoSimples(t, 'aridade,leitura,simbolo,tipo') && typeof t.simbolo === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,30}$/.test(t.simbolo)
-    && (t.tipo === 'predicado' || t.tipo === 'constante') && Number.isInteger(t.aridade) && (t.aridade as number) >= 0 && (t.aridade as number) <= 4 && typeof t.leitura === 'string' && t.leitura.length <= 80
   if (!objetoSimples(x, 'classe,conclusao,premissas,vocabulario') || !Array.isArray(x.vocabulario) || x.vocabulario.length < 1 || x.vocabulario.length > 40
-      || !x.vocabulario.every(termo) || !Array.isArray(x.premissas) || x.premissas.length < 1 || x.premissas.length > 10 || !x.premissas.every(formula)
+      || !x.vocabulario.every(termoValido) || !Array.isArray(x.premissas) || x.premissas.length < 1 || x.premissas.length > 10 || !x.premissas.every(formula)
       || !formula(x.conclusao) || !(x.classe === null || CLASSES.includes(x.classe as Classe))) throw new ErroOllama(400, 'invalido')
   return { vocabulario: (x.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })), premissas: x.premissas as string[], conclusao: x.conclusao as string, classe: x.classe as Classe | null }
 }
@@ -98,7 +106,8 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
   // a tradução cega: as premissas sem a conclusão, depois a conclusão só com o vocabulário (formalizacao-v1.md §8b)
   const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   const conclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
-  const traduzir = (t: { premissas: string[]; conclusao: string }) => formalizarCego(premissas, conclusao, t, null, EXEMPLOS)
+  // com o vocabulário corrigido pela pessoa, ele fica fixo nas duas chamadas
+  const traduzir = (t: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }) => formalizarCego(premissas, conclusao, t, t.vocabulario ?? null, EXEMPLOS)
   // a ligação que falta (ponte.ts): o modelo propõe, o Z3 confere
   const ligacao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PONTE, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   // o extrator do revisor lê um bloco de até 1.500 caracteres e devolve a lista de afirmações: precisa de mais contexto

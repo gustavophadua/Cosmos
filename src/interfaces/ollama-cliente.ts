@@ -40,8 +40,8 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch)
       return { estado: o.estado as EstadoOllama['estado'], modelo: o.modelo, ...(typeof o.digest === 'string' ? { digest: o.digest } : {}), ...(typeof o.ollama === 'string' ? { ollama: o.ollama } : {}) }
     },
     /** Na CPU, uma proposta leva cerca de um minuto; o prazo aqui é o mesmo da ponte. */
-    async formalizar(texto: { premissas: string[]; conclusao: string }, signal?: AbortSignal) {
-      const o = await chamar('ollama', texto, 310000, signal)
+    async formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }, signal?: AbortSignal) {
+      const o = await chamar('ollama', { premissas: texto.premissas, conclusao: texto.conclusao, ...(texto.vocabulario ? { vocabulario: texto.vocabulario } : {}) }, 620000, signal)
       if (o.formato !== 'cosmos-ollama-resposta-v1' || typeof o.conteudo !== 'string' || !Number.isSafeInteger(o.prompt_tokens) || !Number.isSafeInteger(o.completion_tokens)) throw new ErroIntegracoes('invalido')
       return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number, ...(typeof o.reparo === 'string' ? { reparo: o.reparo } : {}) }
     },

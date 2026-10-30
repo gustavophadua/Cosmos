@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { detectar, executar, lerPedido, notasDaLeitura, provadoSoNaFormaForte, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
+import { detectar, executar, leituraComVariavel, lerPedido, notasDaLeitura, provadoSoNaFormaForte, respostaAfirmacao, simboloDaLeitura, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
 import { lerProposta } from '../src/motor/formalizacao'
+import type { Termo } from '../src/motor/avaliacao'
 
-const VOCAB = [{ simbolo: 'Cliente', tipo: 'predicado', aridade: 1, leitura: 'x é cliente' }, { simbolo: 'Suporte', tipo: 'predicado', aridade: 1, leitura: 'x tem suporte' }, { simbolo: 'padaria', tipo: 'constante', aridade: 0, leitura: 'a padaria' }]
+const VOCAB: Termo[] = [{ simbolo: 'Cliente', tipo: 'predicado', aridade: 1, leitura: 'x é cliente' }, { simbolo: 'Suporte', tipo: 'predicado', aridade: 1, leitura: 'x tem suporte' }, { simbolo: 'padaria', tipo: 'constante', aridade: 0, leitura: 'a padaria' }]
 const PROPOSTA = JSON.stringify({ vocabulario: VOCAB, premissas: ['∀x (Cliente(x) ⟹ Suporte(x))', 'Cliente(padaria)'], conclusao: 'Suporte(padaria)', classe: 'segue' })
 
 describe('assistente da Conversa', () => {
@@ -93,6 +94,24 @@ describe('assistente da Conversa', () => {
     // contrariar não pede a ligação (o salto já é o contra-exemplo)
     const c = await executar({ ...cliente, ponte: async () => { throw new Error('não devia') } }, 'contrariar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (x) => lerProposta(x, null), () => undefined)
     expect(c).not.toHaveProperty('ligacao')
+  })
+
+  it('os termos corrigidos: o símbolo sai da leitura, a variável entra se faltar, e a tradução usa só esse vocabulário', async () => {
+    expect(simboloDaLeitura('x é parte do todo', 'predicado', [])).toBe('ParteDoTodo')
+    expect(simboloDaLeitura('x invalida a existência de y', 'predicado', [])).toBe('InvalidaAExistenciaDe')
+    expect(simboloDaLeitura('Deus', 'constante', [])).toBe('deus')
+    expect(simboloDaLeitura('x é parte do todo', 'predicado', ['ParteDoTodo'])).toBe('ParteDoTodo2')
+    expect(simboloDaLeitura('???', 'predicado', [])).toBe('Termo')
+    expect(leituraComVariavel('é parte do todo', 1)).toBe('x é parte do todo')
+    expect(leituraComVariavel('x é parte do todo', 1)).toBe('x é parte do todo')
+    expect(leituraComVariavel('Deus', 0)).toBe('Deus')
+    const pedidos: unknown[] = []
+    const cliente: ClienteIA = {
+      formalizar: async (t) => { pedidos.push(t); return { conteudo: PROPOSTA } },
+      conferir: async () => ({ classeZ3: 'segue', motivo: '' }), revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+    }
+    await executar(cliente, 'verificar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (c) => lerProposta(c, VOCAB), () => undefined, undefined, VOCAB)
+    expect(pedidos).toEqual([{ premissas: ['Todo cliente tem suporte.', 'A padaria é cliente.'], conclusao: 'Então a padaria tem suporte.', vocabulario: VOCAB }])
   })
 
   it('revisar: começa no serviço e acompanha até o relatório', async () => {

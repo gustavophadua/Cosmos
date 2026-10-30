@@ -129,7 +129,7 @@ export type ResultadoIA =
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
-  formalizar(texto: { premissas: string[]; conclusao: string }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string }>
+  formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[] }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string }>
   conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal): Promise<{ classeZ3: Classe | null; motivo: string; cenario?: string[] }>
   revisar(texto: string, signal?: AbortSignal): Promise<unknown>
   /** a ligação que falta num salto (ponte.ts); sem ela, o salto vem sem a proposta */
@@ -137,9 +137,12 @@ export interface ClienteIA {
   estadoRevisao(signal?: AbortSignal): Promise<{ estado: string; fase?: string; feito?: number; total?: number; relatorio?: RelatorioRevisor; erro?: string }>
 }
 
-/** Executa um comando de IA. `ler` lê a proposta do modelo (lerProposta), `progresso` mostra a fase. */
+/**
+ * Executa um comando de IA. `ler` lê a proposta do modelo (lerProposta), `progresso` mostra a fase. Com `vocabulario`
+ * (os termos corrigidos pela pessoa no cartão), a tradução usa só ele.
+ */
 export async function executar(cliente: ClienteIA, comando: Comando, texto: string, ler: (conteudo: string) => Proposta,
-  progresso: (msg: string) => void, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))): Promise<ResultadoIA> {
+  progresso: (msg: string) => void, esperar = (ms: number) => new Promise((r) => setTimeout(r, ms)), vocabulario?: Termo[]): Promise<ResultadoIA> {
   if (comando === 'revisar' || comando === 'desmistificar') {
     progresso('Separando afirmações e conclusões…')
     await cliente.revisar(texto)
@@ -154,7 +157,7 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   const t = separarArgumento(texto)
   if (!t) throw new Error('Escreva o argumento em frases: as premissas e, por último, a conclusão (por exemplo: "Todo A é B. X é A. Então X é B.").')
   progresso('O modelo está traduzindo o argumento…')
-  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao })
+  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}) })
   const proposta = ler(r.conteudo)
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
@@ -211,4 +214,20 @@ export function textoDaLigacao(l: Extract<Ligacao, { fonte: string }>, premissas
     ...(l.outras > 0 ? [`Há mais ${l.outras} ligação(ões) parecida(s) que também fecham.`, ''] : []),
     'A ligação é a visão por trás do argumento: não é um fato, é o que você escolhe aceitar. Os fatos (as premissas que ela usa) precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.']
 }
+/**
+ * O símbolo de um termo novo ou corrigido, pela leitura: "x é parte do todo" → ParteDoTodo; "Deus" (constante) → deus.
+ * Sem acento, só letras e números, até 30; o primeiro livre entre os que já existem (ParteDoTodo2…).
+ */
+export function simboloDaLeitura(leitura: string, tipo: Termo['tipo'], usados: string[]): string {
+  const palavras = leitura.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\b[xyz]\b/g, ' ').split(/[^A-Za-z0-9]+/).filter(Boolean)
+    .filter((p, i, ps) => ps.length === 1 || !/^(e|o|a|os|as|de|do|da|que)$/i.test(p) || i > 0)
+  let base = palavras.map((p) => p[0].toUpperCase() + p.slice(1).toLowerCase()).join('').slice(0, 28) || 'Termo'
+  if (!/^[A-Za-z]/.test(base)) base = `T${base}`
+  if (tipo === 'constante') base = base[0].toLowerCase() + base.slice(1)
+  let s = base
+  for (let n = 2; usados.includes(s); n++) s = `${base}${n}`
+  return s
+}
+/** A leitura de um predicado começa pela variável ("x é parte do todo"); se a pessoa não pôs, o Cosmos põe. */
+export const leituraComVariavel = (leitura: string, aridade: number) => aridade === 0 || /^[xy]\s/.test(leitura.trim()) ? leitura.trim() : `x ${leitura.trim()}`
 export { tituloDoVeredito }

@@ -1,7 +1,9 @@
 /** @jsxImportSource react */
 // As peças da IA dentro da Conversa (assistente.ts): o menu de comandos do "+" e do "/", e o cartão de cada resposta,
 // com registrar na cadeia e baixar o relatório.
-import { COMANDOS, notasDaLeitura, provadoSoNaFormaForte, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
+import { useState } from 'react'
+import { COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
+import type { Termo } from '../motor/avaliacao'
 import { CartoesDoRelatorio } from './RevisorPlano'
 import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
 import type { Afirmacao } from '../motor/registro'
@@ -28,7 +30,51 @@ export function MenuDeComandos({ filtro, ia, aoEscolher }: { filtro: string; ia:
   </div>
 }
 
-export function CartaoIA({ resultado }: { resultado: ResultadoIA }) {
+type TipoNovo = 'um' | 'dois' | 'nome'
+/**
+ * Como o Cosmos leu cada termo, e a correção: a pessoa muda a leitura ou acrescenta um termo ("x invalida a existência
+ * de y"), e a verificação é refeita com esse vocabulário fixo. Contorna o modelo pequeno nas frases abstratas ("parte do
+ * todo" lido como "x é todo").
+ */
+function TermosDaLeitura({ vocabulario, aoRefazer }: { vocabulario: Termo[]; aoRefazer?: (v: Termo[]) => void }) {
+  const [editando, setEditando] = useState(false)
+  const [leituras, setLeituras] = useState(() => vocabulario.map((t) => t.leitura))
+  const [novos, setNovos] = useState<{ tipo: TipoNovo; leitura: string }[]>([])
+  const pronto = (): Termo[] => {
+    const usados: string[] = []
+    const termo = (simbolo: string, tipo: Termo['tipo'], aridade: number, leitura: string) => { usados.push(simbolo); return { simbolo, tipo, aridade, leitura } as Termo }
+    const corrigidos = vocabulario.map((t, i) => {
+      const leitura = leituraComVariavel(leituras[i], t.aridade).slice(0, 80)
+      // leitura mudada, símbolo novo: o modelo lê o nome do símbolo junto com a leitura
+      return leitura === t.leitura ? termo(t.simbolo, t.tipo, t.aridade, leitura) : termo(simboloDaLeitura(leitura, t.tipo, [...usados, ...vocabulario.map((x) => x.simbolo).filter((s) => s !== t.simbolo)]), t.tipo, t.aridade, leitura)
+    })
+    const extras = novos.filter((n) => n.leitura.trim()).map((n) => {
+      const aridade = n.tipo === 'um' ? 1 : n.tipo === 'dois' ? 2 : 0, tipo = n.tipo === 'nome' ? 'constante' as const : 'predicado' as const
+      const leitura = (n.tipo === 'dois' && !/\by\b/.test(n.leitura) ? `${leituraComVariavel(n.leitura, 2)} y` : leituraComVariavel(n.leitura, aridade)).slice(0, 80)
+      return termo(simboloDaLeitura(leitura, tipo, usados), tipo, aridade, leitura)
+    })
+    return [...corrigidos, ...extras].slice(0, 40)
+  }
+  if (!editando) return <details className="iai-termos"><summary>Como o Cosmos leu os termos</summary>
+    <ul>{vocabulario.map((t) => <li key={t.simbolo}><code>{t.simbolo}</code> {t.leitura}</li>)}</ul>
+    {aoRefazer && <button type="button" onClick={() => setEditando(true)}>Corrigir os termos</button>}
+  </details>
+  return <div className="iai-termos iai-termos-edicao">
+    <small>Corrija como o Cosmos deve ler cada termo, ou acrescente o que faltou. A verificação é refeita só com estes termos.</small>
+    {vocabulario.map((t, i) => <label key={t.simbolo}><span>{t.tipo === 'constante' ? 'nome' : t.aridade === 2 ? 'relação' : 'propriedade'}</span>
+      <input value={leituras[i]} maxLength={80} onChange={(e) => setLeituras((ls) => ls.map((l, j) => (j === i ? e.target.value : l)))} /></label>)}
+    {novos.map((n, i) => <label key={`novo${i}`}><select value={n.tipo} onChange={(e) => setNovos((ns) => ns.map((x, j) => (j === i ? { ...x, tipo: e.target.value as TipoNovo } : x)))}>
+      <option value="um">propriedade (x é …)</option><option value="dois">relação (x … y)</option><option value="nome">nome (alguém ou algo)</option></select>
+      <input value={n.leitura} maxLength={80} placeholder={n.tipo === 'dois' ? 'x invalida a existência de y' : n.tipo === 'nome' ? 'Deus' : 'x é parte do todo'} onChange={(e) => setNovos((ns) => ns.map((x, j) => (j === i ? { ...x, leitura: e.target.value } : x)))} /></label>)}
+    <div className="iai-cartao-acoes">
+      <button type="button" onClick={() => setNovos((ns) => [...ns, { tipo: 'um', leitura: '' }])}>＋ termo</button>
+      <button type="button" onClick={() => { aoRefazer?.(pronto()); setEditando(false) }}>Refazer com estes termos</button>
+      <button type="button" onClick={() => setEditando(false)}>Cancelar</button>
+    </div>
+  </div>
+}
+
+export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoRefazer?: (vocabulario: Termo[]) => void }) {
   if (resultado.tipo === 'relatorio') {
     const { relatorio, comando } = resultado
     const n = (v: string) => relatorio.argumentos.filter((a) => a.veredito === v).length
@@ -65,6 +111,7 @@ export function CartaoIA({ resultado }: { resultado: ResultadoIA }) {
         <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
       </div>}
       {essenciais && <small>{essenciais.length ? 'Negue uma das premissas marcadas e a conclusão cai; as outras não fazem falta.' : 'Nenhuma premissa sozinha sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
+      <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} />
       <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
     </li></ol>
     {classe && <div className="iai-cartao-acoes">
