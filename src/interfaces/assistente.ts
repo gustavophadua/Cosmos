@@ -48,7 +48,7 @@ const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
  * separadas por vírgula antes da marca) ou "o homem é eterno porque Deus é eterno". O "então" de "se A, então B" é
  * uma condicional, não uma conclusão.
  */
-function argumentoNumaFrase(f: string): { premissas: string[]; conclusao: string } | null {
+function argumentoNumaFrase(f: string): ArgumentoSeparado | null {
   const marcas = [...f.matchAll(MARCA_CONCLUSAO)].filter((m) => m.index! > 0).reverse()
   for (const m of marcas) {
     const antes = f.slice(0, m.index).replace(/[\s,;:]+$/, ''), depois = f.slice(m.index! + m[0].length).trim()
@@ -61,7 +61,45 @@ function argumentoNumaFrase(f: string): { premissas: string[]; conclusao: string
     const conclusao = f.slice(0, r.index), ps = partes(f.slice(r.index + r[0].length))
     if (ps.length && conclusao.trim().length > 1) return { premissas: ps.map((p) => comPonto(maiuscula(p))), conclusao: comPonto(maiuscula(conclusao)) }
   }
+  // sem marca: três orações ou mais, separadas por vírgula ("as pessoas são sociáveis, eu não sou sociável, eu não sou
+  // pessoa"): a última é a conclusão provável, e a resposta diz que foi suposta. Cada parte com três palavras ou mais
+  // (uma lista, "comprei pão, leite, ovos", não é argumento); com "se/caso/quando", a vírgula parte a condicional
+  const ps = partes(f)
+  if (ps.length >= 3 && ps.every((p) => p.split(/\s+/).length >= 3) && !ps.some((p) => /^(se|caso|quando)\s/iu.test(p)))
+    return { premissas: ps.slice(0, -1).map((p) => comPonto(maiuscula(p))), conclusao: comPonto(maiuscula(ps.at(-1)!)), suposta: true }
   return null
+}
+
+// "geralmente", "normalmente"…: a lógica do Cosmos não tem "a maioria". Para conferir, a premissa vai na forma forte
+// (vale para todos) e a resposta avisa: com a palavra, há exceções, e o caso da conclusão pode ser uma delas
+const ATENUANTE = /(?<![\p{L}])(geralmente|normalmente|em geral|quase sempre|na maioria das vezes|frequentemente|tipicamente|muitas vezes)(?![\p{L}])\s*,?\s*/iu
+export interface ArgumentoSeparado {
+  premissas: string[]; conclusao: string
+  /** sem "logo"/"então": a última parte foi tomada como a conclusão */
+  suposta?: true
+  /** as premissas que diziam "geralmente" (e o texto como veio), conferidas como se valessem para todos */
+  atenuadas?: { premissa: number; palavra: string; original: string }[]
+}
+function semAtenuantes(a: ArgumentoSeparado): ArgumentoSeparado {
+  const atenuadas: NonNullable<ArgumentoSeparado['atenuadas']> = []
+  const premissas = a.premissas.map((p, i) => {
+    const m = ATENUANTE.exec(p)
+    if (!m) return p
+    atenuadas.push({ premissa: i, palavra: m[1].toLowerCase(), original: p })
+    return comPonto(maiuscula(p.replace(ATENUANTE, '').replace(/\s+([,.;!?])/g, '$1').trim()))
+  })
+  return atenuadas.length ? { ...a, premissas, atenuadas } : a
+}
+
+/** As notas sobre como o texto foi lido: a conclusão suposta e as premissas com "geralmente". */
+export function notasDaLeitura(r: { texto: ArgumentoSeparado; classe: Classe | null }): string[] {
+  const l: string[] = []
+  if (r.texto.suposta) l.push('Não havia "logo" nem "então": li as primeiras partes como as razões e a última como a conclusão.')
+  for (const a of r.texto.atenuadas ?? []) {
+    l.push(`"${a.original}" diz "${a.palavra}", e a lógica não tem "a maioria": para conferir, li como "${r.texto.premissas[a.premissa]}" (vale para todos).`)
+    if (r.classe === 'segue') l.push(`Com "${a.palavra}", a conclusão não decorre: "${a.palavra}" admite exceções, e o caso da conclusão pode ser uma delas. Ela só está provada se a frase valer para todos, e aí essa premissa é uma generalização que precisa de fonte.`)
+  }
+  return l
 }
 
 /**
@@ -78,15 +116,15 @@ export function respostaAfirmacao(texto: string): string {
   return l.join('\n\n')
 }
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
-export function separarArgumento(texto: string): { premissas: string[]; conclusao: string } | null {
+export function separarArgumento(texto: string): ArgumentoSeparado | null {
   const fs = frases(texto)
-  if (fs.length === 1) return argumentoNumaFrase(fs[0])
+  if (fs.length === 1) { const a = argumentoNumaFrase(fs[0]); return a && semAtenuantes(a) }
   if (fs.length < 2 || fs.length > 11) return null
-  return { premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) }
+  return semAtenuantes({ premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) })
 }
 
 export type ResultadoIA =
-  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: { premissas: string[]; conclusao: string }; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string }
+  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string }
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
@@ -113,7 +151,7 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   const t = separarArgumento(texto)
   if (!t) throw new Error('Escreva o argumento em frases: as premissas e, por último, a conclusão (por exemplo: "Todo A é B. X é A. Então X é B.").')
   progresso('O modelo está traduzindo o argumento…')
-  const r = await cliente.formalizar(t)
+  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao })
   const proposta = ler(r.conteudo)
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
@@ -137,7 +175,8 @@ export function resumoEmTexto(r: ResultadoIA): string {
     const md = relatorioEmMarkdown(r.relatorio)
     return md.length <= 6000 ? md : `${md.slice(0, 5900)}\n\n(resumo cortado; baixe o relatório completo na hora da revisão)`
   }
-  const l = [r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
+  const notas = notasDaLeitura(r)
+  const l = [r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
   if (r.essenciais) l.push('', 'Para contrariar, é preciso negar uma destas premissas:', ...r.essenciais.map((i) => `- ${r.texto.premissas[i]}`))
   l.push('', 'Fórmulas (m2):', ...r.proposta.premissas.map((p) => `- ${p}`), `- conclusão: ${r.proposta.conclusao}`)

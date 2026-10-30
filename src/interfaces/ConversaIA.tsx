@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 // As peças da IA dentro da Conversa (assistente.ts): o menu de comandos do "+" e do "/", e o cartão de cada resposta,
 // com registrar na cadeia e baixar o relatório.
-import { COMANDOS, TITULO_DA_CLASSE, type Comando, type ResultadoIA } from './assistente'
+import { COMANDOS, notasDaLeitura, TITULO_DA_CLASSE, type Comando, type ResultadoIA } from './assistente'
 import { CartoesDoRelatorio } from './RevisorPlano'
 import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
 import type { Afirmacao } from '../motor/registro'
@@ -46,6 +46,7 @@ export function CartaoIA({ resultado }: { resultado: ResultadoIA }) {
   return <div className="iai-cartao">
     <ol className="revisor-argumentos"><li data-veredito={classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'}>
       <header><strong>{titulo}</strong></header>
+      {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
       <p className="revisor-conclusao">{texto.conclusao}</p>
       <small>Premissas:</small>
       <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}</li>)}</ul>

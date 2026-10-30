@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectar, executar, lerPedido, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
+import { detectar, executar, lerPedido, notasDaLeitura, respostaAfirmacao, resumoEmTexto, separarArgumento, type ClienteIA } from '../src/interfaces/assistente'
 import { lerProposta } from '../src/motor/formalizacao'
 
 const VOCAB = [{ simbolo: 'Cliente', tipo: 'predicado', aridade: 1, leitura: 'x é cliente' }, { simbolo: 'Suporte', tipo: 'predicado', aridade: 1, leitura: 'x tem suporte' }, { simbolo: 'padaria', tipo: 'constante', aridade: 0, leitura: 'a padaria' }]
@@ -31,6 +31,26 @@ describe('assistente da Conversa', () => {
     expect(separarArgumento('A loja abre cedo, se chover, então fecha')).toBeNull()
     expect(separarArgumento('Ele está em São Paulo')).toBeNull()
     expect(separarArgumento('Linha um\nLinha dois')).toEqual({ premissas: ['Linha um'], conclusao: 'Linha dois' })
+  })
+
+  it('sem "logo": três orações, a última é a conclusão suposta; "geralmente" vai na forma forte e a resposta avisa', () => {
+    // o caso real do dono (29/10/2026), que caía em "afirmação sozinha"
+    const frase = 'as pessoas geralmente são sociaveis, eu não sou sociavel, eu não sou pessoa'
+    const a = separarArgumento(frase)
+    expect(a).toEqual({ premissas: ['As pessoas são sociaveis.', 'Eu não sou sociavel.'], conclusao: 'Eu não sou pessoa.', suposta: true,
+      atenuadas: [{ premissa: 0, palavra: 'geralmente', original: 'As pessoas geralmente são sociaveis.' }] })
+    expect(detectar(frase)).toBe('verificar')
+    const provado = notasDaLeitura({ texto: a!, classe: 'segue' })
+    expect(provado[0]).toContain('li as primeiras partes como as razões e a última como a conclusão')
+    expect(provado[1]).toContain('li como "As pessoas são sociaveis." (vale para todos)')
+    expect(provado[2]).toContain('Com "geralmente", a conclusão não decorre')
+    expect(notasDaLeitura({ texto: a!, classe: 'independente' })).toHaveLength(2)
+    // em frases separadas também; o "geralmente" no meio de frase sai sem deixar espaço sobrando
+    expect(separarArgumento('Clientes do plano anual normalmente renovam. A padaria é cliente do plano anual. Então a padaria renova.')!.premissas[0]).toBe('Clientes do plano anual renovam.')
+    // lista não é argumento; a condicional partida por vírgulas também não
+    expect(separarArgumento('comprei pão, leite, ovos')).toBeNull()
+    expect(separarArgumento('se chover muito, a rua molha toda, a feira fecha cedo')).toBeNull()
+    expect(separarArgumento('Ele está em São Paulo')).toBeNull()
   })
 
   it('verificar: o modelo traduz, o Z3 decide; contrariar o provado acha as premissas que o sustentam', async () => {
