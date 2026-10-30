@@ -412,3 +412,21 @@ e "os outros" é alguém diferente (x ≠ y). Na metade de revisão G-, contra a
 pedido mais longo, o modelo pequeno pôs uma premissa a mais, deixou um x solto e inventou um sujeito ("eu"). Pela regra
 de só entrar o que não piora, ficou de fora. O caso continua coberto por outros caminhos: o "entendi" mostra o erro, a
 correção de termos aceita "x vê y como deus" como relação, e o modelo grande na nuvem lê esse tipo de frase.
+
+### 9e. Comparação com um modelo grande (30/10/2026)
+
+"Sozinho" = a classe perguntada direto ao modelo, com as mesmas definições do pedido (`testes/comparar-sozinho.test.ts`);
+"Cosmos" = o modelo traduz (tradução cega) e o Z3 decide. Nas 199 frases G-:
+
+| Sistema | 199: classe certa | 199: falsos "segue" (de 153) | 41: classe certa | 41: falsos "segue" (de 34) |
+| --- | --- | --- | --- | --- |
+| qwen3:4b sozinho (classe dita no pedido v3) | 136 | 57 | 27 | 13 |
+| gpt-oss-120b sozinho (Groq) | 184 | 0 | 38 | 0 |
+| Cosmos com qwen3:4b (`cego-v1`) | 189 | 2 | 39 | 0 |
+| Cosmos com gpt-oss-120b (`cego-v2`, Groq) | — | — | 40 | 0 |
+
+A medição do gpt-oss-120b dentro do Cosmos parou nas primeiras 50 frases (por id), 41 delas traduzidas: o plano grátis
+do Groq tem limite diário de tokens, e a tradução cega gasta cerca de 5 mil por frase (as outras 9 voltaram "sem cota").
+A coluna de 41 compara todos os sistemas nessas mesmas frases. Leitura: o modelo grande sozinho já quase não erra o
+"segue" nestas frases; o Z3 acrescenta acerto (o pequeno dentro do Cosmos supera o grande sozinho) e, sobretudo, a
+prova: fórmulas, o "entendi", o caso que derruba a conclusão e a ligação que falta.
