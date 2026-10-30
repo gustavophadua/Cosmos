@@ -10,6 +10,7 @@ import { lerDeVolta } from '../motor/formalizacao'
 import type { Afirmacao } from '../motor/registro'
 import type { ParaRegistro } from './FormalizacaoAssistida'
 import './conversa-ia.css'
+import './conversa-mapa.css'
 
 let paraCadeia: ParaRegistro | null = null
 /** A passagem da Conversa para Minha cadeia (no Avançado): quem abre a cadeia toma o registro uma vez. */
@@ -33,7 +34,6 @@ export function MenuDeComandos({ filtro, ia, aoEscolher }: { filtro: string; ia:
 
 /** O que o Cosmos entendeu de cada fórmula, lido de volta em português sem modelo: o erro de tradução aparece aqui. */
 const entendi = (formula: string | undefined, vocabulario: Termo[]) => { if (!formula) return null; try { return lerDeVolta(formula, vocabulario) } catch { return null } }
-const Entendi = ({ texto }: { texto: string | null }) => texto ? <small className="iai-entendi"> entendi: {texto}</small> : null
 
 type TipoNovo = 'um' | 'dois' | 'nome'
 /**
@@ -80,7 +80,48 @@ function TermosDaLeitura({ vocabulario, aoRefazer, aberto }: { vocabulario: Term
   </div>
 }
 
+type Veredito = 'provado' | 'salto' | 'contradiz' | 'sem-traducao'
+const ROTULO_DO_VEREDITO: Record<Veredito, string> = { provado: 'Provado', salto: 'Salto', contradiz: 'Contradição', 'sem-traducao': 'Não decidido' }
+
+/**
+ * O argumento desenhado: os fatos (as premissas) em cima, a visão (a ligação que falta, quando há salto) no meio e a
+ * conclusão embaixo, com o veredito. Com uma ligação escolhida, as premissas que ela não usa ficam apagadas ("não faz
+ * falta"); no "contrariar", as que sustentam a conclusão ficam marcadas.
+ */
+function MapaDoArgumento({ veredito, premissas, conclusao, lidas, conclusaoLida, usadas, sustentam, visao, lacuna }: {
+  veredito: Veredito; premissas: string[]; conclusao: string; lidas: (string | null)[]; conclusaoLida: string | null
+  usadas?: number[]; sustentam?: number[]; visao?: string; lacuna: boolean
+}) {
+  return <figure className="mapa" data-veredito={veredito} aria-label={`Mapa do argumento: ${premissas.length} fato(s), ${visao ? 'uma ligação, ' : ''}conclusão ${ROTULO_DO_VEREDITO[veredito]}`}>
+    <div className="mapa-fatos">
+      {premissas.map((p, i) => {
+        const sobra = usadas !== undefined && !usadas.includes(i)
+        return <div key={i} className="mapa-no mapa-fato" data-sobra={sobra || undefined} data-sustenta={sustentam?.includes(i) || undefined}>
+          <span className="mapa-rotulo">{sobra ? 'Não faz falta' : sustentam?.includes(i) ? 'Fato que sustenta' : 'Fato'}</span>
+          <p>{p}</p>
+          {lidas[i] && <small className="mapa-lido">entendi: {lidas[i]}</small>}
+        </div>
+      })}
+    </div>
+    <div className="mapa-barra" aria-hidden="true" />
+    {visao ? <>
+      <div className="mapa-fio mapa-fio-visao" aria-hidden="true" />
+      <div className="mapa-no mapa-visao"><span className="mapa-rotulo">Visão · a ligação que falta</span><p>{visao}</p></div>
+    </> : lacuna ? <>
+      <div className="mapa-fio mapa-fio-visao" aria-hidden="true" />
+      <div className="mapa-no mapa-lacuna"><span className="mapa-rotulo">Falta uma ligação</span><p>Nada nos fatos leva até a conclusão.</p></div>
+    </> : null}
+    <div className="mapa-fio" aria-hidden="true" />
+    <div className="mapa-no mapa-conclusao">
+      <span className="mapa-rotulo">Conclusão <b className="mapa-selo">{ROTULO_DO_VEREDITO[veredito]}</b></span>
+      <p>{conclusao.replace(/^(logo|então|portanto),?\s*/iu, '').replace(/^\p{Ll}/u, (c) => c.toUpperCase())}</p>
+      {conclusaoLida && <small className="mapa-lido">entendi: {conclusaoLida}</small>}
+    </div>
+  </figure>
+}
+
 export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoRefazer?: (vocabulario: Termo[]) => void }) {
+  const [escolhida, setEscolhida] = useState(0)
   if (resultado.tipo === 'relatorio') {
     const { relatorio, comando } = resultado
     const n = (v: string) => relatorio.argumentos.filter((a) => a.veredito === v).length
@@ -93,37 +134,36 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
   }
   const { classe, texto, proposta, cenario, essenciais, comando, motivo, ligacao } = resultado
   const achada = ligacao && 'fonte' in ligacao ? ligacao : null, falhou = ligacao && 'motivo' in ligacao ? ligacao : null
+  const opcao = achada?.opcoes[Math.min(escolhida, achada.opcoes.length - 1)]
   const titulo = !classe ? `Não decidido: ${motivo || 'a tradução não se leu'}`
     : comando === 'contrariar' ? (classe === 'independente' ? 'Dá para contrariar: a conclusão não decorre das premissas' : classe === 'contradiz' ? 'O próprio texto já contraria a conclusão: as premissas provam o oposto' : 'Só dá para contrariar negando uma premissa')
     : provadoSoNaFormaForte(resultado) ? TITULO_FORMA_FORTE : TITULO_DA_CLASSE[classe]
-  return <div className="iai-cartao">
-    <ol className="revisor-argumentos"><li data-veredito={provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'}>
-      <header><strong>{titulo}</strong></header>
-      {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
-      {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
-      <p className="revisor-conclusao">{texto.conclusao}<Entendi texto={entendi(proposta.conclusao, proposta.vocabulario)} /></p>
-      <small>Premissas:</small>
-      <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}<Entendi texto={entendi(proposta.premissas[i], proposta.vocabulario)} /></li>)}</ul>
-      {cenario && <><small>{comando === 'contrariar' ? 'O contra-exemplo: um cenário em que todas as premissas valem e a conclusão não.' : 'Um cenário em que todas as premissas valem e a conclusão não:'}</small><ul className="revisor-cenario">{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></>}
-      {classe === 'independente' && <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} aberto />}
-      {classe === 'independente' && !achada && <small>{falhou ? `Não achei uma ligação que feche: ${falhou.motivo}.` : 'Para a conclusão valer, falta uma afirmação que ligue as premissas a ela.'}</small>}
-      {achada && <div className="iai-ligacao">
-        <small>{achada.opcoes.length > 1 ? 'Para a conclusão valer, falta aceitar uma ligação. Qualquer uma destas fecha o argumento (o Z3 conferiu cada uma); qual é a sua?' : 'Para a conclusão valer, falta aceitar:'}</small>
-        <ol>{achada.opcoes.map((o, n) => <li key={n}>
-          <strong>{o.leitura}</strong>
-          {o.essenciais.length > 0 && <small> Os <b>fatos</b> que ela usa: {o.essenciais.map((i) => texto.premissas[i]).join(' ')}</small>}
-          {o.essenciais.length < texto.premissas.length && <small> Não fazem falta: {texto.premissas.filter((_, i) => !o.essenciais.includes(i)).join(' ')}</small>}
-          <a href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: [...proposta.premissas, o.ponte], afirmacao: 'segue', dominio: 'geral' } }}>Aceito esta: registrar provado com ela</a>
-        </li>)}</ol>
-        {achada.outras > 0 && <small>Há mais {achada.outras} ligação(ões) parecida(s) que também fecham.</small>}
-        <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
-      </div>}
-      {essenciais && <small>{essenciais.length ? 'Negue uma das premissas marcadas e a conclusão cai; as outras não fazem falta.' : 'Nenhuma premissa sozinha sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
-      {classe !== 'independente' && <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} />}
-      <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
-    </li></ol>
+  const veredito: Veredito = provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'
+  return <div className="iai-cartao" data-veredito={veredito}>
+    <p className="iai-veredito" data-veredito={veredito}>{titulo}</p>
+    {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
+    {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
+    <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
+      lidas={texto.premissas.map((_, i) => entendi(proposta.premissas[i], proposta.vocabulario))} conclusaoLida={entendi(proposta.conclusao, proposta.vocabulario)}
+      usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'} />
+    {achada && opcao && <div className="iai-ligacao">
+      {achada.opcoes.length > 1 && <>
+        <small>Qualquer uma destas ligações fecha o argumento (o Z3 conferiu cada uma). Escolher entre elas é escolher a sua visão:</small>
+        <div className="iai-opcoes" role="radiogroup" aria-label="Ligações que fecham o argumento">
+          {achada.opcoes.map((o, n) => <button key={n} type="button" role="radio" aria-checked={o === opcao} onClick={() => setEscolhida(n)}>{n + 1}. {o.leitura.replace(/^Para quaisquer? [^:]+: /, '')}</button>)}
+        </div>
+      </>}
+      {achada.outras > 0 && <small>Há mais {achada.outras} ligação(ões) parecida(s) que também fecham.</small>}
+      <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
+    </div>}
+    {classe === 'independente' && !achada && comando !== 'contrariar' && <small>{falhou ? `Não achei uma ligação que feche: ${falhou.motivo}.` : 'Para a conclusão valer, falta uma afirmação que ligue os fatos a ela.'}</small>}
+    {cenario && <details className="iai-cenario" open={comando === 'contrariar'}><summary>{comando === 'contrariar' ? 'O contra-exemplo: um caso em que os fatos valem e a conclusão não' : 'Ver um caso em que os fatos valem e a conclusão não'}</summary><ul>{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></details>}
+    {essenciais && <small>{essenciais.length ? 'Negue um dos fatos marcados e a conclusão cai; os outros não fazem falta.' : 'Nenhum fato sozinho sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
+    <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} aberto={classe === 'independente'} />
+    <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
     {classe && <div className="iai-cartao-acoes">
-      <a href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: proposta.premissas, afirmacao: AFIRMACAO[classe], dominio: 'geral' } }}>Registrar na minha cadeia</a>
+      {opcao && <a className="iai-acao-principal" href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: [...proposta.premissas, opcao.ponte], afirmacao: 'segue', dominio: 'geral' } }}>Aceito esta ligação: registrar provado</a>}
+      <a href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: proposta.premissas, afirmacao: AFIRMACAO[classe], dominio: 'geral' } }}>Registrar como está</a>
     </div>}
   </div>
 }

@@ -1,0 +1,152 @@
+/*
+ * A Conversa com o design "mapa do argumento" (30/10/2026): papel claro e quente (ou grafite no escuro), títulos com
+ * serifa, e cada argumento desenhado como um mapa: fatos em cima, a visão (a ligação) tracejada no meio, a conclusão
+ * embaixo com o veredito. As cores de veredito são as mesmas nos dois temas: verde provado, âmbar salto, vermelho
+ * contradição, cinza não decidido. Tudo preso a .iai-mapa, para não mexer nas outras telas.
+ */
+.iai-app.iai-mapa {
+  --m-bg: #f6f4ee; --m-superficie: #fffdf8; --m-lateral: #efece4; --m-tinta: #1f2125; --m-suave: #676b73; --m-linha: #e2ddd1; --m-linha-forte: #c9c2b2;
+  --m-destaque: #3d52c4; --m-destaque-fundo: #e9ecfb; --m-sombra: 0 1px 2px rgba(40,32,16,.06), 0 8px 24px rgba(40,32,16,.07);
+  --m-fato: #3d52c4; --m-fato-fundo: #f3f5fd; --m-fato-borda: #c7cff0;
+  --m-visao: #a76a00; --m-visao-fundo: #fff7e6; --m-visao-borda: #e3b860;
+  --m-provado: #2f7d52; --m-provado-fundo: #eaf6ef; --m-salto: #b9790f; --m-salto-fundo: #fff4df; --m-contradiz: #b8321f; --m-contradiz-fundo: #fcecea; --m-neutro: #7d828b; --m-neutro-fundo: #f1f1ef;
+  --m-serifa: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+  background: var(--m-bg); color: var(--m-tinta);
+}
+.iai-app.iai-mapa.iai-dark {
+  --m-bg: #141518; --m-superficie: #1b1d21; --m-lateral: #17181b; --m-tinta: #ebe8e1; --m-suave: #9a9ea6; --m-linha: #2b2e34; --m-linha-forte: #3d4048;
+  --m-destaque: #8ea0ff; --m-destaque-fundo: #232a4a; --m-sombra: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --m-fato: #9cabff; --m-fato-fundo: #1d2238; --m-fato-borda: #34406e;
+  --m-visao: #f0bd5b; --m-visao-fundo: #2a2214; --m-visao-borda: #7a5b1f;
+  --m-provado: #5fc38a; --m-provado-fundo: #15281e; --m-salto: #f0b34a; --m-salto-fundo: #2b2213; --m-contradiz: #f07862; --m-contradiz-fundo: #2e1814; --m-neutro: #a1a5ad; --m-neutro-fundo: #23252a;
+}
+
+/* a casca */
+.iai-app.iai-mapa .iai-body, .iai-app.iai-mapa .iai-main, .iai-app.iai-mapa .iai-content { background: var(--m-bg); }
+.iai-app.iai-mapa .iai-sidebar { background: var(--m-lateral); border-right: 1px solid var(--m-linha); }
+.iai-app.iai-mapa .iai-new { background: var(--m-tinta); color: var(--m-bg); border-radius: 12px; font-weight: 600; box-shadow: none; }
+.iai-app.iai-mapa .iai-history p { color: var(--m-suave); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; }
+.iai-app.iai-mapa .iai-history button { border-radius: 10px; color: var(--m-tinta); position: relative; }
+.iai-app.iai-mapa .iai-history button:hover { background: var(--m-superficie); }
+.iai-app.iai-mapa .iai-history button.active { background: var(--m-superficie); box-shadow: inset 3px 0 0 var(--m-destaque); font-weight: 600; }
+.iai-app.iai-mapa .iai-history-note { display: flex; gap: 8px; align-items: flex-start; color: var(--m-suave); font-size: 12px; line-height: 1.45; }
+.iai-app.iai-mapa .iai-history-note svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.iai-app.iai-mapa .iai-sidebar-footer button { color: var(--m-suave); }
+
+/* boas-vindas */
+.iai-app.iai-mapa .iai-welcome { max-width: 760px; margin-inline: auto; text-align: center; }
+.iai-app.iai-mapa .iai-welcome h1 { font-family: var(--m-serifa); font-weight: 500; font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -.01em; line-height: 1.1; color: var(--m-tinta); }
+.iai-app.iai-mapa .iai-welcome > p { color: var(--m-suave); font-size: 16px; line-height: 1.55; max-width: 560px; margin: 14px auto 28px; }
+.iai-app.iai-mapa .iai-welcome h1::before {
+  content: ""; display: block; width: 72px; height: 44px; margin: 0 auto 18px; opacity: .9;
+  background:
+    radial-gradient(circle at 12px 8px, var(--m-fato) 5px, transparent 5.5px),
+    radial-gradient(circle at 60px 8px, var(--m-fato) 5px, transparent 5.5px),
+    radial-gradient(circle at 36px 36px, var(--m-provado) 6px, transparent 6.5px),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--m-linha-forte) 50%, transparent calc(50% + 1px)) 12px 8px / 24px 28px no-repeat,
+    linear-gradient(to bottom left, transparent calc(50% - 1px), var(--m-linha-forte) 50%, transparent calc(50% + 1px)) 36px 8px / 24px 28px no-repeat;
+}
+.iai-app.iai-mapa .iai-suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iai-app.iai-mapa .iai-suggestions button { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 4px; align-items: start; padding: 16px; border: 1px solid var(--m-linha); border-radius: 16px; background: var(--m-superficie); color: var(--m-tinta); box-shadow: var(--m-sombra); transition: transform .15s ease, border-color .15s ease; }
+.iai-app.iai-mapa .iai-suggestions button:hover { transform: translateY(-2px); border-color: var(--m-destaque); }
+.iai-app.iai-mapa .iai-suggestions button > span { grid-row: span 2; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; background: var(--m-destaque-fundo); color: var(--m-destaque); font-weight: 700; }
+.iai-app.iai-mapa .iai-suggestions strong { font-size: 15px; }
+.iai-app.iai-mapa .iai-suggestions small { color: var(--m-suave); font-size: 13px; line-height: 1.45; }
+@media (max-width: 640px) { .iai-app.iai-mapa .iai-suggestions { grid-template-columns: 1fr; } }
+
+/* o portão: sem conta aberta */
+.iai-app.iai-mapa .iai-portao { padding-top: 8vh; }
+.iai-app.iai-mapa .iai-portao h1::before { display: none; }
+.iai-app.iai-mapa .iai-portao-selo { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 20px; background: var(--m-destaque-fundo); color: var(--m-destaque); }
+.iai-app.iai-mapa .iai-portao-selo svg { width: 30px; height: 30px; }
+.iai-app.iai-mapa .iai-portao-botao { display: inline-block; padding: 12px 22px; border-radius: 12px; background: var(--m-destaque); color: #fff; font-weight: 600; text-decoration: none; box-shadow: var(--m-sombra); }
+.iai-app.iai-mapa .iai-portao-botao:hover { filter: brightness(1.06); }
+
+/* a conversa */
+.iai-app.iai-mapa .iai-conversation { max-width: 860px; margin-inline: auto; }
+.iai-app.iai-mapa .iai-turno + .iai-turno { border-top: 1px solid var(--m-linha); }
+.iai-app.iai-mapa .iai-question { margin-left: auto; width: fit-content; max-width: min(80%, 620px); padding: 12px 16px; border-radius: 18px 18px 4px 18px; background: var(--m-superficie); border: 1px solid var(--m-linha); box-shadow: var(--m-sombra); white-space: pre-wrap; line-height: 1.5; }
+.iai-app.iai-mapa .iai-answer-avatar { background: linear-gradient(135deg, var(--m-destaque), var(--m-provado)); color: #fff; font-family: var(--m-serifa); font-weight: 600; }
+.iai-app.iai-mapa .iai-answer > div > p { line-height: 1.6; white-space: pre-wrap; }
+
+/* a caixa de texto */
+.iai-app.iai-mapa .iai-composer { background: var(--m-superficie); border: 1px solid var(--m-linha); border-radius: 20px; box-shadow: var(--m-sombra); padding: 14px 14px 10px 18px; }
+.iai-app.iai-mapa .iai-composer:focus-within { border-color: var(--m-destaque); }
+.iai-app.iai-mapa .iai-composer textarea { background: transparent; color: var(--m-tinta); font-size: 15px; }
+.iai-app.iai-mapa .iai-composer button[type="submit"] { background: var(--m-destaque); color: #fff; border-radius: 12px; }
+.iai-app.iai-mapa .iai-composer button[type="submit"]:disabled { background: var(--m-linha-forte); }
+.iai-app.iai-mapa .iai-mais, .iai-app.iai-mapa .iai-anexo { border-color: var(--m-linha); color: var(--m-suave); }
+.iai-app.iai-mapa .iai-estado, .iai-app.iai-mapa .iai-nuvem { color: var(--m-suave); }
+.iai-app.iai-mapa .iai-ligar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; font-size: 13px; color: var(--m-suave); }
+.iai-app.iai-mapa .iai-ligar input { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--m-linha-forte); background: var(--m-superficie); color: var(--m-tinta); font: inherit; }
+.iai-app.iai-mapa .iai-ligar small { width: 100%; text-align: center; color: var(--m-contradiz); }
+
+/* o cartão da resposta */
+.iai-app.iai-mapa .iai-cartao { gap: 12px; }
+.iai-app.iai-mapa .iai-veredito { margin: 0; font-family: var(--m-serifa); font-size: 21px; font-weight: 600; line-height: 1.25; }
+.iai-app.iai-mapa .iai-veredito[data-veredito="provado"] { color: var(--m-provado); }
+.iai-app.iai-mapa .iai-veredito[data-veredito="salto"] { color: var(--m-salto); }
+.iai-app.iai-mapa .iai-veredito[data-veredito="contradiz"] { color: var(--m-contradiz); }
+.iai-app.iai-mapa .iai-veredito[data-veredito="sem-traducao"] { color: var(--m-neutro); }
+.iai-app.iai-mapa .iai-nota { background: var(--m-superficie); border: 1px solid var(--m-linha); color: var(--m-tinta); border-radius: 12px; }
+.iai-app.iai-mapa .iai-cartao details > summary { color: var(--m-suave); cursor: pointer; font-size: 13px; }
+.iai-app.iai-mapa .iai-cartao code { display: block; white-space: pre-wrap; font-size: 12.5px; padding: 10px 12px; margin-top: 6px; border-radius: 10px; background: var(--m-lateral); }
+.iai-app.iai-mapa .iai-cenario ul { margin: 6px 0 0; padding-left: 20px; color: var(--m-suave); font-size: 13.5px; }
+.iai-app.iai-mapa .iai-cartao-acoes a, .iai-app.iai-mapa .iai-cartao-acoes button { border-color: var(--m-linha-forte); color: var(--m-tinta); }
+.iai-app.iai-mapa .iai-cartao-acoes .iai-acao-principal { background: var(--m-tinta); border-color: var(--m-tinta); color: var(--m-bg); font-weight: 600; }
+.iai-app.iai-mapa .iai-ligacao { border: 0; padding: 0; display: grid; gap: 8px; }
+.iai-app.iai-mapa .iai-ligacao small { color: var(--m-suave); line-height: 1.5; }
+.iai-app.iai-mapa .iai-opcoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.iai-app.iai-mapa .iai-opcoes button { text-align: left; max-width: 100%; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--m-visao-borda); background: var(--m-superficie); color: var(--m-tinta); font: inherit; font-size: 13px; line-height: 1.4; cursor: pointer; }
+.iai-app.iai-mapa .iai-opcoes button[aria-checked="true"] { background: var(--m-visao-fundo); border-color: var(--m-visao); box-shadow: inset 0 0 0 1px var(--m-visao); font-weight: 600; }
+
+/* o mapa */
+.iai-app.iai-mapa .mapa {
+  margin: 4px 0 0; padding: 22px 16px 20px; display: grid; justify-items: center; border-radius: 18px; border: 1px solid var(--m-linha);
+  background-color: var(--m-superficie); background-image: radial-gradient(var(--m-linha) 1px, transparent 1.2px); background-size: 18px 18px;
+}
+.iai-app.iai-mapa .mapa-fatos { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; width: 100%; }
+.iai-app.iai-mapa .mapa-no { position: relative; width: min(100%, 300px); padding: 10px 14px 12px; border-radius: 14px; border: 1.5px solid; background: var(--m-superficie); box-shadow: var(--m-sombra); text-align: left; }
+.iai-app.iai-mapa .mapa-no p { margin: 4px 0 0; font-size: 14.5px; line-height: 1.45; color: var(--m-tinta); }
+.iai-app.iai-mapa .mapa-rotulo { display: flex; align-items: center; gap: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+.iai-app.iai-mapa .mapa-lido { display: block; margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--m-suave); }
+.iai-app.iai-mapa .mapa-fato { border-color: var(--m-fato-borda); background: var(--m-fato-fundo); }
+.iai-app.iai-mapa .mapa-fato .mapa-rotulo { color: var(--m-fato); }
+.iai-app.iai-mapa .mapa-fato[data-sobra] { opacity: .5; border-style: dashed; box-shadow: none; }
+.iai-app.iai-mapa .mapa-fato[data-sustenta] { box-shadow: inset 0 0 0 1.5px var(--m-fato), var(--m-sombra); }
+.iai-app.iai-mapa .mapa-barra { width: min(70%, 520px); height: 2px; margin-top: 14px; border-radius: 2px; background: var(--m-linha-forte); }
+.iai-app.iai-mapa .mapa-fio { width: 2px; height: 22px; background: var(--m-linha-forte); }
+.iai-app.iai-mapa .mapa-fio-visao { background: none; border-left: 2px dashed var(--m-visao-borda); width: 0; }
+.iai-app.iai-mapa .mapa-visao { width: min(100%, 420px); border-style: dashed; border-color: var(--m-visao); background: var(--m-visao-fundo); }
+.iai-app.iai-mapa .mapa-visao .mapa-rotulo { color: var(--m-visao); }
+.iai-app.iai-mapa .mapa-lacuna { width: min(100%, 320px); border-style: dashed; border-color: var(--m-salto); background: transparent; box-shadow: none; }
+.iai-app.iai-mapa .mapa-lacuna .mapa-rotulo { color: var(--m-salto); }
+.iai-app.iai-mapa .mapa-lacuna p { color: var(--m-suave); font-style: italic; }
+.iai-app.iai-mapa .mapa-conclusao { width: min(100%, 420px); border-width: 2px; }
+.iai-app.iai-mapa .mapa-conclusao p { font-family: var(--m-serifa); font-size: 17px; font-weight: 600; }
+.iai-app.iai-mapa .mapa-selo { margin-left: auto; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; letter-spacing: .06em; color: #fff; }
+.iai-app.iai-mapa .mapa[data-veredito="provado"] .mapa-conclusao { border-color: var(--m-provado); background: var(--m-provado-fundo); }
+.iai-app.iai-mapa .mapa[data-veredito="provado"] .mapa-selo { background: var(--m-provado); }
+.iai-app.iai-mapa .mapa[data-veredito="provado"] .mapa-conclusao .mapa-rotulo { color: var(--m-provado); }
+.iai-app.iai-mapa .mapa[data-veredito="salto"] .mapa-conclusao { border-color: var(--m-salto); background: var(--m-salto-fundo); }
+.iai-app.iai-mapa .mapa[data-veredito="salto"] .mapa-selo { background: var(--m-salto); }
+.iai-app.iai-mapa .mapa[data-veredito="salto"] .mapa-conclusao .mapa-rotulo { color: var(--m-salto); }
+.iai-app.iai-mapa .mapa[data-veredito="contradiz"] .mapa-conclusao { border-color: var(--m-contradiz); background: var(--m-contradiz-fundo); }
+.iai-app.iai-mapa .mapa[data-veredito="contradiz"] .mapa-selo { background: var(--m-contradiz); }
+.iai-app.iai-mapa .mapa[data-veredito="contradiz"] .mapa-conclusao .mapa-rotulo { color: var(--m-contradiz); }
+.iai-app.iai-mapa .mapa[data-veredito="sem-traducao"] .mapa-conclusao { border-color: var(--m-neutro); background: var(--m-neutro-fundo); }
+.iai-app.iai-mapa .mapa[data-veredito="sem-traducao"] .mapa-selo { background: var(--m-neutro); }
+.iai-app.iai-mapa .mapa[data-veredito="provado"] .mapa-fio, .iai-app.iai-mapa .mapa[data-veredito="provado"] .mapa-barra { background: var(--m-provado); }
+@media (max-width: 520px) { .iai-app.iai-mapa .mapa { padding: 16px 10px; } .iai-app.iai-mapa .mapa-barra { width: 2px; height: 14px; margin-top: 10px; } }
+@media (prefers-reduced-motion: reduce) { .iai-app.iai-mapa .iai-suggestions button { transition: none; } }
+/* a escolha da nuvem: caixa de marcar do tamanho do texto, a frase inteira ao lado */
+.iai-app.iai-mapa .iai-nuvem { width: min(100%, 760px); margin: 10px auto 0; justify-content: flex-start; align-items: flex-start; gap: 10px; line-height: 1.45; }
+.iai-app.iai-mapa .iai-nuvem input { appearance: auto; flex: none; width: 16px; height: 16px; min-height: 0; margin: 1px 0 0; padding: 0; accent-color: var(--m-destaque); }
+/* na lista de termos, o símbolo fica na linha da leitura (a regra das fórmulas acima é só para o bloco de fórmulas) */
+.iai-app.iai-mapa .iai-termos code { display: inline; padding: 0; margin: 0 6px 0 0; background: none; font-size: 12px; color: var(--m-suave); }
+.iai-app.iai-mapa .iai-termos ul { padding-left: 18px; }
+@media (max-width: 520px) {
+  .iai-app.iai-mapa .iai-nuvem-detalhe { display: none; }
+  .iai-app.iai-mapa .iai-nuvem, .iai-app.iai-mapa .iai-estado { font-size: 11.5px; margin-top: 6px; }
+  .iai-app.iai-mapa .iai-question { max-width: 92%; }
+}

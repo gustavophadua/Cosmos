@@ -155,10 +155,17 @@ function literalDe(f: Formula): Alvo['literal'] {
 function alvoDaConclusao(conclusao: string, v: Termo[]): Alvo | null {
   let f = lerFormula(conclusao, v)
   const vars: string[] = []
-  // "∀x (Pessoa(x) ⟹ ∀y (Pessoa(y) ⟹ C(x, y)))" é o mesmo que "∀x ∀y (Pessoa(x) ∧ Pessoa(y) ⟹ C(x, y))": o "então" é C
+  // "∀x (Pessoa(x) ⟹ ∀y (Pessoa(y) ⟹ C(x, y)))" é o mesmo que "∀x ∀y (Pessoa(x) ∧ Pessoa(y) ⟹ C(x, y))": o "então" é C.
+  // E "… ⟹ ¬∃y (Pessoa(y) ∧ C(x, y))" é "… ⟹ ∀y (Pessoa(y) ⟹ ¬C(x, y))": o "então" é ¬C
   for (;;) {
     if (f.k === 'forall') { vars.push(f.v); f = f.corpo; continue }
     if (f.k === 'imp' && f.r.k === 'forall') { f = f.r; continue }
+    if (f.k === 'imp' && f.r.k === 'not' && f.r.f.k === 'exists' && f.r.f.corpo.k === 'and') {
+      const e = f.r.f, corpo = f.r.f.corpo
+      vars.push(e.v)
+      f = { ...f, l: corpo.l, r: { ...corpo.r, k: 'not', f: corpo.r } as Formula }
+      continue
+    }
     break
   }
   if (vars.length) {

@@ -193,11 +193,11 @@ function IAI() {
   }
   const exemplo = (c: Comando) => { setComando(c); setQuery(COMANDOS.find(x => x.nome === c)!.exemplo); input.current?.focus() }
   const descricao = comando && COMANDOS.find(c => c.nome === comando)
-  if (!dono) return <div className={`product-root iai-app reference-app iai-v2 ${dark ? 'iai-dark' : ''}`}>
+  if (!dono) return <div className={`product-root iai-app reference-app iai-v2 iai-mapa ${dark ? 'iai-dark' : ''}`}>
     <BarraCosmos atual="i-ai" />
     <div className="iai-body iai-body-portao"><main className="iai-main"><div className="iai-content"><EntrarParaUsar /></div></main></div>
   </div>
-  return <div className={`product-root iai-app reference-app iai-v2 ${dark ? 'iai-dark' : ''}`}>
+  return <div className={`product-root iai-app reference-app iai-v2 iai-mapa ${dark ? 'iai-dark' : ''}`}>
     <BarraCosmos atual="i-ai" />
     <div className="iai-body">
       <aside className={`iai-sidebar ${sidebar ? 'is-open' : ''}`}>
@@ -233,7 +233,7 @@ function IAI() {
             : sessaoIA.estado === 'outra-conta' ? <p className="iai-estado" role="alert">Este Cosmos está ligado a outra conta. Para trocar de dona, abra o serviço com --novo-dono.</p>
             : <LigarComSenha />)}
           {ia.estado === 'ligada' && ia.nuvem && <label className="iai-nuvem"><input type="checkbox" checked={usarNuvem} onChange={e => escolherNuvem(e.target.checked)} />
-            Traduzir com o modelo grande na nuvem ({ia.nuvem}, no Groq). Lê melhor frases abstratas; o texto do argumento sai deste computador. O Z3 decide aqui do mesmo jeito.</label>}
+            <span>Traduzir com o modelo grande na nuvem ({ia.nuvem}, no Groq): o texto do argumento sai deste computador.<span className="iai-nuvem-detalhe"> Lê melhor frases abstratas; o Z3 decide aqui do mesmo jeito.</span></span></label>}
           <p className="iai-estado" data-estado={sessaoPronta ? 'ligada' : ia.estado}>{ia.estado === 'ligada' ? (usarNuvem && ia.nuvem ? `Tradução na nuvem (${ia.nuvem}) · o Z3 decide neste computador` : `IA local (${ia.modelo})${sessaoPronta ? ' ligada à sua conta' : ''} · o Z3 decide · o texto não sai deste computador`)
             : ia.estado === 'conectando' ? 'Conectando à IA local…'
             : ia.local ? 'IA local desligada: abra o Ollama e o atalho "Cosmos". Tentando de novo…'
