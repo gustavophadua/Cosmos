@@ -75,6 +75,26 @@ describe('assistente da Conversa', () => {
     await expect(executar(cliente, 'verificar', 'Uma frase só.', (x) => lerProposta(x, null), () => undefined)).rejects.toThrow('Escreva o argumento em frases')
   })
 
+  it('verificar um salto: pede a ligação que falta e o resumo separa fato, visão e lógica', async () => {
+    const cliente: ClienteIA = {
+      formalizar: async () => ({ conteudo: PROPOSTA }),
+      conferir: async () => ({ classeZ3: 'independente', motivo: '', cenario: ['a padaria: é cliente; não: tem suporte'] }),
+      ponte: async (a) => { expect(a.cenario).toEqual(['a padaria: é cliente; não: tem suporte']); return { opcoes: [{ ponte: '∀x (Cliente(x) ⟹ Suporte(x))', leitura: 'Para qualquer A: se A é cliente, então A tem suporte.', essenciais: [1] }], fonte: 'busca', outras: 2 } },
+      revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+    }
+    const passos: string[] = []
+    const r = await executar(cliente, 'verificar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (c) => lerProposta(c, null), (m) => passos.push(m))
+    expect(passos).toContain('Procurando a ligação que falta…')
+    const texto = resumoEmTexto(r)
+    expect(texto).toContain('Para a conclusão valer, falta aceitar:')
+    expect(texto).toContain('- Para qualquer A: se A é cliente, então A tem suporte.')
+    expect(texto).toContain('Fatos que ela usa: A padaria é cliente.')
+    expect(texto).toContain('Há mais 2 ligação(ões)')
+    // contrariar não pede a ligação (o salto já é o contra-exemplo)
+    const c = await executar({ ...cliente, ponte: async () => { throw new Error('não devia') } }, 'contrariar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (x) => lerProposta(x, null), () => undefined)
+    expect(c).not.toHaveProperty('ligacao')
+  })
+
   it('revisar: começa no serviço e acompanha até o relatório', async () => {
     const relatorio = { formato: 'cosmos-revisor-v1' as const, extrator: 'e', prompt: 'p', blocos: 1, afirmacoes: [], argumentos: [], avisos: [] }
     const estados = [{ estado: 'rodando', fase: 'extraindo', feito: 0, total: 1 }, { estado: 'pronto', relatorio }]

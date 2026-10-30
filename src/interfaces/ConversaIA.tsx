@@ -39,7 +39,8 @@ export function CartaoIA({ resultado }: { resultado: ResultadoIA }) {
       <div className="iai-cartao-acoes"><button type="button" onClick={() => baixar('cosmos-revisao.md', relatorioEmMarkdown(relatorio))}>Baixar relatório</button></div>
     </div>
   }
-  const { classe, texto, proposta, cenario, essenciais, comando, motivo } = resultado
+  const { classe, texto, proposta, cenario, essenciais, comando, motivo, ligacao } = resultado
+  const achada = ligacao && 'fonte' in ligacao ? ligacao : null, falhou = ligacao && 'motivo' in ligacao ? ligacao : null
   const titulo = !classe ? `Não decidido: ${motivo || 'a tradução não se leu'}`
     : comando === 'contrariar' ? (classe === 'independente' ? 'Dá para contrariar: a conclusão não decorre das premissas' : classe === 'contradiz' ? 'O próprio texto já contraria a conclusão: as premissas provam o oposto' : 'Só dá para contrariar negando uma premissa')
     : provadoSoNaFormaForte(resultado) ? TITULO_FORMA_FORTE : TITULO_DA_CLASSE[classe]
@@ -51,7 +52,18 @@ export function CartaoIA({ resultado }: { resultado: ResultadoIA }) {
       <small>Premissas:</small>
       <ul>{texto.premissas.map((p, i) => <li key={i}>{p}{essenciais?.includes(i) ? <b> · sustenta a conclusão</b> : ''}</li>)}</ul>
       {cenario && <><small>{comando === 'contrariar' ? 'O contra-exemplo: um cenário em que todas as premissas valem e a conclusão não.' : 'Um cenário em que todas as premissas valem e a conclusão não:'}</small><ul className="revisor-cenario">{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></>}
-      {classe === 'independente' && <small>Para a conclusão valer, falta uma afirmação que ligue as premissas a ela, com fonte.</small>}
+      {classe === 'independente' && !achada && <small>{falhou ? `Não achei uma ligação que feche: ${falhou.motivo}.` : 'Para a conclusão valer, falta uma afirmação que ligue as premissas a ela.'}</small>}
+      {achada && <div className="iai-ligacao">
+        <small>{achada.opcoes.length > 1 ? 'Para a conclusão valer, falta aceitar uma ligação. Qualquer uma destas fecha o argumento (o Z3 conferiu cada uma); qual é a sua?' : 'Para a conclusão valer, falta aceitar:'}</small>
+        <ol>{achada.opcoes.map((o, n) => <li key={n}>
+          <strong>{o.leitura}</strong>
+          {o.essenciais.length > 0 && <small> Os <b>fatos</b> que ela usa: {o.essenciais.map((i) => texto.premissas[i]).join(' ')}</small>}
+          {o.essenciais.length < texto.premissas.length && <small> Não fazem falta: {texto.premissas.filter((_, i) => !o.essenciais.includes(i)).join(' ')}</small>}
+          <a href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: [...proposta.premissas, o.ponte], afirmacao: 'segue', dominio: 'geral' } }}>Aceito esta: registrar provado com ela</a>
+        </li>)}</ol>
+        {achada.outras > 0 && <small>Há mais {achada.outras} ligação(ões) parecida(s) que também fecham.</small>}
+        <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
+      </div>}
       {essenciais && <small>{essenciais.length ? 'Negue uma das premissas marcadas e a conclusão cai; as outras não fazem falta.' : 'Nenhuma premissa sozinha sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
       <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
     </li></ol>

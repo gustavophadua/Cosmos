@@ -5,6 +5,7 @@
 import type { Classe, Termo } from '../motor/avaliacao'
 import type { Proposta } from '../motor/formalizacao'
 import { relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor } from '../motor/revisor-relatorio'
+import type { Ligacao } from './ollama-cliente'
 
 export type Comando = 'verificar' | 'revisar' | 'desmistificar' | 'contrariar'
 /** o que a Conversa faz com o texto: um comando de IA, ou a resposta sem modelo para a afirmação solta */
@@ -124,13 +125,15 @@ export function separarArgumento(texto: string): ArgumentoSeparado | null {
 }
 
 export type ResultadoIA =
-  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string }
+  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao }
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
   formalizar(texto: { premissas: string[]; conclusao: string }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string }>
   conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal): Promise<{ classeZ3: Classe | null; motivo: string; cenario?: string[] }>
   revisar(texto: string, signal?: AbortSignal): Promise<unknown>
+  /** a ligação que falta num salto (ponte.ts); sem ela, o salto vem sem a proposta */
+  ponte?(a: { vocabulario: Termo[]; premissas: string[]; conclusao: string; cenario: string[] }, signal?: AbortSignal): Promise<Ligacao>
   estadoRevisao(signal?: AbortSignal): Promise<{ estado: string; fase?: string; feito?: number; total?: number; relatorio?: RelatorioRevisor; erro?: string }>
 }
 
@@ -156,6 +159,11 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
   const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}) }
+  if (comando === 'verificar' && c.classeZ3 === 'independente' && cliente.ponte) {
+    // o salto: o que falta para a conclusão valer, proposto pelo modelo e conferido pelo Z3
+    progresso('Procurando a ligação que falta…')
+    try { return { ...base, ligacao: await cliente.ponte({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, cenario: c.cenario ?? [] }) } } catch { return base }
+  }
   if (comando !== 'contrariar' || c.classeZ3 !== 'segue' || proposta.premissas.length < 2) return base
   // contrariar o que está provado: as premissas sem as quais a conclusão deixa de seguir
   progresso('Procurando as premissas que sustentam a conclusão…')
@@ -181,8 +189,26 @@ export function resumoEmTexto(r: ResultadoIA): string {
   const notas = notasDaLeitura(r)
   const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
+  if (r.ligacao && 'fonte' in r.ligacao) l.push('', ...textoDaLigacao(r.ligacao, r.texto.premissas))
+  else if (r.ligacao && 'motivo' in r.ligacao) l.push('', `Não achei uma ligação que feche: ${r.ligacao.motivo}.`)
   if (r.essenciais) l.push('', 'Para contrariar, é preciso negar uma destas premissas:', ...r.essenciais.map((i) => `- ${r.texto.premissas[i]}`))
   l.push('', 'Fórmulas (m2):', ...r.proposta.premissas.map((p) => `- ${p}`), `- conclusão: ${r.proposta.conclusao}`)
   return l.join('\n').slice(0, 6000)
+}
+/**
+ * Fato, visão e lógica de um salto com a ligação achada: as premissas que a conclusão usa são os fatos (precisam de fonte
+ * ou são a base); a ligação é a visão (o que a pessoa escolhe aceitar); com as duas, a conclusão é obrigatória.
+ */
+export function textoDaLigacao(l: Extract<Ligacao, { fonte: string }>, premissas: string[]): string[] {
+  const varias = l.opcoes.length > 1
+  return [varias ? 'Para a conclusão valer, falta aceitar uma ligação. Qualquer uma destas fecha o argumento (o Z3 conferiu cada uma):' : 'Para a conclusão valer, falta aceitar:', '',
+    ...l.opcoes.flatMap((o, n) => {
+      const sobram = premissas.filter((_, i) => !o.essenciais.includes(i))
+      return [`${varias ? `${n + 1}. ` : '- '}${o.leitura}`,
+        ...(o.essenciais.length ? [`   Fatos que ela usa: ${o.essenciais.map((i) => premissas[i]).join(' ')}`] : []),
+        ...(sobram.length ? [`   Não fazem falta: ${sobram.join(' ')}`] : []), '']
+    }),
+    ...(l.outras > 0 ? [`Há mais ${l.outras} ligação(ões) parecida(s) que também fecham.`, ''] : []),
+    'A ligação é a visão por trás do argumento: não é um fato, é o que você escolhe aceitar. Os fatos (as premissas que ela usa) precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.']
 }
 export { tituloDoVeredito }

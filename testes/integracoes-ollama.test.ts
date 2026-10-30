@@ -162,6 +162,23 @@ describe('Formalização pelo Ollama local na ponte', () => {
     }, { conferidor, chats: [EXTRACAO, PROPOSTA] })
   })
 
+  it('a ligação que falta: a busca pelo Z3 primeiro; sem forma que feche, o modelo (fora da memória antes do Z3); corpo fora do formato, recusado', async () => {
+    const eventos: string[] = []
+    const conferidor: ConferidorZ3 = { async conferir() { eventos.push('z3'); return { classeZ3: 'independente', aceita: true, motivo: '' } }, parar() { eventos.push('parar') } }
+    await ambiente(async (c) => {
+      const p = lerProposta(PROPOSTA, null)
+      const r = await c.cliente.ponte({ vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, cenario: ['mimi: é gato; gosta de banho'] })
+      // nada fecha (o Z3 de mentira diz sempre "independente") e o modelo de mentira não responde com a ligação
+      expect(r).toEqual({ opcoes: [], motivo: 'falta a fórmula da ligação' })
+      const chats = c.pedidos.filter((x) => x.url.endsWith('/api/chat')).map((x) => x.corpo as { format: { required: string[] }; messages: { content: string }[] })
+      expect(chats.map((x) => x.format.required.join())).toEqual(['ponte', 'ponte'])
+      expect(chats[0].messages.at(-1)!.content).toContain('mimi: é gato; gosta de banho')
+      expect(eventos.filter((e) => e === 'parar').length).toBe(2)
+      for (const corpo of [{ ...p, classe: null, cenario: [] }, { vocabulario: p.vocabulario, premissas: p.premissas, conclusao: p.conclusao, cenario: 'x' }])
+        expect(await c.chamar({ rota: 'ollama/ponte', metodo: 'POST', corpo })).toBe(400)
+    }, { conferidor })
+  })
+
   it('sem --ollama a rota não existe; com o Ollama parado o estado diz indisponível', async () => {
     await ambiente(async (c) => { expect(await c.chamar({ rota: 'ollama/estado' })).toBe(503) }, { ligado: false })
     await ambiente(async (c) => { expect((await c.cliente.carregar()).estado).toBe('indisponivel') }, { rodando: false })

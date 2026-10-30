@@ -342,3 +342,34 @@ duas chamadas, e na chamada da conclusão os predicados antes das constantes. Na
 Nenhuma frase piorou; adotada. A metade de teste fica guardada para a próxima conferência. Com o modelo de verdade, a
 frase do usuário sai `∀x (Homem(x) ⟹ ParteDeDeus(x))`, `Eterno(deus)` ⊢ `∀x (Homem(x) ⟹ Eterno(x))`: salto, com o
 cenário de alguém que é homem, é parte de Deus e não é eterno.
+
+## 9. A ligação que falta (`ponte-v1`, 30/10/2026)
+
+Uma frase de visão de mundo raramente traz tudo. O argumento do dono ("cada pessoa é parte do todo; cada pessoa é
+necessária ao todo; toda pessoa cumpre uma função; nenhuma é dona da sua função; logo nenhuma pessoa invalida a
+existência de outra"), formalizado à mão, é salto: nada nas premissas fala em invalidar. O que fecha está na cabeça de
+quem escreve, e é isso que o Cosmos passa a mostrar.
+
+Quando o Z3 diz salto, a Conversa pede a ligação (`src/motor/ponte.ts`, rota `ollama/ponte`):
+
+1. **Busca pela forma, sem modelo.** "Para quaisquer A e B: se [o que as premissas dizem de A e de B], então [o que a
+   conclusão diz]", com uma ou duas condições tiradas dos predicados das premissas (com o sinal com que aparecem lá).
+   Os predicados da conclusão ficam de fora: "se A é homem, então A é eterno" é a conclusão, não a ligação. Conclusão
+   sobre um indivíduo ("Eterno(socrates)") vira "todo x".
+2. **O Z3 decide se serve:** com as premissas, a conclusão tem de decorrer; sozinha, não (senão é a conclusão com outras
+   palavras); e ela não pode contradizer as premissas. Falha do Z3 tem uma segunda chance e nunca conta como "não segue".
+3. **Até quatro opções**, variadas (cada uma com as condições que as outras não usaram), com os fatos que cada uma usa e
+   os que não fazem falta. Escolher entre elas é a visão da pessoa; a resposta diz quantas outras também fecham.
+4. **O modelo só se a busca não achar** (conclusão com ∃, formas mais complexas), com uma volta pelo motivo. No argumento
+   acima, o qwen3:4b propôs "ninguém invalida a si mesmo", copiando o cenário; por isso ele é a reserva, não o caminho.
+
+No argumento do dono, a busca acha 36 ligações; entre as quatro mostradas, "se A é necessária ao todo e B é necessária
+ao todo, então A não invalida a existência de B" usa só "toda pessoa é necessária" (o resto não faz falta), e "se A não
+é dona da sua função e B não é dona da sua função…" usa só a última premissa. A resposta separa fato, visão e lógica:
+as premissas que a ligação usa são fatos (precisam de fonte, ou são a base assumida); a ligação é a visão (o que a
+pessoa escolhe aceitar); com as duas, a conclusão é obrigatória, e o Z3 garante isso. "Aceito esta" leva o argumento
+com a ligação para Minha cadeia, como provado.
+
+O que esta peça não resolve: a tradução de frases abstratas pelo modelo pequeno (o mesmo argumento, traduzido pelo
+qwen3:4b, saiu com "x é todo" no lugar de "x é parte do todo"). Isso fica com a correção do vocabulário na tela e com o
+treino.

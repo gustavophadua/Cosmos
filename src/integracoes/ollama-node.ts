@@ -5,6 +5,7 @@ import { CEGO_FORMALIZACAO, ESQUEMA_CONCLUSAO, ESQUEMA_PREMISSAS, formalizarCego
 import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
 import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
+import { buscarPonte, ESQUEMA_PONTE, PONTE, type ArgumentoFormal } from '../motor/ponte'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -35,6 +36,14 @@ export function validarPropostaConferir(x: unknown): PropostaParaConferir {
       || !x.vocabulario.every(termo) || !Array.isArray(x.premissas) || x.premissas.length < 1 || x.premissas.length > 10 || !x.premissas.every(formula)
       || !formula(x.conclusao) || !(x.classe === null || CLASSES.includes(x.classe as Classe))) throw new ErroOllama(400, 'invalido')
   return { vocabulario: (x.vocabulario as Termo[]).map(({ simbolo, tipo, aridade, leitura }) => ({ simbolo, tipo, aridade, leitura })), premissas: x.premissas as string[], conclusao: x.conclusao as string, classe: x.classe as Classe | null }
+}
+
+/** O pedido da ligação que falta: as fórmulas do salto (como na conferência, sem classe) e o cenário que o Z3 achou. */
+export function validarPedidoPonte(x: unknown): ArgumentoFormal {
+  if (!objetoSimples(x, 'cenario,conclusao,premissas,vocabulario') || !Array.isArray(x.cenario) || x.cenario.length > 20
+      || !x.cenario.every((c) => typeof c === 'string' && c.length <= 300)) throw new ErroOllama(400, 'invalido')
+  const { vocabulario, premissas, conclusao } = validarPropostaConferir({ vocabulario: x.vocabulario, premissas: x.premissas, conclusao: x.conclusao, classe: null })
+  return { vocabulario, premissas, conclusao, cenario: x.cenario as string[] }
 }
 
 export interface ConferidorZ3 { conferir(p: PropostaParaConferir): Promise<Conferencia>; parar(): void }
@@ -90,6 +99,8 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
   const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   const conclusao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_CONCLUSAO, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   const traduzir = (t: { premissas: string[]; conclusao: string }) => formalizarCego(premissas, conclusao, t, null, EXEMPLOS)
+  // a ligação que falta (ponte.ts): o modelo propõe, o Z3 confere
+  const ligacao = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PONTE, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   // o extrator do revisor lê um bloco de até 1.500 caracteres e devolve a lista de afirmações: precisa de mais contexto
   const extrair = criarAdaptadorOllama({ modelo, formato: ESQUEMA_EXTRACAO, temperatura: 0, semente: 0, contexto: 8192, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
   let pendente = false, encerrado = false
@@ -160,6 +171,20 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
       }
       pendente = true
       try {
+        if (rota === 'ollama/ponte') {
+          // a ligação que falta num salto: o modelo e o Z3 se revezam na memória
+          const z3 = opcoes.conferidor
+          if (!z3) throw new ErroOllama(503, 'indisponivel')
+          const a = validarPedidoPonte(await lerCorpo(req))
+          const r = await buscarPonte(ligacao, async (ps, c) => {
+            const k = await z3.conferir({ vocabulario: a.vocabulario, premissas: ps, conclusao: c, classe: null })
+            if (k.classeZ3) return k.classeZ3
+            throw new Error(k.motivo || 'o Z3 não decidiu')
+          }, a, { antesDoModelo: () => z3.parar(), antesDoZ3: () => descarregarModeloOllama(modelo, opcoes.buscar).catch(() => undefined) })
+          if (encerrado) throw new ErroOllama(503, 'indisponivel')
+          enviar(res, 200, { formato: 'cosmos-ollama-ponte-v1', versao: PONTE, ...r })
+          return
+        }
         if (rota === 'ollama/conferir') {
           // o modo automático: o modelo sai da memória e o Z3 confere a classe que ele disse
           if (!opcoes.conferidor) throw new ErroOllama(503, 'indisponivel')

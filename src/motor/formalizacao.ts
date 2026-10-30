@@ -208,7 +208,7 @@ export async function formalizarCego(perguntarPremissas: Perguntar, perguntarCon
 }
 
 /** O primeiro objeto JSON da resposta, sem o raciocínio entre <think> e sem cercas de código. */
-function objetoDaResposta(conteudo: string): unknown {
+export function objetoDaResposta(conteudo: string): unknown {
   const limpo = conteudo.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/```(?:json)?/g, '')
   const inicio = limpo.indexOf('{')
   if (inicio < 0) throw new Error('a resposta não tem um objeto JSON')
