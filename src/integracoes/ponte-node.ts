@@ -1,7 +1,7 @@
 import { request, type IncomingMessage, type ServerResponse } from 'node:http'
 import { criarObservabilidadeP0, observarHttpP0 } from './observabilidade-node'
 import { criarControleGroq } from './groq-node'
-import { criarConferidorZ3, criarControleOllama, type ConferidorZ3 } from './ollama-node'
+import { criarConferidorZ3, criarControleOllama, type ConferidorZ3, type OpcoesSessaoIA } from './ollama-node'
 import { criarAdaptadorGroq } from './provedores/groq'
 
 const PREFIXO = '/cosmos/__p0/'
@@ -24,7 +24,7 @@ function unico(req: IncomingMessage, nome: string) {
  */
 export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number; token: string;
   groq?: { chave: () => string | undefined; buscar?: typeof fetch; prazoMs?: number }
-  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3 } }) {
+  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA } }) {
   const { origem, portaApi, token } = opcoes
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem
       || !Number.isSafeInteger(portaApi) || portaApi < 1 || portaApi > 65535 || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Ponte local inválida')

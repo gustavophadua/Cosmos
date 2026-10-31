@@ -33,24 +33,18 @@ try {
   // Sem config de build do site, dotenv, public/ ou segredo gravado no artefato.
   await build({ configFile: false, envDir: false, envPrefix: [], publicDir: false, logLevel: 'silent',
     build: { ssr: true, outDir: 'tmp/integracoes-p0-runtime', emptyOutDir: true,
-      rolldownOptions: { input: { servidor: 'src/integracoes/servidor-node.ts', ponte: 'src/integracoes/ponte-node.ts', 'z3-trabalhador': 'src/integracoes/z3-trabalhador-node.ts' },
+      rolldownOptions: { input: { servidor: 'src/integracoes/servidor-node.ts', ponte: 'src/integracoes/ponte-node.ts', 'html-local': 'src/integracoes/html-local-node.ts', 'z3-trabalhador': 'src/integracoes/z3-trabalhador-node.ts' },
         output: { entryFileNames: '[name].mjs' } } },
   })
   const html = await readFile(new URL('../tmp/integracoes-p0-interface/index.html', import.meta.url))
   const { iniciarServidorIntegracoes } = await import(new URL('../tmp/integracoes-p0-runtime/servidor.mjs', import.meta.url).href)
   const { criarPonteIntegracoes } = await import(new URL('../tmp/integracoes-p0-runtime/ponte.mjs', import.meta.url).href)
+  const { criarPaginaLocal } = await import(new URL('../tmp/integracoes-p0-runtime/html-local.mjs', import.meta.url).href)
   api = await iniciarServidorIntegracoes({ origemPermitida: origem })
   ponte = criarPonteIntegracoes({ origem, portaApi: api.endereco.porta, token: api.sessao.token,
     ...(process.argv.includes('--groq') ? { groq: { chave: () => process.env.GROQ_API_KEY } } : {}),
     ...(ollama ? { ollama } : {}) })
-  server = createServer({ maxHeaderSize: 8192 }, (req, res) => {
-    if (req.url?.startsWith('/cosmos/__p0/')) { ponte.tratar(req, res); return }
-    const host = req.rawHeaders.filter((h, i) => i % 2 === 0 && h.toLowerCase() === 'host').length
-    if (req.socket.remoteAddress !== '127.0.0.1' || host !== 1 || req.headers.host !== '127.0.0.1:4175') { res.writeHead(403); res.end(); return }
-    if (req.method !== 'GET' || !['/', '/cosmos/', '/cosmos/index.html'].includes(req.url ?? '')) { res.writeHead(404); res.end(); return }
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin' })
-    res.end(html)
-  })
+  server = createServer({ maxHeaderSize: 8192 }, criarPaginaLocal({ origem, html, ponte: ponte.tratar }))
   server.maxConnections = 8; server.requestTimeout = 10000; server.headersTimeout = 5000; server.keepAliveTimeout = 1
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4175, '127.0.0.1', resolve) })
   process.once('SIGINT', () => { void encerrar() })

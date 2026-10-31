@@ -62,3 +62,6 @@ cosmos-exportacao-limpa/
 .github/workflows/*
 !.github/workflows/pages.yml
 !.github/workflows/verificador-publico.yml
+
+# M12: HAR bruto pode conter sessao e conteudo privado
+*.har
