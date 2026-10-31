@@ -256,3 +256,17 @@ it('revisão muda na conferência final: resultado antigo nunca conecta a nova c
     await new Promise<void>(r => { server.close(() => r()); server.closeAllConnections() })
   }
 })
+
+describe('M7: recusa explícita do provedor', () => {
+  it.each([
+    { message: { content: null, refusal: 'texto não deve ser repassado' }, finish_reason: 'stop' },
+    { message: { content: '' }, finish_reason: 'content_filter' },
+  ])('preserva só o código de recusa, sem expor corpo %#', async (choice) => {
+    const buscar = (async () => new Response(JSON.stringify({ choices: [choice] }), { headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+    await expect(criarAdaptadorGroq({ chave: () => CHAVE, buscar })(pedido())).rejects.toThrow('provedor-recusou')
+  })
+  it('HTTP 403 de autenticação não vira recusa de conteúdo', async () => {
+    const buscar = (async () => new Response('', { status: 403 })) as typeof fetch
+    await expect(criarAdaptadorGroq({ chave: () => CHAVE, buscar })(pedido())).rejects.toThrow('invalido')
+  })
+})

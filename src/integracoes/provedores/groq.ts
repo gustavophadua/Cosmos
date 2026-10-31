@@ -2,7 +2,7 @@ import { dadosGroq, MODELOS_GROQ, type ModeloGroq } from '../groq-contratos'
 
 const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions'
 export class ErroGroq extends Error {
-  constructor(readonly status: number, readonly codigo: 'invalido' | 'indisponivel' | 'sem-quota' | 'sem-configuracao-chave' = 'indisponivel') { super(codigo) }
+  constructor(readonly status: number, readonly codigo: 'invalido' | 'indisponivel' | 'sem-quota' | 'sem-configuracao-chave' | 'provedor-recusou' = 'indisponivel') { super(codigo) }
 }
 export interface PedidoGroq { model: ModeloGroq; messages: { role: 'system' | 'user' | 'assistant'; content: string }[]; max_tokens: number; temperature: number }
 const inteiro = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
@@ -80,7 +80,10 @@ export function criarAdaptadorGroq(opcoes: { chave: () => string | undefined; bu
         const bruto = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(partes)))
         // Retorno reconstruído: não repassa headers, request IDs, raciocínio,
         // mensagens de erro, tool_calls ou extensões arbitrárias do provedor.
-        const content = bruto?.choices?.[0]?.message?.content
+        const escolha = bruto?.choices?.[0]
+        if ((typeof escolha?.message?.refusal === 'string' && escolha.message.refusal.trim().length > 0) || escolha?.finish_reason === 'content_filter')
+          throw new ErroGroq(422, 'provedor-recusou')
+        const content = escolha?.message?.content
         const u = bruto?.usage
         if (!texto(content) || content.includes(chave!) || !u || !inteiro(u.prompt_tokens) || !inteiro(u.completion_tokens) || !inteiro(u.total_tokens)
             || u.prompt_tokens > 131072 || u.completion_tokens > p.max_tokens || u.total_tokens !== u.prompt_tokens + u.completion_tokens) throw new ErroGroq(502)

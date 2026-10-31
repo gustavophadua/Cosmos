@@ -233,3 +233,12 @@ describe('Formalização pelo Ollama local na ponte', () => {
     await ambiente(async (c) => { expect((await c.cliente.carregar()).estado).toBe('indisponivel') }, { rodando: false })
   })
 })
+
+
+it('M7: recusa explícita atravessa a ponte sem repassar mensagem do provedor', async () => {
+  const groq = (async () => new Response(JSON.stringify({ choices: [{ message: { content: null, refusal: 'detalhe que não deve sair' } }] }),
+    { headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+  await ambiente(async (c) => {
+    await expect(c.cliente.formalizar({ ...TEXTO, nuvem: true })).rejects.toThrow('provedor-recusou')
+  }, { groq })
+})

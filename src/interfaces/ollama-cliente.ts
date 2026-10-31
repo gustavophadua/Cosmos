@@ -26,6 +26,7 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch,
         headers: { 'X-Cosmos-P0': '1', Accept: 'application/json', ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(sessao() ? { 'X-Cosmos-Sessao': sessao()! } : {}) },
         body: corpo === undefined ? undefined : JSON.stringify(corpo), signal: controle.signal, credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'same-origin' })
       // 401: sem a sessão da conta; 403 ao abrir a sessão: o serviço é de outra conta
+      if (r.status === 422 && rota === 'ollama') throw new ErroIntegracoes('provedor-recusou')
       if (!r.ok) throw new ErroIntegracoes(r.status === 401 ? 'sessao-expirada' : r.status === 403 ? 'conflito' : r.status === 429 ? 'limite' : r.status === 400 ? 'invalido' : 'sem-servico')
       if (!r.headers.get('content-type')?.startsWith('application/json')) throw new ErroIntegracoes('invalido')
       const texto = await r.text()

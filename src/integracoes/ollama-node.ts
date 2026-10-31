@@ -11,7 +11,7 @@ import type { Conferencia } from '../motor/avaliacaoZ3'
 import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import { buscarPonte, ESQUEMA_PONTE, PONTE, type ArgumentoFormal } from '../motor/ponte'
 import type { ModeloGroq } from './groq-contratos'
-import type { PedidoGroq } from './provedores/groq'
+import { ErroGroq, type PedidoGroq } from './provedores/groq'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
 
 const EXEMPLOS = exemplosTexto.split('\n').filter(Boolean).map((l) => JSON.parse(l) as Item)
@@ -300,7 +300,7 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
         enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo: texto.nuvem && nuvem ? nuvem.modelo : modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
       } finally { pendente = false }
     } catch (e) {
-      const erro = e instanceof ErroOllama ? e : new ErroOllama(503, 'indisponivel')
+      const erro = e instanceof ErroOllama ? e : e instanceof ErroGroq && e.codigo === 'provedor-recusou' ? new ErroOllama(422, 'provedor-recusou') : new ErroOllama(503, 'indisponivel')
       enviar(res, erro.status, { erro: erro.codigo })
     }
   }

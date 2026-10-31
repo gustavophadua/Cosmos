@@ -15,6 +15,7 @@ const campos: readonly [keyof LimitesIntegracao, string][] = [
   ['prazoMs', 'Prazo por execução (ms)'], ['maxBytesEntrada', 'Entrada máxima (bytes)'],
 ]
 const mensagens = {
+  'provedor-recusou': 'O provedor recusou o pedido. Nenhuma resposta foi validada.',
   'sem-servico': 'Serviço local não iniciado. Use a instância dedicada abaixo; o site público não conecta ao aparelho.',
   'sessao-expirada': 'A sessão local expirou ou foi revogada. Reinicie a instância pelo comando local.',
   conflito: 'A configuração mudou em outra ação. Atualize o estado antes de tentar novamente.',

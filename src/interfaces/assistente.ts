@@ -185,8 +185,17 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   const t = separarArgumento(texto)
   if (!t) throw new Error('Escreva o argumento em frases: as premissas e, por último, a conclusão (por exemplo: "Todo A é B. X é A. Então X é B.").')
   progresso(nuvem ? 'O modelo grande, na nuvem, está traduzindo o argumento…' : 'O modelo está traduzindo o argumento…')
-  const r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}), ...(nuvem ? { nuvem } : {}) })
-  const proposta = ler(r.conteudo)
+  let r: Awaited<ReturnType<ClienteIA['formalizar']>>
+  try { r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}), ...(nuvem ? { nuvem } : {}) }) }
+  catch (e) {
+    const m = (e as Error).message
+    if (['sessao-expirada', 'conflito', 'limite'].includes(m)) throw e
+    if (m === 'provedor-recusou') throw new Error('O provedor recusou a tradução. Nenhuma classe lógica foi atribuída.')
+    throw new Error('Tradução indisponível: o modelo ou serviço não respondeu. Nenhuma classe lógica foi atribuída.')
+  }
+  let proposta: Proposta
+  try { proposta = ler(r.conteudo) }
+  catch { throw new Error('Tradução ilegível: a resposta do modelo não pôde ser interpretada. Nenhuma classe lógica foi atribuída.') }
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
   const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
@@ -215,6 +224,13 @@ export const TITULO_DA_CLASSE: Record<Classe, string> = { segue: 'Provado: a con
 export const provadoSoNaFormaForte = (r: { texto: ArgumentoSeparado; classe: Classe | null }) => r.classe === 'segue' && !!r.texto.atenuadas?.length
 export const TITULO_FORMA_FORTE = 'Salto como está escrito; provado só se valer para todos'
 
+/** Estado de ausência de classe, separado do resultado lógico e de certificado. */
+export function tituloNaoDecidido(motivo?: string): string {
+  if (/inconsisten|incompatíve/i.test(motivo ?? '')) return 'Premissas incompatíveis entre si: não há classe lógica'
+  if (/Z3|timeout|tempo.*esgot/i.test(motivo ?? '')) return 'Z3 não concluiu a verificação: não há classe lógica'
+  return `Tradução não interpretada: ${motivo || 'a tradução não se leu'}`
+}
+
 /** O que vai para o cofre: um resumo em texto (o cofre guarda conversas de até 12 mil caracteres). */
 export function resumoEmTexto(r: ResultadoIA): string {
   if (r.tipo === 'relatorio') {
@@ -222,7 +238,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
     return md.length <= 6000 ? md : `${md.slice(0, 5900)}\n\n(resumo cortado; baixe o relatório completo na hora da revisão)`
   }
   const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu neste computador.`] : [])]
-  const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `Não decidido: ${r.motivo ?? 'a tradução não se leu'}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
+  const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `${tituloNaoDecidido(r.motivo)}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
   if (r.ligacao && 'fonte' in r.ligacao) l.push('', ...textoDaLigacao(r.ligacao, r.texto.premissas))
   else if (r.ligacao && 'motivo' in r.ligacao) l.push('', `Não achei uma ligação que feche: ${r.ligacao.motivo}.`)

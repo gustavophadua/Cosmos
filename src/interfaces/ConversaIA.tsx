@@ -2,7 +2,7 @@
 // As peças da IA dentro da Conversa (assistente.ts): o menu de comandos do "+" e do "/", e o cartão de cada resposta,
 // com registrar na cadeia e baixar o relatório.
 import { useState } from 'react'
-import { COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
+import { tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
 import type { Termo } from '../motor/avaliacao'
 import { CartoesDoRelatorio } from './RevisorPlano'
 import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
@@ -147,12 +147,13 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
   const { classe, texto, proposta, cenario, essenciais, comando, motivo, ligacao } = resultado
   const achada = ligacao && 'fonte' in ligacao ? ligacao : null, falhou = ligacao && 'motivo' in ligacao ? ligacao : null
   const opcao = achada?.opcoes[Math.min(escolhida, achada.opcoes.length - 1)]
-  const titulo = !classe ? `Não decidido: ${motivo || 'a tradução não se leu'}`
+  const titulo = !classe ? tituloNaoDecidido(motivo)
     : comando === 'contrariar' ? (classe === 'independente' ? 'Dá para contrariar: a conclusão não decorre das premissas' : classe === 'contradiz' ? 'O próprio texto já contraria a conclusão: as premissas provam o oposto' : 'Só dá para contrariar negando uma premissa')
     : provadoSoNaFormaForte(resultado) ? TITULO_FORMA_FORTE : TITULO_DA_CLASSE[classe]
   const veredito: Veredito = provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'
   return <div className="iai-cartao" data-veredito={veredito}>
     <p className="iai-veredito" data-veredito={veredito}>{titulo}</p>
+    <small className="iai-entendi">Certificado independente: não disponível para esta resposta. O resultado do solver e a revisão da tradução têm escopos distintos.</small>
     {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
     {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}

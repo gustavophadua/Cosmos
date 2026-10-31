@@ -167,3 +167,28 @@ describe('assistente da Conversa', () => {
     expect(respostaAfirmacao('O mercado vai crescer')).not.toContain('generalização')
   })
 })
+
+describe('M7: fases de falha distintas', () => {
+  const argumento = 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.'
+  const clienteBase: ClienteIA = { formalizar: async () => ({ conteudo: PROPOSTA }), conferir: async () => ({ classeZ3: 'segue', motivo: '' }),
+    revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }) }
+  it('distingue resposta ilegível, indisponibilidade e recusa explícita, sem chamar o solver', async () => {
+    for (const [modo, esperado] of [['ilegivel', 'Tradução ilegível'], ['fora', 'Tradução indisponível'], ['recusa', 'O provedor recusou a tradução']] as const) {
+      let chamadas = 0
+      const cliente: ClienteIA = { ...clienteBase,
+        formalizar: async () => { if (modo === 'fora') throw new Error('sem-servico'); if (modo === 'recusa') throw new Error('provedor-recusou'); return { conteudo: 'não é JSON' } },
+        conferir: async () => { chamadas++; return { classeZ3: 'segue', motivo: '' } } }
+      await expect(executar(cliente, 'verificar', argumento, (c) => lerProposta(c, null), () => undefined)).rejects.toThrow(esperado)
+      expect(chamadas).toBe(0)
+    }
+  })
+  it('mantém mensagens distintas para premissas incompatíveis e solver sem decisão', async () => {
+    const saidas: string[] = []
+    for (const motivo of ['as premissas são inconsistentes', 'o Z3 não decidiu a conclusão']) {
+      const r = await executar({ ...clienteBase, conferir: async () => ({ classeZ3: null, motivo }) }, 'verificar', argumento, (c) => lerProposta(c, null), () => undefined)
+      saidas.push(resumoEmTexto(r))
+    }
+    expect(saidas[0]).toMatch(/^Premissas incompatíveis entre si/)
+    expect(saidas[1]).toMatch(/^Z3 não concluiu a verificação/)
+  })
+})

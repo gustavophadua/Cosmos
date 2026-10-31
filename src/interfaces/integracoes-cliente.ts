@@ -2,7 +2,7 @@ import type { ConfiguracaoIntegracao } from '../integracoes/contratos'
 import { validarConfiguracaoIntegracao, validarEstadoServico } from '../integracoes/politica'
 
 export class ErroIntegracoes extends Error {
-  constructor(readonly tipo: 'sem-servico' | 'sessao-expirada' | 'conflito' | 'limite' | 'indisponivel' | 'invalido') { super(tipo) }
+  constructor(readonly tipo: 'sem-servico' | 'sessao-expirada' | 'conflito' | 'limite' | 'indisponivel' | 'invalido' | 'provedor-recusou') { super(tipo) }
 }
 export interface OrcamentoPublico {
   readonly simulado: true
