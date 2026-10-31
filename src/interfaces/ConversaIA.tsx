@@ -153,7 +153,6 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
   const veredito: Veredito = provadoSoNaFormaForte(resultado) ? 'salto' : classe === 'segue' ? 'provado' : classe === 'independente' ? 'salto' : classe === 'contradiz' ? 'contradiz' : 'sem-traducao'
   return <div className="iai-cartao" data-veredito={veredito}>
     <p className="iai-veredito" data-veredito={veredito}>{titulo}</p>
-    <small className="iai-entendi">Certificado independente: não disponível para esta resposta. O resultado do solver e a revisão da tradução têm escopos distintos.</small>
     {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
     {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
@@ -173,7 +172,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     {cenario && <details className="iai-cenario" open={comando === 'contrariar'}><summary>{comando === 'contrariar' ? 'O contra-exemplo: um caso em que os fatos valem e a conclusão não' : 'Ver um caso em que os fatos valem e a conclusão não'}</summary><ul>{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></details>}
     {essenciais && <small>{essenciais.length ? 'Negue um dos fatos marcados e a conclusão cai; os outros não fazem falta.' : 'Nenhum fato sozinho sustenta a conclusão: ela segue de mais de um jeito.'}</small>}
     <TermosDaLeitura vocabulario={proposta.vocabulario} aoRefazer={aoRefazer} aberto={classe === 'independente'} />
-    <details><summary>Fórmulas (m2)</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code></details>
+    <details><summary>Fórmulas (m2) e verificação</summary><code>{[...proposta.premissas, `⊢ ${proposta.conclusao}`].join('\n')}</code><small className="iai-entendi">Certificado independente: não disponível para esta resposta. O resultado do solver e a revisão da tradução têm escopos distintos.</small></details>
     {classe && <div className="iai-cartao-acoes">
       {opcao && <a className="iai-acao-principal" href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: [...proposta.premissas, opcao.ponte], afirmacao: 'segue', dominio: 'geral' } }}>Aceito esta ligação: registrar provado</a>}
       <a href="#/lab?secao=cadeia" onClick={() => { paraCadeia = { formula: proposta.conclusao, premissas: proposta.premissas, afirmacao: AFIRMACAO[classe], dominio: 'geral' } }}>Registrar como está</a>

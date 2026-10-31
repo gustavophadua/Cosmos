@@ -163,6 +163,15 @@ export interface ClienteIA {
   estadoRevisao(signal?: AbortSignal): Promise<{ estado: string; fase?: string; feito?: number; total?: number; relatorio?: RelatorioRevisor; erro?: string }>
 }
 
+/** Detalhe textual para a UI local; sem stack nem corpo bruto do provedor. Oculta marcadores de credencial conhecidos. */
+function detalheDaFalha(e: unknown): string {
+  const m = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
+  return m.replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer [oculto]')
+    .replace(/\b(api[_-]?key|token|senha|password|secret)\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, '$1=[oculto]')
+    .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, '$1[oculto]@')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 1000).trim() || 'motivo não informado'
+}
+
 /**
  * Executa um comando de IA. `ler` lê a proposta do modelo (lerProposta), `progresso` mostra a fase. Com `vocabulario`
  * (os termos corrigidos pela pessoa no cartão), a tradução usa só ele; com `nuvem`, quem traduz é o modelo grande no
@@ -188,14 +197,20 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   let r: Awaited<ReturnType<ClienteIA['formalizar']>>
   try { r = await cliente.formalizar({ premissas: t.premissas, conclusao: t.conclusao, ...(vocabulario ? { vocabulario } : {}), ...(nuvem ? { nuvem } : {}) }) }
   catch (e) {
-    const m = (e as Error).message
+    const m = e instanceof Error ? e.message : ''
     if (['sessao-expirada', 'conflito', 'limite'].includes(m)) throw e
     if (m === 'provedor-recusou') throw new Error('O provedor recusou a tradução. Nenhuma classe lógica foi atribuída.')
-    throw new Error('Tradução indisponível: o modelo ou serviço não respondeu. Nenhuma classe lógica foi atribuída.')
+    const motivos: Record<string, string> = {
+      'sem-servico': 'Serviço local não iniciado ou inacessível. Confira se o Cosmos e o Ollama estão abertos',
+      indisponivel: 'O modelo está indisponível. Confira seu estado no Ollama',
+      invalido: 'O serviço devolveu uma resposta fora do formato esperado',
+    }
+    const detalhe = Object.hasOwn(motivos, m) ? motivos[m] : detalheDaFalha(e)
+    throw new Error(`Tradução indisponível: ${detalhe.replace(/[.!?]$/, '')}. Nenhuma classe lógica foi atribuída.`)
   }
   let proposta: Proposta
   try { proposta = ler(r.conteudo) }
-  catch { throw new Error('Tradução ilegível: a resposta do modelo não pôde ser interpretada. Nenhuma classe lógica foi atribuída.') }
+  catch (e) { throw new Error(`Tradução ilegível: ${detalheDaFalha(e).replace(/[.!?]$/, '')}. Nenhuma classe lógica foi atribuída.`) }
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
   const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }

@@ -192,3 +192,26 @@ describe('M7: fases de falha distintas', () => {
     expect(saidas[1]).toMatch(/^Z3 não concluiu a verificação/)
   })
 })
+
+
+describe('revisão pré-main: diagnóstico útil sem perder a fase da falha', () => {
+  const texto = 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.'
+  const cliente: ClienteIA = { formalizar: async () => ({ conteudo: '{' }),
+    conferir: async () => { throw new Error('não deve conferir tradução inválida') },
+    revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }) }
+  it('mantém o motivo exato da leitura e não chama o solver', async () => {
+    await expect(executar(cliente, 'verificar', texto, c => lerProposta(c, null), () => undefined))
+      .rejects.toThrow('Tradução ilegível: o objeto JSON da resposta não fecha')
+  })
+  it.each(['sem-servico', 'Serviço local não iniciado'])('explica o serviço local ausente: %s', async m => {
+    await expect(executar({ ...cliente, formalizar: async () => { throw new Error(m) } }, 'verificar', texto, c => lerProposta(c, null), () => undefined))
+      .rejects.toThrow('Tradução indisponível: Serviço local não iniciado')
+  })
+  it('preserva diagnóstico específico de transporte sem expor credencial', async () => {
+    const falha = 'Conexão local encerrada; Authorization: Bearer chave-teste-nao-real'
+    const erro = await executar({ ...cliente, formalizar: async () => { throw new Error(falha) } }, 'verificar', texto, c => lerProposta(c, null), () => undefined).catch(e => e as Error)
+    expect(erro).toBeInstanceOf(Error)
+    expect((erro as Error).message).toContain('Conexão local encerrada')
+    expect((erro as Error).message).not.toContain('chave-teste-nao-real')
+  })
+})
