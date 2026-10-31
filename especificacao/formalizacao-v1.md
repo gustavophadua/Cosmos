@@ -430,3 +430,12 @@ do Groq tem limite diário de tokens, e a tradução cega gasta cerca de 5 mil p
 A coluna de 41 compara todos os sistemas nessas mesmas frases. Leitura: o modelo grande sozinho já quase não erra o
 "segue" nestas frases; o Z3 acrescenta acerto (o pequeno dentro do Cosmos supera o grande sozinho) e, sobretudo, a
 prova: fórmulas, o "entendi", o caso que derruba a conclusão e a ligação que falta.
+
+
+## Atualização da avaliação - 31/10/2026
+
+Esta nota substitui a interpretação comparativa agregada anterior. Na metade limpa do conjunto G, o gpt-oss-120b sozinho acertou 99/100, com 0 falsos “segue” em 92 negativos. Cosmos + qwen3:4b cego-v1 acertou 96/100, com 2/92 falsos “segue”. Na M1, o tradutor atual cego-v2 também acertou 96/100, com 2/92 falsos “segue” e 1 item sem classe. Não está demonstrado que o Cosmos melhora o modelo grande. Os números 189/199 e 184/199 são apenas histórico das duas metades somadas; incluem revisão usada no ajuste e não são a comparação principal.
+
+Na M1, mudaram G-030 (independente para contradiz, acerto), G-091 (independente para segue, erro), G-161 (contradiz para sem classe) e G-196 (segue para contradiz, acerto). As traduções consumiram 9.862,64 segundos somando os dois processos; esse tempo exclui intervalos e a avaliação interrompida por memória. Equipamento com GPU integrada, não usada pelo modelo: Ollama informou execução em CPU. As traduções não foram repetidas e o prompt não foi ajustado após observar o teste.
+
+Evidência local: `tmp/frases-gpt/cego2-teste/resumo-m1.json`, notas com 100 ids e SHA-256 `e711c7e733c65553da16a6cf14fc23b04e40cbfa687799b7d42e572c3993ec26`. Os arquivos de medição permanecem fora do Git. A confirmação de 117/120 no conjunto fechado é histórica, não refeita nesta missão.
