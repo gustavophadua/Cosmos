@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buscarPonte, mensagensDaPonte, type ClassificarZ3 } from '../src/motor/ponte'
 import { lerFormula, type Termo } from '../src/motor/avaliacao'
 import { buscarModelo, nao } from '../src/motor/motor'
@@ -30,11 +30,11 @@ describe('a ligação que falta', () => {
     // nenhuma usa "pessoa" (da conclusão): seria a conclusão com outras palavras
     expect(r.opcoes.every((o) => !o.ponte.slice(0, o.ponte.indexOf('⟹')).includes('Pessoa('))).toBe(true)
     // a de "necessária" usa só a premissa de que toda pessoa é necessária
-    const necessaria = r.opcoes.find((o) => /Necessaria\(x\) ∧ Necessaria\(y\)/.test(o.ponte))!
+    const necessaria = r.opcoes.find((o) => /Necessaria\(x\) ⟹/.test(o.ponte))!
     expect(necessaria.essenciais).toEqual([1])
-    expect(necessaria.leitura).toBe('Para quaisquer A e B: se A é necessária ao todo e B é necessária ao todo, então A não invalida a existência de B.')
-    // variadas: as quatro cobrem todas as propriedades das premissas, inclusive "não é dona da função"
-    expect(r.opcoes.some((o) => o.ponte.includes('¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y)'))).toBe(true)
+    expect(necessaria.leitura).toBe('Para quaisquer A e B: se A é necessária ao todo, então A não invalida a existência de B.')
+    // M5 substitui diversidade por simplicidade: as primeiras opções têm uma condição.
+    expect(r.opcoes.every((o) => !o.ponte.includes('∧'))).toBe(true)
     // a negação na leitura: "A não é dona da sua função"
     const todas = await buscarPonte(null, juiz(VISAO), { ...ARG, premissas: [ARG.premissas[2]] })
     if (!('fonte' in todas)) throw new Error(todas.motivo)
@@ -44,14 +44,14 @@ describe('a ligação que falta', () => {
   it('a conclusão escrita por dentro ("∀x (… ⟹ ∀y (…))", como o modelo escreveu) dá as mesmas ligações, lidas por inteiro', async () => {
     const r = await buscarPonte(null, juiz(VISAO), { ...ARG, premissas: [ARG.premissas[2]], conclusao: '∀x (Pessoa(x) ⟹ ∀y (Pessoa(y) ⟹ ¬(Invalida(x, y))))' })
     if (!('fonte' in r)) throw new Error(r.motivo)
-    expect(r.opcoes[0]).toMatchObject({ ponte: '∀x ∀y (¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y) ⟹ ¬Invalida(x, y))',
+    expect(r.opcoes.find((o) => o.ponte.includes('∧'))).toMatchObject({ ponte: '∀x ∀y (¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y) ⟹ ¬Invalida(x, y))',
       leitura: 'Para quaisquer A e B: se A não é dona da sua função e B não é dona da sua função, então A não invalida a existência de B.' })
   })
 
   it('a conclusão escrita com "não existe" (como o modelo grande escreveu) também dá ligações entre A e B, lidas por inteiro', async () => {
     const r = await buscarPonte(null, juiz(VISAO), { ...ARG, premissas: [ARG.premissas[2]], conclusao: '∀x (Pessoa(x) ⟹ ¬∃y (Pessoa(y) ∧ Invalida(x, y)))' })
     if (!('fonte' in r)) throw new Error(r.motivo)
-    expect(r.opcoes[0]).toMatchObject({ ponte: '∀x ∀y (¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y) ⟹ ¬Invalida(x, y))',
+    expect(r.opcoes.find((o) => o.ponte.includes('∧'))).toMatchObject({ ponte: '∀x ∀y (¬DonaDaFuncao(x) ∧ ¬DonaDaFuncao(y) ⟹ ¬Invalida(x, y))',
       leitura: 'Para quaisquer A e B: se A não é dona da sua função e B não é dona da sua função, então A não invalida a existência de B.' })
   })
 
@@ -99,4 +99,39 @@ describe('a ligação que falta', () => {
     expect(m.at(-1)!.content).toContain(ARG.conclusao)
     expect(m[0].content).toContain('não copie a conclusão')
   })
+})
+
+describe('M5: circularidade e relevância com Z3 real', () => {
+  let api: Awaited<ReturnType<typeof import('z3-solver')['init']>>
+  let encerrar: typeof import('z3-solver')['killThreads']
+  beforeAll(async () => {
+    const z3 = await import('z3-solver')
+    encerrar = z3.killThreads
+    api = await z3.init()
+  }, 120_000)
+  afterAll(async () => { if (api) await encerrar(api.em) })
+  const V = [termo('A', 1, 'x é uma condição extensa'), termo('B', 1, 'x é b'), termo('C', 1, 'x é c'), termo('c', 0, 'c', 'constante')]
+  const julgar: ClassificarZ3 = async (ps, c) => {
+    const { classificar } = await import('../src/motor/avaliacaoZ3')
+    return classificar(api, V, ps, c, 5_000)
+  }
+
+  it('recusa conclusão equivalente reescrita e consequente sem precisar das premissas', async () => {
+    for (const ponte of ['¬∀x (¬C(x))', '∀x ((A(x) ∨ ¬A(x)) ⟹ ∃y (C(y)))']) {
+      const r = await buscarPonte(async () => ({ conteudo: JSON.stringify({ ponte }), prompt: 0, completion: 0 }),
+        julgar, { vocabulario: V, premissas: ['A(c)'], conclusao: '∃x (C(x))' }, {}, 1)
+      expect(r.opcoes).toEqual([])
+      expect('motivo' in r && r.motivo).toContain('sozinha já prova')
+    }
+  }, 60_000)
+
+  it('prefere menos condições e depois leitura curta, com ordem estável', async () => {
+    const a = { vocabulario: V, premissas: ['A(c)', 'B(c)'], conclusao: 'C(c)' }
+    const r = await buscarPonte(null, julgar, a)
+    expect(r.opcoes.length).toBeGreaterThan(1)
+    expect(r.opcoes[0].ponte).not.toContain('∧')
+    expect(r.opcoes[0].ponte).toContain('B(x)')
+    const novamente = await buscarPonte(null, julgar, a)
+    expect(novamente).toEqual(r)
+  }, 60_000)
 })

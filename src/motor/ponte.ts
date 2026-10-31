@@ -67,7 +67,7 @@ export async function buscarPonte(perguntar: Perguntar | null, classificar: Clas
   passos: { antesDoModelo?: () => Promise<void> | void; antesDoZ3?: () => Promise<void> | void } = {}, tentativas = 2): Promise<ResultadoPonte> {
   await passos.antesDoZ3?.()
   const achadas = await buscarPelaForma(classificar, a)
-  if (achadas.length) return { opcoes: await comEssenciais(classificar, a, variadas(achadas, 4)), fonte: 'busca', outras: achadas.length - Math.min(4, achadas.length) }
+  if (achadas.length) return { opcoes: await comEssenciais(classificar, a, ordenarPorRelevancia(achadas, a).slice(0, 4)), fonte: 'busca', outras: achadas.length - Math.min(4, achadas.length) }
   if (!perguntar) return { opcoes: [], motivo: 'nenhuma ligação simples fecha o argumento' }
   const mensagens = mensagensDaPonte(a)
   let motivo = 'o modelo não respondeu'
@@ -84,18 +84,19 @@ export async function buscarPonte(perguntar: Perguntar | null, classificar: Clas
   return { opcoes: [], motivo }
 }
 
-/** Até n ligações, cada uma com o máximo de condições que as anteriores ainda não usaram (a escolha é da pessoa). */
-function variadas<T extends { ponte: string }>(achadas: T[], n: number): T[] {
-  const condicoesDe = (p: string) => new Set(p.slice(0, p.indexOf('⟹')).split(/\s*∧\s*/).map((c) => c.replace(/^.*\(\s*(?=¬?[A-Z])/, '').trim()))
-  const escolhidas: T[] = [], vistas = new Set<string>()
-  const restantes = [...achadas]
-  while (escolhidas.length < n && restantes.length) {
-    let melhor = 0, nota = -1
-    restantes.forEach((x, i) => { const novas = [...condicoesDe(x.ponte)].filter((c) => !vistas.has(c)).length; if (novas > nota) { nota = novas; melhor = i } })
-    const [x] = restantes.splice(melhor, 1)
-    condicoesDe(x.ponte).forEach((c) => vistas.add(c)); escolhidas.push(x)
-  }
-  return escolhidas
+/** Ordem editorial estável: condições, aderência às premissas, leitura curta e ordem original. */
+function ordenarPorRelevancia<T extends { ponte: string; leitura: string }>(achadas: T[], a: ArgumentoFormal): T[] {
+  const predicados = (texto: string) => new Set([...texto.matchAll(/([A-Za-z][A-Za-z0-9_]*)\(/g)].map((m) => m[1]))
+  const nasPremissas = predicados(a.premissas.join(' '))
+  const contar = (f: Formula): number => f.k === 'and' ? contar(f.l) + contar(f.r) : 1
+  return achadas.map((opcao, indice) => {
+    let f = lerFormula(opcao.ponte, a.vocabulario)
+    while (f.k === 'forall') f = f.corpo
+    const antecedente = f.k === 'imp' ? f.l : f
+    const usados = [...predicados(imprimir(antecedente))]
+    return { opcao, indice, condicoes: contar(antecedente), fora: usados.filter((p) => !nasPremissas.has(p)).length }
+  }).sort((x, y) => x.condicoes - y.condicoes || x.fora - y.fora ||
+    x.opcao.leitura.length - y.opcao.leitura.length || x.indice - y.indice).map((x) => x.opcao)
 }
 
 /**
@@ -202,7 +203,7 @@ function condicoes(a: ArgumentoFormal, alvo: Alvo): Literal[] {
 const formulaDaPonte = (alvo: Alvo, ls: Literal[]) =>
   `${alvo.vars.map((v) => `∀${v}`).join(' ')} (${ls.map((l) => `${l.neg ? '¬' : ''}${l.pred}(${l.v})`).join(' ∧ ')} ⟹ ${alvo.texto})`
 
-/** As ligações de uma e duas condições que servem, da mais fraca (duas condições, uma em cada variável) para a mais forte. */
+/** Ligações de uma e duas condições; as mais simples são conferidas antes do limite de busca. */
 async function buscarPelaForma(classificar: ClassificarZ3, a: ArgumentoFormal, limite = 80): Promise<{ ponte: string; leitura: string }[]> {
   let alvo: Alvo | null
   try { alvo = alvoDaConclusao(a.conclusao, a.vocabulario) } catch { return [] }
@@ -210,8 +211,8 @@ async function buscarPelaForma(classificar: ClassificarZ3, a: ArgumentoFormal, l
   const cs = condicoes(a, alvo)
   const candidatas: Literal[][] = []
   for (let i = 0; i < cs.length; i++) for (let j = i + 1; j < cs.length; j++) if (cs[i].pred !== cs[j].pred || cs[i].v !== cs[j].v) candidatas.push([cs[i], cs[j]])
-  candidatas.sort((x, y) => new Set(y.map((l) => l.v)).size - new Set(x.map((l) => l.v)).size)
   candidatas.push(...cs.map((l) => [l]))
+  candidatas.sort((x, y) => x.length - y.length || new Set(y.map((l) => l.v)).size - new Set(x.map((l) => l.v)).size)
   const achadas: { ponte: string; leitura: string }[] = []
   for (const ls of candidatas.slice(0, limite)) {
     const ponte = formulaDaPonte(alvo, ls)
