@@ -1,12 +1,12 @@
 # M12 redefinida — resultado em 31/10/2026
 
-**M12 ainda não aceita: falta a parte manual do Gustavo.** Sem automação de navegador, conta real, acesso a privado/cofre, Groq ou alteração de autenticação. A definição anterior que contabilizava todo o Chrome foi substituída pelo operador. O monitor antigo de controle de navegador foi excluído.
+**Três partes da M12 registradas no escopo do ensaio, com ressalvas. Confirmação manual recebida do Gustavo; ver [registro manual](M12-CONFIRMACAO-MANUAL.md).** Sem automação de navegador, acesso pelo executor à conta real/privado/cofre, Groq ou alteração de autenticação. A etapa manual foi feita pelo próprio operador, com login informado por ele e sem compartilhar credenciais. A definição anterior que contabilizava todo o Chrome foi substituída pelo operador. O monitor antigo de controle de navegador foi excluído.
 
 | Parte | Fato | Fonte | Limite |
 |---|---|---|---|
-| 1 — CSP | HTML HTTP 200, `Content-Security-Policy: connect-src 'self'`, sem `script-src` adicionado | `src/integracoes/html-local-node.ts`, `testes/integracoes-html.test.ts`; captura local `tmp/missoes/m12-node-v3/html.json` | HTTP/build não demonstram renderização e execução WASM no navegador; validar manualmente na parte 3 |
+| 1 — CSP | HTML HTTP 200, `Content-Security-Policy: connect-src 'self'`, sem `script-src` adicionado | `src/integracoes/html-local-node.ts`, `testes/integracoes-html.test.ts`; captura local `tmp/missoes/m12-node-v3/html.json` | HTTP/build não demonstram renderização sozinhos; operação da Conversa confirmada manualmente na parte 3, sem atestação do navegador |
 | 2 — Node | Três perguntas concluídas; tradução 3×, Z3 3×, ponte 1×; 774 amostras TCP, somente `127.0.0.1`, zero destinos externos observados | `perguntas.jsonl`, `tcp.jsonl`, `resultado-node.json`, `fim-node.json`, `conferencia-artefatos.json` na saída local | ExitCode original não aferido; mediana de intervalo 1.010 ms, máximo 5.103 ms. Amostragem pode perder conexões curtas e não mede UDP |
-| 3 — Página | Roteiro e resumo HAR sanitizado preparados | `teste-fechado/M12-REDE.md`, `scripts/m12-resumir-har.py` | **Pendente: Gustavo deve confirmar três respostas, filtro vazio e fornecer resumo sanitizado.** |
+| 3 — Página | Keep log e três respostas confirmados; filtro complementar vazio; HAR sanitizado com 15 entradas locais, zero externas | [Registro manual](M12-CONFIRMACAO-MANUAL.md), [resumo](m12-har-resumo.json) | Confirmação humana; contadores visuais posteriores não reconciliados. Recursos data: e chrome-extension: separados de rede HTTP externa |
 
 ## Ensaio Node observado
 
@@ -24,7 +24,7 @@ PID 1584; origem `http://127.0.0.1:4175`; serviço e driver de ensaio no mesmo P
 | M12-02 | Todo cliente tem suporte. A loja tem suporte. Então a loja é cliente. | independente; uma opção de ponte | 243.503 ms |
 | M12-03 | Clientes do plano anual normalmente renovam. A padaria é cliente do plano anual. Então a padaria renova. | segue nas fórmulas traduzidas | 254.192 ms |
 
-São classes das fórmulas, não prova de tradução fiel. “Normalmente” exige o aviso linguístico da Conversa; a captura Node não demonstra sua apresentação na UI.
+São classes das fórmulas, não prova de tradução fiel. “Normalmente” exige o aviso linguístico da Conversa; a captura Node não demonstra sua apresentação na UI. O operador confirmou o término das respostas, sem comprovação separada do conteúdo desse aviso.
 
 Coleta: primeira amostra `2026-10-31T18:20:28.9304314Z`, última `2026-10-31T18:33:39.4146486Z`; perguntas de `18:20:30.689Z` a `18:33:39.781Z`. Duração total do coletor 794.294 ms, mediana de intervalo 1.010 ms, máximo 5.103 ms; consulta mais demorada 5.014 ms. Não se alega periodicidade exata de um segundo ou captura contínua. Listen/Bound com porta remota zero, registrados como sem destino, não foram contados como conexão externa. O relatório não atribui `0.0.0.0` desses estados a uma conexão externa.
 
@@ -51,4 +51,4 @@ O Ollama esteve ativo no ensaio; suas conexões próprias não foram capturadas.
 
 Logs locais: `tmp/missoes/m12-node-v3/{typecheck.log,focados.log,build-final.log,suite.log,preservacao-apos-build.json,preservacao-apos-suite.json}`. Primeira orquestração Windows PowerShell interrompeu no aviso normal `PLUGIN_TIMINGS`, tratado como NativeCommandError pela opção Stop. Log `build.log` preservado; fechamento seguinte usa códigos de saída nativos, mantém todos os avisos e terminou com saída zero. A suíte completa foi executada uma única vez nesta rodada.
 
-Os dados acima não dependem de repetir as medições M1–M15. Não há autorização de merge/main/deploy nesta entrega. Instruções de aceitação e proteção do HAR: [M12-REDE.md](M12-REDE.md).
+Os dados acima não dependem de repetir as medições M1–M15. A autorização posterior do operador permite integrar esta entrega ao main e publicar pelo Pages após as validações. Ela não fecha M11, que continua sem chave Groq no processo, nem autoriza publicar credenciais. Instruções de aceitação e proteção do HAR: [M12-REDE.md](M12-REDE.md).

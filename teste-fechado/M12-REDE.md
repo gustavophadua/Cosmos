@@ -46,4 +46,4 @@ O script lê o HAR local e cria arquivo novo só com origens, contagens e status
 
 ## Situação de aceitação
 
-Resultados automáticos são registrados separadamente no relatório de execução. **Parte 3 pendente até o Gustavo fornecer evidência manual. M12 não aceita antes disso.** Nenhum resultado histórico de outra missão ou fixture visual substitui esta parte.
+Resultados automáticos são registrados separadamente no relatório de execução. **O Gustavo concluiu a conferência manual; ver [registro e limites](M12-CONFIRMACAO-MANUAL.md).** O roteiro acima permanece reproduzível. No ensaio, o filtro inicial mostrou um recurso chrome-extension: e uma fonte data:; a lista ficou vazia ao acrescentar `-scheme:chrome-extension -scheme:data`. Isso separa recursos locais de extensão/dados embutidos, sem ignorar HTTP/HTTPS externo. O HAR sanitizado está em [m12-har-resumo.json](m12-har-resumo.json). As ressalvas de amostragem e ExitCode original permanecem em M12-RESULTADOS.md; não se declara o coletor original verde. Nenhum resultado histórico de outra missão ou fixture visual substitui a conferência manual.

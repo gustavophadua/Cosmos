@@ -24,4 +24,4 @@ Não são incluídos stack ou corpo bruto de resposta do provedor. Marcadores re
 - M1 e demais medições históricas não repetidas. Os tempos de ponte da M9 descrevem a implementação anterior à presente revisão e não são novos benchmarks desta versão.
 - Hashes históricos, prompts e fases não alterados. Build/suíte completa e 13/13 devem ser conferidos antes do push desta revisão.
 
-Sem merge, deploy ou fechamento artificial da M12. A revisão segue na branch dedicada.
+Estado na entrega original desta revisão: sem merge/deploy, na branch dedicada. Posteriormente o operador concluiu a etapa manual M12 ([registro](M12-CONFIRMACAO-MANUAL.md)) e autorizou integrar ao main/publicar pelo Pages depois das validações finais. M11 continua dependente da chave no ambiente, sem medição real nova. As ressalvas da M12 são preservadas; não se declara fechamento sem limites.

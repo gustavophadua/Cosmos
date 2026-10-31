@@ -1,0 +1,20 @@
+{
+  "formato": "cosmos-m12-har-resumo-v1",
+  "entradas": 15,
+  "entradasInvalidas": 0,
+  "naoRede": 0,
+  "tentativasExternas": 0,
+  "origens": [
+    {
+      "protocolo": "http",
+      "host": "127.0.0.1",
+      "porta": 4175,
+      "pedidos": 15,
+      "status": {
+        "200": 15
+      }
+    }
+  ],
+  "resultado": "sem-destino-externo-no-HAR",
+  "limite": "Não comprova sozinho três perguntas, Preserve log ou captura completa. Conferência manual necessária."
+}
