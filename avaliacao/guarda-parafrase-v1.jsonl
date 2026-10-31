@@ -1,0 +1,20 @@
+{"id": "W-901", "grupo": "parafrase-legitima", "texto": {"premissas": ["Todo metal conduz calor.", "O cobre é metal."], "conclusao": "Qualquer metal conduz calor."}}
+{"id": "W-902", "grupo": "parafrase-legitima", "texto": {"premissas": ["Nenhum peixe é mamífero.", "A sardinha é peixe."], "conclusao": "Peixe algum é mamífero."}}
+{"id": "W-903", "grupo": "parafrase-legitima", "texto": {"premissas": ["Todo quadrado é retângulo.", "Esta figura é quadrada."], "conclusao": "Qualquer quadrado é um retângulo."}}
+{"id": "W-904", "grupo": "parafrase-legitima", "texto": {"premissas": ["Algum jardim tem flores.", "O pátio é um jardim."], "conclusao": "Existe jardim com flores."}}
+{"id": "W-905", "grupo": "parafrase-legitima", "texto": {"premissas": ["Toda bicicleta tem rodas.", "Este veículo é bicicleta."], "conclusao": "Qualquer bicicleta tem rodas."}}
+{"id": "W-906", "grupo": "parafrase-legitima", "texto": {"premissas": ["Todo livro é um objeto.", "Este volume é um livro."], "conclusao": "Qualquer livro é um objeto."}}
+{"id": "W-907", "grupo": "parafrase-legitima", "texto": {"premissas": ["Nenhuma pedra é planta.", "O granito é pedra."], "conclusao": "Pedra alguma é planta."}}
+{"id": "W-908", "grupo": "parafrase-legitima", "texto": {"premissas": ["Algum músico é professor.", "O violino é instrumento."], "conclusao": "Existe músico que é professor."}}
+{"id": "W-909", "grupo": "parafrase-legitima", "texto": {"premissas": ["Todo triângulo é polígono.", "Esta forma é um triângulo."], "conclusao": "Qualquer triângulo é polígono."}}
+{"id": "W-910", "grupo": "parafrase-legitima", "texto": {"premissas": ["Toda laranja é fruta.", "Este alimento é uma laranja."], "conclusao": "Qualquer laranja é fruta."}}
+{"id": "W-911", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Todo metal conduz calor.", "O cobre é metal."], "conclusao": "Todo condutor de calor é metal."}}
+{"id": "W-912", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Nenhum peixe é mamífero.", "A sardinha é peixe."], "conclusao": "Nenhum mamífero é animal."}}
+{"id": "W-913", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Todo quadrado é retângulo.", "Esta figura é quadrada."], "conclusao": "Todo retângulo é quadrado."}}
+{"id": "W-914", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Algum jardim tem flores.", "O pátio é um jardim."], "conclusao": "Todo jardim tem flores."}}
+{"id": "W-915", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Toda bicicleta tem rodas.", "Este veículo é bicicleta."], "conclusao": "Todo veículo com rodas é bicicleta."}}
+{"id": "W-916", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Todo livro é um objeto.", "Este volume é um livro."], "conclusao": "Todo objeto é um livro."}}
+{"id": "W-917", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Nenhuma pedra é planta.", "O granito é pedra."], "conclusao": "Nenhum mineral é planta."}}
+{"id": "W-918", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Algum músico é professor.", "O violino é instrumento."], "conclusao": "Todo músico é professor."}}
+{"id": "W-919", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Todo triângulo é polígono.", "Esta forma é um triângulo."], "conclusao": "Todo polígono é triângulo."}}
+{"id": "W-920", "grupo": "risco-copia-indevida", "texto": {"premissas": ["Toda laranja é fruta.", "Este alimento é uma laranja."], "conclusao": "Toda fruta é laranja."}}
