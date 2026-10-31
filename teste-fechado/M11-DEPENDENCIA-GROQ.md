@@ -1,3 +1,5 @@
+> **Atualização — 31/10/2026:** a configuração privada na janela do operador permitiu executar a primeira fatia real. M11 está **parcial: 25/100**, com nota Z3 concluída; não é mais uma medição inteiramente não executada. Ver [resultado parcial](M11-PARCIAL-25.md). A chave não foi transferida ao executor, ao Git ou ao site. Os registros abaixo descrevem a dependência anterior.
+
 # M11 — Cosmos + 120b na metade de teste: dependência externa
 
 Em 31/10/2026, a verificação booleana de presença de `GROQ_API_KEY` no ambiente deste processo retornou **falta**. Nenhum valor de credencial foi lido, exibido ou gravado; não se procurou chave em arquivo, perfil, cofre ou outra sessão.
