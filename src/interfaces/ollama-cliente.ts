@@ -1,6 +1,7 @@
 import { ErroIntegracoes } from './integracoes-cliente'
 import { CLASSES, type Classe, type Termo } from '../motor/avaliacao'
 import type { RelatorioRevisor } from '../motor/revisor-relatorio'
+import { lerResultadoRealidade, type ResultadoRealidade } from '../motor/realidade'
 
 export interface EstadoRevisao { estado: 'livre' | 'rodando' | 'pronto' | 'erro'; id?: number; fase?: string; feito?: number; total?: number; ms?: number; relatorio?: RelatorioRevisor; erro?: string }
 const relatorioValido = (r: unknown): r is RelatorioRevisor => typeof r === 'object' && r !== null && (r as RelatorioRevisor).formato === 'cosmos-revisor-v1'
@@ -16,7 +17,7 @@ export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'
  */
 export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch, sessao: () => string | null = () => null) {
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem) throw new ErroIntegracoes('sem-servico')
-  async function chamar(rota: 'ollama/estado' | 'ollama' | 'ollama/conferir' | 'ollama/ponte' | 'ollama/desafio' | 'ollama/sessao' | 'ollama/revisar' | 'ollama/revisar/estado', corpo: unknown, prazoMs: number, signal?: AbortSignal, limite = 131072) {
+  async function chamar(rota: 'ollama/estado' | 'ollama' | 'ollama/conferir' | 'ollama/ponte' | 'ollama/realidade' | 'ollama/desafio' | 'ollama/sessao' | 'ollama/revisar' | 'ollama/revisar/estado', corpo: unknown, prazoMs: number, signal?: AbortSignal, limite = 131072) {
     const controle = new AbortController(), abortar = () => controle.abort()
     if (signal?.aborted) controle.abort()
     else signal?.addEventListener('abort', abortar, { once: true })
@@ -68,6 +69,14 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch,
       if (opcoes.length && (o.fonte === 'busca' || o.fonte === 'modelo') && Number.isSafeInteger(o.outras)) return { opcoes, fonte: o.fonte, outras: o.outras as number }
       if (!opcoes.length && typeof o.motivo === 'string') return { opcoes: [], motivo: o.motivo.slice(0, 500) }
       throw new ErroIntegracoes('invalido')
+    },
+    /** A camada de fatos: o argumento traduzido diante da base de fatos físicos, decidido pelo Z3 (sem modelo). */
+    async realidade(a: { vocabulario: Termo[]; premissas: string[]; conclusao: string; texto: { premissas: string[]; conclusao: string } }, signal?: AbortSignal): Promise<ResultadoRealidade> {
+      const o = await chamar('ollama/realidade', a, 620000, signal)
+      if (o.formato !== 'cosmos-realidade-v1') throw new ErroIntegracoes('invalido')
+      const { formato: _f, ...r } = o
+      if (!lerResultadoRealidade(r)) throw new ErroIntegracoes('invalido')
+      return r as unknown as ResultadoRealidade
     },
     /** O desafio que a conta assina para abrir a sessão da IA; `ligada`: o serviço já tem dona. */
     async desafio(signal?: AbortSignal): Promise<{ desafio: string; ligada: boolean }> {

@@ -64,6 +64,20 @@ describe('tradução cega', () => {
     expect(t.reparo).toBeNull()
   })
 
+  it('cego-v4: barrada a cópia, a conclusão é refeita do zero e unida ao vocabulário por regra fixa', async () => {
+    // o caso real (01/11/2026): "o celular está com vírus" virava Esquentou(celular), a fórmula da premissa
+    const CEL = { premissas: ['O celular esquentou.'], conclusao: 'O celular está com vírus.' }
+    const V: Termo[] = [{ simbolo: 'celular', tipo: 'constante', aridade: 0, leitura: 'celular' }, { simbolo: 'Esquentou', tipo: 'predicado', aridade: 1, leitura: 'x esquentou' }]
+    const respostasPremissas = [resposta({ vocabulario: V, premissas: ['Esquentou(celular)'] }),
+      resposta({ vocabulario: [{ simbolo: 'aparelho', tipo: 'constante', aridade: 0, leitura: 'celular' }, { simbolo: 'Esquentou', tipo: 'predicado', aridade: 1, leitura: 'x tem vírus' }], premissas: ['Esquentou(aparelho)'] })]
+    const r = await formalizarCego(async () => respostasPremissas.shift()!, async () => resposta({ vocabulario: V, conclusao: 'Esquentou(celular)' }), CEL, null, EXEMPLOS)
+    const p = lerProposta(r.conteudo, null)
+    // a constante de mesma leitura vira a que já está em uso; o predicado de mesmo nome e outro sentido ganha outro nome
+    expect(p.conclusao).toBe('EsquentouB(celular)')
+    expect(p.vocabulario.find((t) => t.simbolo === 'EsquentouB')?.leitura).toBe('x tem vírus')
+    expect(r.reparo).toContain('conclusão traduzida de novo, sozinha')
+  })
+
   it('os exemplos do pedido vêm dos públicos, separados em premissas e conclusão', () => {
     const mp = mensagensDasPremissas(TEXTO.premissas, null, EXEMPLOS), mc = mensagensDaConclusao(TEXTO.conclusao, VOCAB, false, EXEMPLOS)
     expect(mp.map((m) => m.role)).toEqual(['system', 'user', 'assistant', 'user', 'assistant', 'user'])

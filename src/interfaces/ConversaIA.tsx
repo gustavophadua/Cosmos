@@ -2,8 +2,34 @@
 // As peças da IA dentro da Conversa (assistente.ts): o menu de comandos do "+" e do "/", e o cartão de cada resposta,
 // com registrar na cadeia e baixar o relatório.
 import { useState } from 'react'
-import { tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
+import { CONCLUSAO_REAL, SITUACAO_REAL, tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
 import type { Termo } from '../motor/avaliacao'
+import { fatoPorId, type ResultadoRealidade } from '../motor/realidade'
+
+/** A camada de fatos no cartão: cada frase diante dos fatos registrados, o mecanismo por trás do que foi observado e as fontes. */
+function RealidadeRegistrada({ r }: { r: ResultadoRealidade }) {
+  const ids = [...new Set([...r.frases.flatMap((f) => f.fatos), ...r.mecanismos.flatMap((m) => m.caminhos.flatMap((c) => c.fatos))])]
+  const marcar = (xs: string[]) => xs.length ? <small> ({xs.join(', ')})</small> : null
+  return <div className="iai-realidade">
+    <p><b>A realidade registrada</b></p>
+    {r.alinhamentos.map((a, i) => <small key={`a${i}`} className="iai-entendi">entendi: "{a.leituraDe}" = "{a.leituraPara}"</small>)}
+    {r.tipagens.map((t, i) => <small key={`t${i}`} className="iai-entendi">entendi: {t.leituraTipo}</small>)}
+    <ul>{r.frases.map((f, i) => <li key={i} data-situacao={f.situacao}>{f.conclusao ? 'Conclusão' : 'Frase'} "{f.frase}": <b>{SITUACAO_REAL[f.situacao]}</b>{marcar(f.fatos)}</li>)}</ul>
+    {r.mecanismos.map((m, i) => <div key={i}>
+      <small>Por trás de "{m.frase}", pelos fatos:</small>
+      <ul>
+        {m.implica.map((x, j) => <li key={`i${j}`}>isso implica: {x.leitura}</li>)}
+        {m.caminhos.map((c, j) => <li key={`c${j}`}>{c.leitura} → {c.produz}{marcar(c.fatos)}</li>)}
+      </ul>
+    </div>)}
+    {r.conclusaoComRelato && <p className="iai-nota">{CONCLUSAO_REAL[r.conclusaoComRelato]}</p>}
+    {ids.length > 0 && <details><summary>Os fatos usados e as fontes</summary><ul>{ids.map((id) => {
+      const f = fatoPorId(id)
+      return f && <li key={id}>{id}. {f.enunciado} {f.fonte.url ? <a href={f.fonte.url} target="_blank" rel="noreferrer noopener">{f.fonte.nome}</a> : <i>({f.fonte.nome})</i>}</li>
+    })}</ul></details>}
+    <small>O que está como relato ou visão não foi chutado nem descartado: os fatos registrados só não decidem. Fato aqui é o que está na base, com fonte.</small>
+  </div>
+}
 import { CartoesDoRelatorio } from './RevisorPlano'
 import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
 import { lerDeVolta } from '../motor/formalizacao'
@@ -158,6 +184,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
       lidas={texto.premissas.map((_, i) => entendi(proposta.premissas[i], proposta.vocabulario))} conclusaoLida={entendi(proposta.conclusao, proposta.vocabulario)}
       usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'} />
+    {resultado.realidade && <RealidadeRegistrada r={resultado.realidade} />}
     {achada && opcao && <div className="iai-ligacao">
       {achada.opcoes.length > 1 && <>
         <small>Qualquer uma destas ligações fecha o argumento (o Z3 conferiu cada uma). Escolher entre elas é escolher a sua visão:</small>

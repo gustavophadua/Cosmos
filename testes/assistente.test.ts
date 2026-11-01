@@ -215,3 +215,39 @@ describe('revisão pré-main: diagnóstico útil sem perder a fase da falha', ()
     expect((erro as Error).message).not.toContain('chave-teste-nao-real')
   })
 })
+
+describe('a camada de fatos na Conversa', () => {
+  const realidade = { versao: 'realidade-v1', alinhamentos: [{ de: 'Suporte', leituraDe: 'x tem suporte', para: 'Suporte', leituraPara: 'x tem suporte' }], tipagens: [],
+    frases: [{ frase: 'Todo cliente tem suporte.', formula: '∀x (Cliente(x) ⟹ Suporte(x))', conclusao: false, situacao: 'fora' as const, fatos: [] },
+      { frase: 'A padaria é cliente.', formula: 'Cliente(padaria)', conclusao: false, situacao: 'fora' as const, fatos: [] },
+      { frase: 'Então a padaria tem suporte.', formula: 'Suporte(padaria)', conclusao: true, situacao: 'fora' as const, fatos: [] }],
+    mecanismos: [], conclusaoComRelato: 'segue' as const }
+  const cliente = (falhar: boolean): ClienteIA => ({
+    formalizar: async () => ({ conteudo: PROPOSTA }),
+    conferir: async () => ({ classeZ3: 'segue', motivo: '' }),
+    realidade: async (a) => { expect(a.texto.conclusao).toContain('padaria'); if (falhar) throw new Error('indisponivel'); return realidade },
+    revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+  })
+  const texto = 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.'
+
+  it('o "verificar" leva a realidade registrada, que entra no resumo; se ela falhar, a resposta fica só na lógica', async () => {
+    const r = await executar(cliente(false), 'verificar', texto, (x) => lerProposta(x, null), () => undefined)
+    expect(r).toMatchObject({ classe: 'segue', realidade })
+    expect(resumoEmTexto(r)).toContain('A realidade registrada:')
+    expect(resumoEmTexto(r)).toContain('Visão: fora dos fatos registrados')
+    const s = await executar(cliente(true), 'verificar', texto, (x) => lerProposta(x, null), () => undefined)
+    expect(s).toMatchObject({ classe: 'segue' })
+    expect(s).not.toHaveProperty('realidade')
+  })
+})
+
+describe('a conclusão sem sujeito', () => {
+  it('"Logo, está com vírus" ganha o sujeito da primeira frase, com aviso; as que já têm sujeito ficam como estão', () => {
+    const a = separarArgumento('O celular esquentou. Logo, está com vírus.')!
+    expect(a.conclusao).toBe('Logo, o celular está com vírus.')
+    expect(notasDaLeitura({ texto: a, classe: null })).toContain('"Logo, está com vírus." não diz quem; li como "Logo, o celular está com vírus.", com o sujeito da primeira frase.')
+    expect(separarArgumento('O celular esquentou. Logo, não funciona.')!.conclusao).toBe('Logo, o celular não funciona.')
+    for (const t of ['O celular esquentou. Logo, o celular está com vírus.', 'Ana é uma pessoa. Logo, Ana voa.', 'O celular esquentou. Logo, há um problema.', 'O celular esquentou. Logo, todo celular esquenta.'])
+      expect(separarArgumento(t)!.conclusaoOriginal).toBeUndefined()
+  })
+})

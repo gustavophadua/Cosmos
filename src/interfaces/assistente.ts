@@ -6,6 +6,7 @@ import type { Classe, Termo } from '../motor/avaliacao'
 import type { Proposta } from '../motor/formalizacao'
 import { relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor } from '../motor/revisor-relatorio'
 import type { Ligacao } from './ollama-cliente'
+import { fatoPorId, type ResultadoRealidade, type Situacao } from '../motor/realidade'
 
 export type Comando = 'verificar' | 'revisar' | 'desmistificar' | 'contrariar'
 /** o que a Conversa faz com o texto: um comando de IA, ou a resposta sem modelo para a afirmação solta */
@@ -85,12 +86,27 @@ export interface ArgumentoSeparado {
   atenuadas?: { premissa: number; palavra: string; original: string }[]
   /** "as próprias", "elas"… no começo de uma razão, lidos como o sujeito da frase ("as pessoas") */
   sujeitos?: { premissa: number; pronome: string; sujeito: string }[]
+  /** a conclusão sem sujeito ("Logo, está com vírus"), lida com o sujeito da primeira razão: o texto como veio */
+  conclusaoOriginal?: string
 }
 // o sujeito da frase (artigo e substantivo no começo da conclusão ou da primeira razão) e os pronomes que voltam a ele
 const SUJEITO = /^(?:(?:logo|então|portanto),?\s+)?((os|as|o|a)\s+\p{L}+)/iu
 const PRONOME = /^(as próprias|os próprios|a própria|o próprio|as mesmas|os mesmos|elas|eles|ela|ele)(?![\p{L}])/iu
 const plural = (s: string) => /^(os|as)\s/iu.test(s) || /^(elas|eles|as |os )/iu.test(s)
-function comSujeito(a: ArgumentoSeparado): ArgumentoSeparado {
+// palavras que já são sujeito, ou frases que não pedem um ("há", "existe"): a conclusão que começa por elas fica como está
+const NAO_E_VERBO = new Set(['o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'todo', 'toda', 'todos', 'todas', 'nenhum', 'nenhuma', 'algum', 'alguma', 'alguns', 'algumas',
+  'cada', 'ele', 'ela', 'eles', 'elas', 'isso', 'isto', 'aquilo', 'ninguém', 'alguém', 'tudo', 'nada', 'este', 'esta', 'esse', 'essa', 'aquele', 'aquela', 'meu', 'minha',
+  'seu', 'sua', 'quem', 'que', 'se', 'há', 'existe', 'existem', 'eu', 'você', 'nós', 'vocês', 'mas', 'e', 'ou', 'nem', 'só', 'apenas', 'qualquer', 'sempre', 'nunca'])
+/** "Logo, está com vírus": a conclusão sem sujeito ganha o da primeira razão ("o celular"), e a tela avisa. */
+function conclusaoComSujeito(a: ArgumentoSeparado): ArgumentoSeparado {
+  const m = /^((?:[Ll]ogo|[Ee]ntão|[Pp]ortanto|[Pp]or isso),?\s+)?(\p{Ll}[\p{L}-]*)/u.exec(a.conclusao)
+  const sujeito = SUJEITO.exec(a.premissas[0] ?? '')
+  if (!m || !sujeito || NAO_E_VERBO.has(m[2]) || (m[2] === 'não' && NAO_E_VERBO.has(/^\S+\s+(\S+)/u.exec(a.conclusao.slice((m[1] ?? '').length))?.[1] ?? 'o'))) return a
+  const inicio = (m[1] ?? '').length
+  return { ...a, conclusao: `${a.conclusao.slice(0, inicio)}${sujeito[1].toLowerCase()} ${a.conclusao.slice(inicio)}`, conclusaoOriginal: a.conclusao }
+}
+function comSujeito(a0: ArgumentoSeparado): ArgumentoSeparado {
+  const a = conclusaoComSujeito(a0)
   const achado = SUJEITO.exec(a.conclusao) ?? SUJEITO.exec(a.premissas[0] ?? '')
   if (!achado) return a
   const sujeito = achado[1].toLowerCase(), sujeitos: NonNullable<ArgumentoSeparado['sujeitos']> = []
@@ -118,6 +134,7 @@ export function notasDaLeitura(r: { texto: ArgumentoSeparado; classe: Classe | n
   const l: string[] = []
   if (r.texto.suposta) l.push('Não havia "logo" nem "então": li as primeiras partes como as razões e a última como a conclusão.')
   for (const s of r.texto.sujeitos ?? []) l.push(`Li "${s.pronome}" como "${s.sujeito}", o sujeito da frase.`)
+  if (r.texto.conclusaoOriginal) l.push(`"${r.texto.conclusaoOriginal}" não diz quem; li como "${r.texto.conclusao}", com o sujeito da primeira frase.`)
   for (const a of r.texto.atenuadas ?? []) {
     l.push(`"${a.original}" diz "${a.palavra}", e a lógica não tem "a maioria": para conferir, li como "${r.texto.premissas[a.premissa]}" (vale para todos).`)
     if (r.classe === 'segue') l.push(`Com "${a.palavra}", a conclusão não decorre: "${a.palavra}" admite exceções, e o caso da conclusão pode ser uma delas. Ela só está provada se a frase valer para todos, e aí essa premissa é uma generalização que precisa de fonte.`)
@@ -151,7 +168,7 @@ export function separarArgumento(texto: string): ArgumentoSeparado | null {
 }
 
 export type ResultadoIA =
-  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao; nuvem?: string }
+  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao; nuvem?: string; realidade?: ResultadoRealidade }
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
@@ -160,6 +177,8 @@ export interface ClienteIA {
   revisar(texto: string, signal?: AbortSignal): Promise<unknown>
   /** a ligação que falta num salto (ponte.ts); sem ela, o salto vem sem a proposta */
   ponte?(a: { vocabulario: Termo[]; premissas: string[]; conclusao: string; cenario: string[] }, signal?: AbortSignal): Promise<Ligacao>
+  /** a camada de fatos (realidade.ts): cada frase diante da base de fatos físicos; sem ela, a resposta fica só na lógica */
+  realidade?(a: { vocabulario: Termo[]; premissas: string[]; conclusao: string; texto: { premissas: string[]; conclusao: string } }, signal?: AbortSignal): Promise<ResultadoRealidade>
   estadoRevisao(signal?: AbortSignal): Promise<{ estado: string; fase?: string; feito?: number; total?: number; relatorio?: RelatorioRevisor; erro?: string }>
 }
 
@@ -213,7 +232,13 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   catch (e) { throw new Error(`Tradução ilegível: ${detalheDaFalha(e).replace(/[.!?]$/, '')}. Nenhuma classe lógica foi atribuída.`) }
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
-  const base = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
+  const logica = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
+  // a realidade registrada: cada frase diante da base de fatos físicos (só com a tradução lida e a lógica decidida)
+  let base: typeof logica & { realidade?: ResultadoRealidade } = logica
+  if (comando === 'verificar' && c.classeZ3 && cliente.realidade) {
+    progresso('Conferindo cada frase com os fatos registrados…')
+    try { base = { ...logica, realidade: await cliente.realidade({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, texto: { premissas: t.premissas, conclusao: t.conclusao } }) } } catch { /* sem a camada de fatos, a resposta fica só na lógica */ }
+  }
   if (comando === 'verificar' && c.classeZ3 === 'independente' && cliente.ponte) {
     // o salto: o que falta para a conclusão valer, proposto pelo modelo e conferido pelo Z3
     progresso('Procurando a ligação que falta…')
@@ -246,6 +271,35 @@ export function tituloNaoDecidido(motivo?: string): string {
   return `Tradução não interpretada: ${motivo || 'a tradução não se leu'}`
 }
 
+/** Como cada frase fica diante dos fatos registrados (realidade.ts). */
+export const SITUACAO_REAL: Record<Situacao, string> = {
+  fato: 'Fato registrado',
+  contraria: 'Contraria os fatos registrados',
+  observacao: 'Relato seu: os fatos registrados não decidem',
+  fora: 'Visão: fora dos fatos registrados',
+  'nao-decidido': 'O Z3 não concluiu',
+}
+export const CONCLUSAO_REAL: Record<Classe, string> = {
+  segue: 'Pelos fatos registrados e pelo que você relatou, a conclusão é obrigatória.',
+  contradiz: 'Pelos fatos registrados e pelo que você relatou, a conclusão é falsa.',
+  independente: 'Os fatos registrados, com o que você relatou, não levam a essa conclusão.',
+}
+/** A camada de fatos em texto: para o cofre e para o relatório. */
+export function textoDaRealidade(r: ResultadoRealidade): string[] {
+  const fonte = (ids: string[]) => ids.length ? ` [${ids.map((id) => { const f = fatoPorId(id); return f ? `${id}: ${f.fonte.nome}` : id }).join('; ')}]` : ''
+  const l = ['A realidade registrada:']
+  for (const a of r.alinhamentos) l.push(`- entendi: "${a.leituraDe}" = "${a.leituraPara}"`)
+  for (const t of r.tipagens) l.push(`- entendi: ${t.leituraTipo}`)
+  for (const f of r.frases) l.push(`- ${f.conclusao ? 'Conclusão' : 'Frase'} "${f.frase}": ${SITUACAO_REAL[f.situacao]}${fonte(f.fatos)}`)
+  for (const m of r.mecanismos) {
+    l.push(`- Por trás de "${m.frase}", pelos fatos:`)
+    for (const i of m.implica) l.push(`  · isso implica: ${i.leitura}`)
+    for (const c of m.caminhos) l.push(`  · ${c.leitura} → ${c.produz}${fonte(c.fatos)}`)
+  }
+  if (r.conclusaoComRelato) l.push(CONCLUSAO_REAL[r.conclusaoComRelato])
+  return l
+}
+
 /** O que vai para o cofre: um resumo em texto (o cofre guarda conversas de até 12 mil caracteres). */
 export function resumoEmTexto(r: ResultadoIA): string {
   if (r.tipo === 'relatorio') {
@@ -255,6 +309,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
   const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu neste computador.`] : [])]
   const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `${tituloNaoDecidido(r.motivo)}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
+  if (r.realidade) l.push('', ...textoDaRealidade(r.realidade))
   if (r.ligacao && 'fonte' in r.ligacao) l.push('', ...textoDaLigacao(r.ligacao, r.texto.premissas))
   else if (r.ligacao && 'motivo' in r.ligacao) l.push('', `Não achei uma ligação que feche: ${r.ligacao.motivo}.`)
   if (r.essenciais) l.push('', 'Para contrariar, é preciso negar uma destas premissas:', ...r.essenciais.map((i) => `- ${r.texto.premissas[i]}`))

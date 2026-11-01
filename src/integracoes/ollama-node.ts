@@ -10,6 +10,7 @@ import { CLASSES, type Classe, type Item, type Termo } from '../motor/avaliacao'
 import type { Conferencia } from '../motor/avaliacaoZ3'
 import { cenarioDoSalto, ESQUEMA_EXTRACAO, EXTRATOR, MAX_TEXTO_REVISOR, revisarPlano, type RelatorioRevisor } from '../motor/revisor'
 import { buscarPonte, ESQUEMA_PONTE, PONTE, type ArgumentoFormal } from '../motor/ponte'
+import { confrontarRealidade } from '../motor/realidade'
 import type { ModeloGroq } from './groq-contratos'
 import { ErroGroq, type PedidoGroq } from './provedores/groq'
 import exemplosTexto from '../../avaliacao/exemplos-publicos-v1.jsonl?raw'
@@ -60,6 +61,16 @@ export function validarPedidoPonte(x: unknown): ArgumentoFormal {
       || !x.cenario.every((c) => typeof c === 'string' && c.length <= 300)) throw new ErroOllama(400, 'invalido')
   const { vocabulario, premissas, conclusao } = validarPropostaConferir({ vocabulario: x.vocabulario, premissas: x.premissas, conclusao: x.conclusao, classe: null })
   return { vocabulario, premissas, conclusao, cenario: x.cenario as string[] }
+}
+
+/** O pedido da camada de fatos: as fórmulas do argumento e as frases dele (para mostrar ao lado de cada veredito). */
+export function validarPedidoRealidade(x: unknown) {
+  const frase = (s: unknown) => typeof s === 'string' && s.length <= 1000
+  if (!objetoSimples(x, 'conclusao,premissas,texto,vocabulario') || !objetoSimples(x.texto, 'conclusao,premissas') || !Array.isArray(x.texto.premissas)
+      || !x.texto.premissas.every(frase) || !frase(x.texto.conclusao)) throw new ErroOllama(400, 'invalido')
+  const { vocabulario, premissas, conclusao } = validarPropostaConferir({ vocabulario: x.vocabulario, premissas: x.premissas, conclusao: x.conclusao, classe: null })
+  if ((x.texto.premissas as string[]).length !== premissas.length) throw new ErroOllama(400, 'invalido')
+  return { vocabulario, premissas, conclusao, texto: { premissas: x.texto.premissas as string[], conclusao: x.texto.conclusao as string } }
 }
 
 /**
@@ -276,6 +287,21 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
           }, a, { antesDoModelo: () => z3.parar(), antesDoZ3: () => descarregarModeloOllama(modelo, opcoes.buscar).catch(() => undefined) })
           if (encerrado) throw new ErroOllama(503, 'indisponivel')
           enviar(res, 200, { formato: 'cosmos-ollama-ponte-v1', versao: PONTE, ...r })
+          return
+        }
+        if (rota === 'ollama/realidade') {
+          // a camada de fatos: só regras fixas e o Z3, sem modelo (o modelo sai da memória antes)
+          const z3 = opcoes.conferidor
+          if (!z3) throw new ErroOllama(503, 'indisponivel')
+          const a = validarPedidoRealidade(await lerCorpo(req, 32768))
+          await descarregarModeloOllama(modelo, opcoes.buscar).catch(() => undefined)
+          const r = await confrontarRealidade(async (vocabulario, ps, c) => {
+            const k = await z3.conferir({ vocabulario, premissas: ps, conclusao: c, classe: null })
+            if (k.classeZ3) return k.classeZ3
+            throw new Error(k.motivo || 'o Z3 não decidiu')
+          }, a, a.texto)
+          if (encerrado) throw new ErroOllama(503, 'indisponivel')
+          enviar(res, 200, { formato: 'cosmos-realidade-v1', ...r })
           return
         }
         if (rota === 'ollama/conferir') {

@@ -9,6 +9,7 @@ import type { EntradaDicionario } from '../dados/tipos'
 import { lerEmPortugues } from '../logica/leitura'
 import { usosDeNomes } from '../logica/termos'
 import { validar } from '../logica/validador'
+import { renomear } from '../logica/nomes'
 import { comoDicionario } from './registro'
 import { CLASSES, lerFormula, type Classe, type Item, type Termo } from './avaliacao'
 
@@ -117,7 +118,11 @@ export async function formalizarComReparo(perguntar: Perguntar, mensagens: Mensa
  */
 /** As definições das três classes do pedido, para quem pergunta a classe direto a um modelo (a comparação "sozinho"). */
 export const DEFINICAO_CLASSES = SISTEMA.slice(SISTEMA.indexOf('Classifique a conclusão'), SISTEMA.indexOf('\n\nResponda SÓ'))
-export const CEGO_FORMALIZACAO = 'cego-v2'
+export const CEGO_FORMALIZACAO = 'cego-v4'
+// cego-v4 (01/11/2026): quando a guarda barra a conclusão que copia uma premissa, ela é traduzida do zero, sozinha, sem
+// ver o vocabulário, e unida ao das premissas por regra fixa (mesmo nome de constante ou mesma leitura). Caso real:
+// "O celular esquentou. Logo, o celular está com vírus" virava Esquentou(celular) duas vezes e ficava sem conclusão.
+// Só muda os casos que antes ficavam vazios; precisa de medição própria antes de comparar com o cego-v2.
 // cego-v2: a leitura do genérico "o A é B" (o caso "o homem é eterno", formalizacao-v1.md §8c), só na tradução cega
 const GENERICO = '- "O A é B" falando de A em geral ("o homem é mortal", "o cliente sempre tem razão") = ∀x (A(x) ⟹ B(x)), como "todo A é B"; quando "o A" é um indivíduo só, já nomeado ou único na frase ("o mediador do encontro"), é uma constante.'
 const REGRAS = `${SISTEMA.slice(0, SISTEMA.indexOf('\n\nClassifique a conclusão'))}\n${GENERICO}`
@@ -203,10 +208,44 @@ export async function formalizarCego(perguntarPremissas: Perguntar, perguntarCon
     return JSON.stringify({ vocabulario: [...emUso, ...novos], premissas: p1.premissas, conclusao: o.conclusao, classe: null })
   }
   const r2 = await comReparo(perguntarConclusao, mensagensDaConclusao(texto.conclusao, emUso, !!vocabulario, exemplos), (c) => { lerProposta(juntar(c), vocabulario); return null })
-  let conteudo: string
-  try { conteudo = juntar(r2.conteudo) } catch { conteudo = JSON.stringify({ vocabulario: emUso, premissas: p1.premissas, conclusao: '', classe: null }) }
-  const reparos = [r1.reparo && `premissas: ${r1.reparo}`, r2.reparo && `conclusão: ${r2.reparo}`].filter(Boolean)
-  return { conteudo, prompt: r1.prompt + r2.prompt, completion: r1.completion + r2.completion, reparo: reparos.length ? reparos.join('; ') : null }
+  let conteudo: string, gasto = { prompt: r1.prompt + r2.prompt, completion: r1.completion + r2.completion }, refeita: string | null = null
+  try { conteudo = juntar(r2.conteudo) } catch {
+    conteudo = JSON.stringify({ vocabulario: emUso, premissas: p1.premissas, conclusao: '', classe: null })
+    if (!vocabulario) {
+      // cego-v4: a conclusão do zero, como uma frase solta, e a união dos vocabulários por regra fixa
+      const r3 = await comReparo(perguntarPremissas, mensagensDasPremissas([texto.conclusao.replace(/^(?:logo|então|portanto|por isso),?\s*/iu, '')], null, exemplos), (c) => { lerSozinha(c); return null })
+      gasto = { prompt: gasto.prompt + r3.prompt, completion: gasto.completion + r3.completion }
+      try { conteudo = juntar(unirVocabularios(emUso, lerSozinha(r3.conteudo))); refeita = 'conclusão traduzida de novo, sozinha' } catch { /* continua sem conclusão */ }
+    }
+  }
+  const reparos = [r1.reparo && `premissas: ${r1.reparo}`, r2.reparo && `conclusão: ${r2.reparo}`, refeita].filter(Boolean)
+  return { conteudo, ...gasto, reparo: reparos.length ? reparos.join('; ') : null }
+}
+
+/** Uma frase só, traduzida como premissa (sem vocabulário dado): a conclusão refeita do zero no cego-v4. */
+function lerSozinha(conteudo: string): Proposta {
+  const o = objetoDaResposta(conteudo) as Record<string, unknown>
+  if (!ehObjeto(o) || !Array.isArray(o.premissas) || o.premissas.length !== 1) throw new Error('escreva uma fórmula só, para a frase')
+  return lerProposta(JSON.stringify({ vocabulario: o.vocabulario, premissas: o.premissas, conclusao: o.premissas[0], classe: null }), null)
+}
+/**
+ * Junta o vocabulário da conclusão refeita ao das premissas: a mesma constante (nome ou leitura) e o mesmo predicado
+ * (leitura e aridade) viram o símbolo que já está em uso; um nome igual com outro sentido ganha outro nome.
+ */
+function unirVocabularios(emUso: Termo[], p: Proposta): string {
+  const norma = (s: string) => semAcento(s).toLowerCase().replace(/\s+/g, ' ').trim()
+  const novos: Termo[] = [], troca: [string, string][] = []
+  for (const t of p.vocabulario) {
+    const igual = emUso.find((u) => u.tipo === t.tipo && u.aridade === t.aridade && (norma(u.leitura) === norma(t.leitura) || (t.tipo === 'constante' && u.simbolo === t.simbolo)))
+    if (igual) { if (igual.simbolo !== t.simbolo) troca.push([t.simbolo, igual.simbolo]); continue }
+    const nome = emUso.some((u) => u.simbolo === t.simbolo) ? `${t.simbolo}${t.tipo === 'constante' ? 'b' : 'B'}` : t.simbolo
+    if (nome !== t.simbolo) troca.push([t.simbolo, nome])
+    novos.push({ ...t, simbolo: nome })
+  }
+  let f = p.premissas[0]
+  troca.forEach(([de], i) => { f = renomear(f, de, `Tmpunir${i}`) })
+  troca.forEach(([, para], i) => { f = renomear(f, `Tmpunir${i}`, para) })
+  return JSON.stringify({ vocabulario: [...emUso, ...novos], conclusao: f })
 }
 
 /** O primeiro objeto JSON da resposta, sem o raciocínio entre <think> e sem cercas de código. */
