@@ -20,7 +20,12 @@ const FRASES = [
   'Todo ser humano pode morrer. Logo, todo ser humano voa.',
   'O notebook ficou no sol. Logo, o notebook esquentou.',
   'As pessoas veem as outras como deuses. Logo, as pessoas sofrem.',
+  // as frases do Gustavo (01/11/2026)
+  'pessoa tem experiencia, logo ela só consegue ver o que as experiencias mostram, logo as experiencias que ela tem não é todas as experiencias que acontecem, logo ela está limitada o que ve',
+  'Toda pessoa é parte do todo. Logo, toda pessoa está limitada no que vê.',
 ]
+// REALIDADE_PONTA_SO=5,6 roda só essas frases (pelos índices)
+const ESCOLHIDAS = process.env.REALIDADE_PONTA_SO ? process.env.REALIDADE_PONTA_SO.split(',').map(Number) : null
 
 it.runIf(FASE === 'traduzir')('ponta a ponta, fase 1: o modelo local traduz', async () => {
   mkdirSync(PASTA, { recursive: true })
@@ -28,7 +33,7 @@ it.runIf(FASE === 'traduzir')('ponta a ponta, fase 1: o modelo local traduz', as
   const base = { modelo: 'qwen3:4b', temperatura: 0, semente: 0, contexto: 4096 }
   const premissas = criarAdaptadorOllama({ ...base, formato: ESQUEMA_PREMISSAS }), conclusao = criarAdaptadorOllama({ ...base, formato: ESQUEMA_CONCLUSAO })
   const saida: unknown[] = []
-  for (const frase of FRASES) {
+  for (const frase of FRASES.filter((_, i) => !ESCOLHIDAS || ESCOLHIDAS.includes(i))) {
     const t = separarArgumento(frase)
     if (!t) { saida.push({ frase, erro: 'não separou' }); continue }
     const inicio = Date.now()

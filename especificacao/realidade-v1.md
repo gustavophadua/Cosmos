@@ -48,7 +48,7 @@ Os sinônimos ligam a fala da pessoa aos símbolos da base. Ficam de fora os que
 
 Uma leitura com "não", ou que bate com dois termos da base, **não liga**.
 
-A v1 tem 26 fatos (`R01`–`R26`) sobre aparelhos e calor, seres vivos, gravidade e massa, luz e som, combustão e o
+A v1 tem 31 fatos (`R01`–`R31`) sobre aparelhos e calor, seres vivos, gravidade e massa, luz e som, combustão, o observador e o
 sentido do calor. É pequena de propósito: crescer é acrescentar fatos com fonte, e cada um passa pelos testes de
 leitura e de consistência da base.
 
@@ -74,6 +74,31 @@ leitura e de consistência da base.
    Cada condição tem de ser possível, não pode já valer e não pode ser o próprio relato.
 4. **A conclusão diante dos fatos e do relato compatível com eles.** As frases que contrariam os fatos ficam de fora
    dessa conta.
+
+## 4b. O observador: a pessoa como fragmento do todo (R27–R31)
+
+Nenhum fato diz "a pessoa é limitada". O Z3 tira isso de quatro fatos:
+
+| Fato | O que diz | Fonte |
+|---|---|---|
+| R27 | Perceber algo exige ser afetado fisicamente por ele | Percepção: toda percepção resulta da estimulação física ou química dos sentidos |
+| R28 | Para todo ser humano há acontecimentos que não o afetam (fora do seu cone de luz) | Cone de luz |
+| R29 | Perceber tudo é perceber todos os acontecimentos | definição |
+| R30 | Ser limitado no que percebe é não perceber tudo | definição |
+
+Daí, pelo Z3:
+- "Toda pessoa está limitada no que vê" é **fato** (R27, R28, R29, R30).
+- "Alguma pessoa vê tudo" **contraria os fatos** (R27, R28, R29).
+
+R31 liga corpo material a parte do universo ("tudo o que existe fisicamente").
+
+## 4c. Cadeias de "logo"
+
+"A, logo B, logo C, logo D" não é lido como três premissas e uma conclusão. B e C são passos:
+- cada um é conferido a partir do que veio antes;
+- o resultado diz, passo a passo, se ele decorre, contradiz ou é uma afirmação nova.
+
+Um passo que não decorre revela uma premissa escondida, e a tela mostra isso.
 
 ## 5. Exemplos (conferidos nos testes com o Z3)
 

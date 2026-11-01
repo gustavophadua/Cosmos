@@ -2,7 +2,7 @@
 // As peças da IA dentro da Conversa (assistente.ts): o menu de comandos do "+" e do "/", e o cartão de cada resposta,
 // com registrar na cadeia e baixar o relatório.
 import { useState } from 'react'
-import { CONCLUSAO_REAL, SITUACAO_REAL, tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
+import { CONCLUSAO_REAL, PASSO_DA_CADEIA, SITUACAO_REAL, tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
 import type { Termo } from '../motor/avaliacao'
 import { fatoPorId, type ResultadoRealidade } from '../motor/realidade'
 
@@ -184,6 +184,11 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
       lidas={texto.premissas.map((_, i) => entendi(proposta.premissas[i], proposta.vocabulario))} conclusaoLida={entendi(proposta.conclusao, proposta.vocabulario)}
       usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'} />
+    {resultado.cadeia && <div className="iai-realidade">
+      <p><b>A cadeia, passo a passo</b></p>
+      <ul>{resultado.cadeia.map((p) => <li key={p.premissa} data-situacao={p.classe === 'segue' ? 'fato' : p.classe === 'contradiz' ? 'contraria' : p.classe ? 'observacao' : 'nao-decidido'}>"{texto.premissas[p.premissa]}": <b>{p.classe ? PASSO_DA_CADEIA[p.classe] : 'o Z3 não concluiu'}</b></li>)}</ul>
+      {resultado.cadeia.some((p) => p.classe !== 'segue') && <small>Um passo que não decorre do anterior é uma afirmação nova: ela entra como premissa sua, e o resultado acima vale só se ela for aceita.</small>}
+    </div>}
     {resultado.realidade && <RealidadeRegistrada r={resultado.realidade} />}
     {achada && opcao && <div className="iai-ligacao">
       {achada.opcoes.length > 1 && <>

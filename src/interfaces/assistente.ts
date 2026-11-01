@@ -3,7 +3,7 @@
 // só) tem resposta sem modelo: não há o que provar, ela precisa de fonte.
 
 import type { Classe, Termo } from '../motor/avaliacao'
-import type { Proposta } from '../motor/formalizacao'
+import { objetoDaResposta, type Proposta } from '../motor/formalizacao'
 import { relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor } from '../motor/revisor-relatorio'
 import type { Ligacao } from './ollama-cliente'
 import { fatoPorId, type ResultadoRealidade, type Situacao } from '../motor/realidade'
@@ -88,6 +88,8 @@ export interface ArgumentoSeparado {
   sujeitos?: { premissa: number; pronome: string; sujeito: string }[]
   /** a conclusão sem sujeito ("Logo, está com vírus"), lida com o sujeito da primeira razão: o texto como veio */
   conclusaoOriginal?: string
+  /** "A, logo B, logo C": os índices das razões que são passos (conclusões intermediárias), conferidos um a um */
+  passos?: number[]
 }
 // o sujeito da frase (artigo e substantivo no começo da conclusão ou da primeira razão) e os pronomes que voltam a ele
 const SUJEITO = /^(?:(?:logo|então|portanto),?\s+)?((os|as|o|a)\s+\p{L}+)/iu
@@ -162,13 +164,39 @@ export function respostaAfirmacao(texto: string): string {
 /** Um argumento curto: as frases menos a última são as premissas; a última é a conclusão. Null com menos de duas. */
 export function separarArgumento(texto: string): ArgumentoSeparado | null {
   const fs = frases(texto)
-  if (fs.length === 1) { const a = argumentoNumaFrase(fs[0]); return a && semAtenuantes(comSujeito(a)) }
+  if (fs.length === 1) { const a = argumentoNumaFrase(fs[0]); return a && comPassos(semAtenuantes(comSujeito(a))) }
   if (fs.length < 2 || fs.length > 11) return null
-  return semAtenuantes(comSujeito({ premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) }))
+  return comPassos(semAtenuantes(comSujeito({ premissas: fs.slice(0, -1).map((f) => f.slice(0, 500)), conclusao: fs.at(-1)!.slice(0, 500) })))
+}
+/** Uma razão que começa com "logo"/"então" é um passo da cadeia: tira o conector e guarda o índice. */
+const PASSO = /^(?:logo|então|portanto|por isso),?\s+/iu
+function comPassos(a: ArgumentoSeparado): ArgumentoSeparado {
+  const passos = a.premissas.flatMap((p, i) => (i > 0 && PASSO.test(p) ? [i] : []))
+  if (!passos.length) return a
+  return { ...a, passos, premissas: a.premissas.map((p, i) => (passos.includes(i) ? maiuscula(p.replace(PASSO, '')) : p)) }
+}
+/**
+ * A tradução que não se leu, dita em português: qual parte o modelo não conseguiu (a conclusão, uma razão) e o que fazer.
+ * Nunca mostra só '"" não se lê'.
+ */
+export function falhaDaTraducao(conteudo: string, t: ArgumentoSeparado, detalhe: string): string {
+  const o = (() => { try { return objetoDaResposta(conteudo) as { premissas?: unknown; conclusao?: unknown } | null } catch { return null } })()
+  const dica = 'Tente uma frase por razão, cada uma com quem faz e o que faz (por exemplo, "A pessoa vê só o que chega até ela."), ou ligue o modelo grande na nuvem.'
+  if (o && typeof o.conclusao === 'string' && !o.conclusao.trim())
+    return `Tradução ilegível: o modelo não conseguiu traduzir a conclusão "${t.conclusao}" sem copiar uma das razões. Nenhuma classe lógica foi atribuída. ${dica}`
+  if (o && (!Array.isArray(o.premissas) || o.premissas.length !== t.premissas.length))
+    return `Tradução ilegível: o modelo não conseguiu traduzir cada razão em uma fórmula. Nenhuma classe lógica foi atribuída. ${dica}`
+  return `Tradução ilegível: ${detalhe.replace(/[.!?]$/, '')}. Nenhuma classe lógica foi atribuída. ${dica}`
+}
+/** Como um passo da cadeia fica diante do que veio antes. */
+export const PASSO_DA_CADEIA: Record<Classe, string> = {
+  segue: 'decorre do que veio antes',
+  independente: 'não decorre do que veio antes: é uma afirmação nova',
+  contradiz: 'contradiz o que veio antes',
 }
 
 export type ResultadoIA =
-  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao; nuvem?: string; realidade?: ResultadoRealidade }
+  | { tipo: 'argumento'; comando: 'verificar' | 'contrariar'; texto: ArgumentoSeparado; proposta: Proposta; classe: Classe | null; motivo?: string; cenario?: string[]; essenciais?: number[]; reparo?: string; ligacao?: Ligacao; nuvem?: string; realidade?: ResultadoRealidade; cadeia?: { premissa: number; classe: Classe | null }[] }
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
@@ -229,12 +257,21 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   }
   let proposta: Proposta
   try { proposta = ler(r.conteudo) }
-  catch (e) { throw new Error(`Tradução ilegível: ${detalheDaFalha(e).replace(/[.!?]$/, '')}. Nenhuma classe lógica foi atribuída.`) }
+  catch (e) { throw new Error(falhaDaTraducao(r.conteudo, t, detalheDaFalha(e))) }
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
   const logica = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
   // a realidade registrada: cada frase diante da base de fatos físicos (só com a tradução lida e a lógica decidida)
-  let base: typeof logica & { realidade?: ResultadoRealidade } = logica
+  let base: typeof logica & { realidade?: ResultadoRealidade; cadeia?: { premissa: number; classe: Classe | null }[] } = logica
+  if (t.passos?.length && proposta.premissas.length === t.premissas.length) {
+    progresso('Conferindo cada passo da cadeia…')
+    const cadeia: { premissa: number; classe: Classe | null }[] = []
+    for (const i of t.passos) {
+      const k = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas.slice(0, i), conclusao: proposta.premissas[i], classe: null }).catch(() => null)
+      cadeia.push({ premissa: i, classe: k?.classeZ3 ?? null })
+    }
+    base = { ...base, cadeia }
+  }
   if (comando === 'verificar' && c.classeZ3 && cliente.realidade) {
     progresso('Conferindo cada frase com os fatos registrados…')
     try { base = { ...logica, realidade: await cliente.realidade({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, texto: { premissas: t.premissas, conclusao: t.conclusao } }) } } catch { /* sem a camada de fatos, a resposta fica só na lógica */ }
@@ -309,6 +346,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
   const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu neste computador.`] : [])]
   const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `${tituloNaoDecidido(r.motivo)}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
+  if (r.cadeia) l.push('', 'A cadeia, passo a passo:', ...r.cadeia.map((p) => `- "${r.texto.premissas[p.premissa]}": ${p.classe ? PASSO_DA_CADEIA[p.classe] : 'o Z3 não concluiu'}`))
   if (r.realidade) l.push('', ...textoDaRealidade(r.realidade))
   if (r.ligacao && 'fonte' in r.ligacao) l.push('', ...textoDaLigacao(r.ligacao, r.texto.premissas))
   else if (r.ligacao && 'motivo' in r.ligacao) l.push('', `Não achei uma ligação que feche: ${r.ligacao.motivo}.`)

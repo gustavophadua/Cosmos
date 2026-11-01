@@ -48,6 +48,13 @@ export const VOCABULARIO_REAL: TermoReal[] = [
   p('MaisQuente', 'x está mais quente que y', ['mais quente que', 'mais quente do que'], 2),
   p('EmContato', 'x está em contato com y', ['em contato com', 'encostado em', 'tocando'], 2),
   p('CalorPassa', 'o calor passa de x para y', ['calor passa', 'esquenta o', 'aquece o', 'transfere calor'], 2),
+  // o observador: a pessoa é um fragmento do todo e só percebe o que chega até ela
+  especie('Acontecimento', 'x é um acontecimento', ['acontecimento', 'evento', 'coisa que acontece']),
+  p('Percebe', 'x percebe y', ['percebe', 've', 'enxerga', 'observa', 'sente'], 2),
+  p('Afeta', 'y afeta x fisicamente (algo de y chega até x)', ['afeta', 'atinge', 'chega ate', 'alcanca'], 2),
+  p('PercebeTudo', 'x percebe todos os acontecimentos', ['percebe tudo', 've tudo', 'enxerga tudo', 'sabe tudo', 'conhece tudo', 'tem acesso a tudo', 'percebe todos os acontecimentos', 've todos os acontecimentos']),
+  p('Limitado', 'x é limitado no que percebe', ['limitado', 'limitada', 'limitado no que ve', 'limitada no que ve', 'limitado o que ve', 'limitada o que ve', 'limitado no que percebe', 'limitada no que percebe', 'tem visao limitada', 'tem percepcao limitada']),
+  p('ParteDoUniverso', 'x é parte do universo (do todo)', ['parte do universo', 'parte do todo', 'fragmento do todo', 'parte da realidade', 'fragmento da realidade']),
 ]
 
 const wiki = (pagina: string) => `https://pt.wikipedia.org/wiki/${pagina}`
@@ -79,4 +86,10 @@ export const FATOS: Fato[] = [
   { id: 'R24', enunciado: 'Existem sons.', formula: '∃x (Som(x))', fonte: { nome: 'observação direta' } },
   { id: 'R25', enunciado: 'Existe luz.', formula: '∃x (Luz(x))', fonte: { nome: 'observação direta' } },
   { id: 'R26', enunciado: 'Existe fogo (combustão).', formula: '∃x (Combustao(x))', fonte: { nome: 'observação direta' } },
+  // o observador: nenhum destes diz "a pessoa é limitada"; o Z3 tira isso de R27 a R30
+  { id: 'R27', enunciado: 'Perceber algo exige ser afetado fisicamente por ele (a percepção vem da estimulação física dos sentidos).', formula: '∀x ∀y (Percebe(x, y) ⟹ Afeta(y, x))', fonte: { nome: 'Percepção (toda percepção resulta da estimulação física ou química do sistema sensorial)', url: wiki('Percepção') } },
+  { id: 'R28', enunciado: 'Para todo ser humano há acontecimentos que não o afetam: os que estão fora do seu cone de luz.', formula: '∀x (Humano(x) ⟹ ∃y (Acontecimento(y) ∧ ¬Afeta(y, x)))', fonte: { nome: 'Cone de luz (eventos fora do cone nunca afetam o observador)', url: wiki('Cone_de_luz') } },
+  { id: 'R29', enunciado: 'Perceber tudo é perceber todos os acontecimentos.', formula: '∀x (PercebeTudo(x) ⟺ ∀y (Acontecimento(y) ⟹ Percebe(x, y)))', fonte: { nome: 'definição' } },
+  { id: 'R30', enunciado: 'Ser limitado no que percebe é não perceber tudo.', formula: '∀x (Limitado(x) ⟺ ¬PercebeTudo(x))', fonte: { nome: 'definição' } },
+  { id: 'R31', enunciado: 'Todo corpo material é parte do universo, que é tudo o que existe fisicamente.', formula: '∀x (Corpo(x) ⟹ ParteDoUniverso(x))', fonte: { nome: 'Universo (tudo o que existe fisicamente)', url: wiki('Universo') } },
 ]

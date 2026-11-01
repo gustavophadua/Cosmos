@@ -251,3 +251,33 @@ describe('a conclusão sem sujeito', () => {
       expect(separarArgumento(t)!.conclusaoOriginal).toBeUndefined()
   })
 })
+
+describe('a cadeia de "logo" e a falha que explica', () => {
+  it('"A, logo B, logo C, logo D": B e C são passos conferidos um a um a partir do que veio antes', async () => {
+    const a = separarArgumento('pessoa tem experiencia, logo ela só consegue ver o que as experiencias mostram, logo as experiencias que ela tem não é todas as experiencias que acontecem, logo ela está limitada o que ve')!
+    expect(a.passos).toEqual([1, 2])
+    expect(a.premissas[1]).toBe('Ela só consegue ver o que as experiencias mostram.')
+    const V = JSON.stringify({ vocabulario: [{ simbolo: 'A', tipo: 'predicado', aridade: 1, leitura: 'x é a' }, { simbolo: 'B', tipo: 'predicado', aridade: 1, leitura: 'x é b' }, { simbolo: 'C', tipo: 'predicado', aridade: 1, leitura: 'x é c' }, { simbolo: 'D', tipo: 'predicado', aridade: 1, leitura: 'x é d' }, { simbolo: 'p', tipo: 'constante', aridade: 0, leitura: 'a pessoa' }],
+      premissas: ['A(p)', 'B(p)', 'C(p)'], conclusao: 'D(p)', classe: null })
+    const pedidos: string[][] = []
+    const cliente: ClienteIA = {
+      formalizar: async () => ({ conteudo: V }),
+      conferir: async (q) => { pedidos.push(q.premissas); return { classeZ3: 'independente', motivo: '' } },
+      revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+    }
+    const r = await executar(cliente, 'verificar', 'A pessoa é a, logo é b, logo é c, logo é d.', (x) => lerProposta(x, null), () => undefined)
+    expect(r).toMatchObject({ cadeia: [{ premissa: 1, classe: 'independente' }, { premissa: 2, classe: 'independente' }] })
+    expect(pedidos).toContainEqual(['A(p)'])
+    expect(pedidos).toContainEqual(['A(p)', 'B(p)'])
+    expect(resumoEmTexto(r)).toContain('não decorre do que veio antes: é uma afirmação nova')
+  })
+
+  it('a conclusão que o modelo não conseguiu traduzir é dita em português, com o que fazer', async () => {
+    const cliente: ClienteIA = {
+      formalizar: async () => ({ conteudo: JSON.stringify({ vocabulario: [{ simbolo: 'A', tipo: 'predicado', aridade: 1, leitura: 'x é a' }, { simbolo: 'c', tipo: 'constante', aridade: 0, leitura: 'c' }], premissas: ['A(c)'], conclusao: '', classe: null }) }),
+      conferir: async () => ({ classeZ3: 'segue', motivo: '' }), revisar: async () => undefined, estadoRevisao: async () => ({ estado: 'livre' }),
+    }
+    await expect(executar(cliente, 'verificar', 'O celular esquentou. Logo, está com vírus.', (x) => lerProposta(x, null), () => undefined))
+      .rejects.toThrow('Tradução ilegível: o modelo não conseguiu traduzir a conclusão "Logo, o celular está com vírus."')
+  })
+})
