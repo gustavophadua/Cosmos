@@ -22,6 +22,13 @@ describe('a base de fatos', () => {
     expect(a.premissas).toEqual(['Esquenta(celular)', 'NaoEsquenta(celular)', 'CorpoDito(celular)'])
     expect(a.conclusao).toBe('TemVirus(celular)')
   })
+
+  it('uma constante com nome de variável ("x") ganha outro nome e não se mistura com o x dos fatos', () => {
+    // caso real (RF-07, 01/11/2026): o modelo declarou a constante x, e os fatos da base, que quantificam x, não se liam
+    const a = alinhar({ vocabulario: [t('Consome', 'x consome y', 2), t('x', 'X', 0, 'constante'), t('oxigenio', 'oxigênio', 0, 'constante')], premissas: [], conclusao: 'Consome(x, oxigenio)' })
+    expect(a.conclusao).toBe('Consome(xDito, oxigenio)')
+    for (const f of FATOS) expect(() => lerFormula(f.formula, a.vocabulario)).not.toThrow()
+  })
 })
 
 describe('o argumento diante da realidade registrada (Z3 real)', () => {

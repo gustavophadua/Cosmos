@@ -1,0 +1,418 @@
+{
+ "conjunto": "avaliacao/realidade-frases-v1.jsonl",
+ "data": "2026-11-01",
+ "traducao": "qwen3:4b no Ollama 0.40.12, cego-v4, temperatura 0, semente 0",
+ "base": "realidade-v1 (R01-R31)",
+ "codigo": "b49764d",
+ "pontuador": "scripts/pontuar-realidade.py",
+ "nota": "Uma rodada só; o 4B na CPU muda parte das traduções entre rodadas. O RF-07 caiu num defeito do alinhamento (constante x), corrigido depois desta rodada.",
+ "itens": 20,
+ "com_resultado": 14,
+ "julgamentos": 60,
+ "exatos": 26,
+ "chutes": 0,
+ "faltas": 20,
+ "outros": 14,
+ "por_item": [
+  {
+   "id": "RF-01",
+   "frase": "O celular esquentou. Logo, está com vírus.",
+   "esperados": [
+    "observacao",
+    "fora",
+    "independente"
+   ],
+   "obtidos": [
+    "observacao",
+    "fora",
+    "independente"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-02",
+   "frase": "Ana é uma pessoa. Logo, Ana voa.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "contradiz"
+   ],
+   "obtidos": [
+    "observacao",
+    "observacao",
+    "contradiz"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-03",
+   "frase": "Todo ser humano pode morrer. Logo, todo ser humano voa.",
+   "esperados": [
+    "fato",
+    "contraria",
+    "contradiz"
+   ],
+   "obtidos": [
+    "fato",
+    "contraria",
+    "contradiz"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-04",
+   "frase": "Toda pessoa é parte do todo. Logo, toda pessoa está limitada no que vê.",
+   "esperados": [
+    "fato",
+    "fato",
+    "segue"
+   ],
+   "obtidos": [
+    "fato",
+    "fato",
+    "segue"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-05",
+   "frase": "Maria é uma pessoa. Logo, Maria vê tudo.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "contradiz"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "outro",
+    "outro",
+    "falta"
+   ],
+   "erro": "sem tradução"
+  },
+  {
+   "id": "RF-06",
+   "frase": "Todo som precisa de um meio para se propagar. Logo, a luz precisa de um meio para se propagar.",
+   "esperados": [
+    "fato",
+    "contraria",
+    "contradiz"
+   ],
+   "obtidos": [
+    "observacao",
+    "fora",
+    "independente"
+   ],
+   "marcas": [
+    "falta",
+    "falta",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-07",
+   "frase": "O fogo está aceso. Logo, o fogo consome oxigênio.",
+   "esperados": [
+    "fora",
+    "fato",
+    "segue"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "outro",
+    "falta",
+    "falta"
+   ],
+   "erro": "\"∀x (Celular(x) ⟹ AparelhoEletronico(x))\" não se lê: 'x' é constante no dicionário e não pode ser quantificada"
+  },
+  {
+   "id": "RF-08",
+   "frase": "O computador está ligado. Logo, o computador gera calor.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "segue"
+   ],
+   "obtidos": [
+    "observacao",
+    "observacao",
+    "segue"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-09",
+   "frase": "A pedra tem massa. Logo, a pedra não é atraída pela gravidade.",
+   "esperados": [
+    "fato",
+    "contraria",
+    "contradiz"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "falta",
+    "falta",
+    "falta"
+   ],
+   "erro": "sem tradução"
+  },
+  {
+   "id": "RF-10",
+   "frase": "O cachorro é um animal. Logo, o cachorro precisa de energia para viver.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "segue"
+   ],
+   "obtidos": [
+    "observacao",
+    "fora",
+    "independente"
+   ],
+   "marcas": [
+    "exato",
+    "outro",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-11",
+   "frase": "Toda planta precisa de luz. Logo, toda planta é um ser vivo.",
+   "esperados": [
+    "observacao",
+    "fato",
+    "segue"
+   ],
+   "obtidos": [
+    "fora",
+    "observacao",
+    "independente"
+   ],
+   "marcas": [
+    "outro",
+    "falta",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-12",
+   "frase": "O carro é rápido. Logo, o carro se move mais rápido que a luz.",
+   "esperados": [
+    "fora",
+    "contraria",
+    "contradiz"
+   ],
+   "obtidos": [
+    "fora",
+    "fora",
+    "independente"
+   ],
+   "marcas": [
+    "exato",
+    "falta",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-13",
+   "frase": "Pedro é um ser humano. Logo, Pedro precisa de água.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "segue"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "outro",
+    "outro",
+    "falta"
+   ],
+   "erro": "sem tradução"
+  },
+  {
+   "id": "RF-14",
+   "frase": "Ninguém vê tudo. Logo, todo ser humano é limitado no que percebe.",
+   "esperados": [
+    "fato",
+    "fato",
+    "segue"
+   ],
+   "obtidos": [
+    "observacao",
+    "fora",
+    "independente"
+   ],
+   "marcas": [
+    "falta",
+    "falta",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-15",
+   "frase": "O gelo é frio. Logo, o gelo não gera calor.",
+   "esperados": [
+    "fora",
+    "observacao",
+    "independente"
+   ],
+   "obtidos": [
+    "fora",
+    "observacao",
+    "independente"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-16",
+   "frase": "A televisão está ligada. Logo, a televisão gera calor.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "segue"
+   ],
+   "obtidos": [
+    "fora",
+    "observacao",
+    "independente"
+   ],
+   "marcas": [
+    "outro",
+    "exato",
+    "falta"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-17",
+   "frase": "As pessoas veem as outras como deuses. Logo, as pessoas sofrem.",
+   "esperados": [
+    "fora",
+    "fora",
+    "independente"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "outro",
+    "outro",
+    "outro"
+   ],
+   "erro": "sem tradução"
+  },
+  {
+   "id": "RF-18",
+   "frase": "O notebook ficou no sol. Logo, o notebook esquentou.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "independente"
+   ],
+   "obtidos": [
+    "fora",
+    "observacao",
+    "independente"
+   ],
+   "marcas": [
+    "outro",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-19",
+   "frase": "Todo animal pode morrer. Logo, todo ser humano pode morrer.",
+   "esperados": [
+    "fato",
+    "fato",
+    "segue"
+   ],
+   "obtidos": [
+    "fato",
+    "fato",
+    "segue"
+   ],
+   "marcas": [
+    "exato",
+    "exato",
+    "exato"
+   ],
+   "erro": null
+  },
+  {
+   "id": "RF-20",
+   "frase": "João é um ser humano. Logo, João se move mais rápido que a luz.",
+   "esperados": [
+    "observacao",
+    "observacao",
+    "contradiz"
+   ],
+   "obtidos": [
+    null,
+    null,
+    null
+   ],
+   "marcas": [
+    "outro",
+    "outro",
+    "falta"
+   ],
+   "erro": "sem tradução"
+  }
+ ]
+}

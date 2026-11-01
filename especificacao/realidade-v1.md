@@ -147,10 +147,63 @@ raciocínio errado com selo de lógica.
 
 1. **cego-v4.** Barrada a cópia, a conclusão é traduzida do zero, sozinha e sem o conector. Depois é unida ao
    vocabulário das premissas por regra fixa: mesma constante, ou predicado com a mesma leitura. Só muda os casos que
-   antes ficavam sem conclusão. Ainda **não foi medida** no conjunto de revisão; até lá, os números publicados
-   continuam sendo os do cego-v2.
+   antes ficavam sem conclusão. Medida nos 99 itens de revisão em 01/11/2026 (seção 6c): o caminho novo não disparou
+   em nenhum item, então ali ele não muda nada. O que ele vale nas frases do dia a dia ainda não tem medida própria.
 2. **Sujeito oculto.** "Logo, está com vírus" é lida como "Logo, o celular está com vírus", com o sujeito da primeira
    frase. A tela avisa que leu assim.
+
+## 6b. Medição: 20 frases com o esperado escrito antes (01/11/2026)
+
+O conjunto `avaliacao/realidade-frases-v1.jsonl` (commit ea70771) foi publicado **antes** de rodar. Para cada frase,
+o esperado é o que a realidade física decide, e não o que a base cobre. Daí sai o placar:
+
+- **acerto exato**: deu o esperado;
+- **chute**: deu certeza ("fato", "contraria", "segue", "contradiz") onde a realidade não decide ou decide outra coisa;
+- **falta**: não deu certeza onde a realidade decide;
+- **outro**: os dois sem certeza, mas diferentes.
+
+Resultado (`avaliacao/realidade-frases-v1-resultado-qwen3-4b.json`, pontuado por `scripts/pontuar-realidade.py`):
+
+| Julgamentos | Acerto exato | Chute | Falta | Outro |
+|---|---|---|---|---|
+| 60 (3 por frase: cada frase e a conclusão diante do relato) | 26 | **0** | 20 | 14 |
+
+- **7 das 20 frases** saíram certas de ponta a ponta: o celular e o vírus, "Ana voa", "todo ser humano voa", "toda pessoa
+  é parte do todo, logo limitada no que vê", "o computador ligado gera calor", "o gelo é frio, logo não gera calor" (onde o certo é não decidir: gelo frio não prova que nada gera calor nele) e
+  "todo animal pode morrer, logo todo ser humano pode morrer".
+- **6 frases ficaram sem tradução lida**: o 4B usou um símbolo que não declarou ou não escreveu a conclusão.
+- **As outras faltas são da tradução, não da base.** Exemplos:
+  - "a luz precisa de um meio" virou `Precisa(x, luz)`, com o sentido invertido;
+  - "ninguém vê tudo" virou uma fórmula sem sentido;
+  - "mais rápido que a luz" e "precisa de energia" viraram relações com uma constante, que não ligam aos termos da base;
+  - "está ligada" (feminino) não liga a "em funcionamento".
+- **Um defeito do alinhamento** (RF-07): o modelo declarou uma constante chamada `x`, e os fatos da base, que
+  quantificam x, deixaram de se ler. Foi corrigido depois da rodada: a constante ganha outro nome. A frase continuaria
+  falta, porque a tradução dela também estava errada.
+
+O que o número diz: **a camada de fatos não chutou nenhuma vez**. Onde a tradução falha, ela cala em vez de inventar.
+Mas, com o 4B traduzindo, ela só decide 26 de 60 julgamentos. O gargalo é a tradução.
+
+Este conjunto agora está **visto**. Mudar sinônimos ou fatos olhando estas falhas e medir de novo nele seria ajustar à
+prova. A próxima medição precisa de frases novas, escritas antes, como estas foram.
+
+## 6c. cego-v4 na revisão e a variação entre rodadas (01/11/2026)
+
+| Rodada | Classe certa (Z3) | "Segue" falso | Sem classe | Fórmulas fiéis |
+|---|---|---|---|---|
+| cego-v2, 29/10 | 95 | 0 | 1 | 85 |
+| cego-v4, 01/11 | 92 | 1 | 3 | 82 |
+
+- O caminho novo do cego-v4 **não disparou em nenhum dos 99 itens**: nenhum reparo diz "conclusão traduzida de novo".
+- O tradutor das premissas é o mesmo código nas duas versões.
+- 6 das 96 traduções lidas mudaram assim mesmo. O qwen3:4b na CPU **não repete a mesma saída entre rodadas**, mesmo com o
+  mesmo modelo, o mesmo Ollama, temperatura 0 e semente 0.
+- O "segue" falso é o G-089: "só pode votar **se** estiver credenciado" foi lido ao contrário.
+
+Consequência: o "0 segue falso" do cego-v2 vale para aquela rodada, não é garantia. A diferença entre duas rodadas do
+mesmo código chega a 3 itens de classe certa e a 1 "segue" falso. Daqui em diante:
+- comparar versões só nos itens em que o código novo agiu;
+- publicar a variação entre rodadas junto com o placar.
 
 ## 7. Limites
 

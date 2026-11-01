@@ -62,8 +62,9 @@ export function alinhar(p: { vocabulario: Termo[]; premissas: string[]; conclusa
   for (const t of p.vocabulario) {
     const alvo = t.tipo === 'predicado' ? termoDaBase(t.leitura, t.aridade, base) : null
     if (alvo) { troca.set(t.simbolo, alvo.simbolo); if (miolos(t.leitura)[0] !== miolos(alvo.leitura)[0]) alinhamentos.push({ de: t.simbolo, leituraDe: t.leitura, para: alvo.simbolo, leituraPara: alvo.leitura }); continue }
-    // um símbolo da pessoa com o nome de um da base, mas outro sentido, ganha outro nome
-    const novo = nomesBase.has(t.simbolo) ? `${t.simbolo}Dito` : t.simbolo
+    // um símbolo da pessoa com o nome de um da base, mas outro sentido, ganha outro nome; uma constante com nome de
+    // variável ("x", que o modelo às vezes declara) também, porque os fatos da base quantificam x e y
+    const novo = nomesBase.has(t.simbolo) || (t.tipo === 'constante' && /^[a-z]\d*$/.test(t.simbolo)) ? `${t.simbolo}Dito` : t.simbolo
     if (novo !== t.simbolo) troca.set(t.simbolo, novo)
     proprios.push({ ...t, simbolo: novo })
     if (t.tipo === 'constante') {
