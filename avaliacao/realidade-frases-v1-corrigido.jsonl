@@ -1,0 +1,20 @@
+{"id": "RF-01", "frase": "O celular esquentou. Logo, está com vírus.", "esperado": {"frases": ["observacao", "fora"], "conclusaoComRelato": "independente"}}
+{"id": "RF-02", "frase": "Ana é uma pessoa. Logo, Ana voa.", "esperado": {"frases": ["observacao", "observacao"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-03", "frase": "Todo ser humano pode morrer. Logo, todo ser humano voa.", "esperado": {"frases": ["fato", "contraria"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-04", "frase": "Toda pessoa é parte do todo. Logo, toda pessoa está limitada no que vê.", "esperado": {"frases": ["fato", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-05", "frase": "Maria é uma pessoa. Logo, Maria vê tudo.", "esperado": {"frases": ["observacao", "contraria"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-06", "frase": "Todo som precisa de um meio para se propagar. Logo, a luz precisa de um meio para se propagar.", "esperado": {"frases": ["fato", "contraria"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-07", "frase": "O fogo está aceso. Logo, o fogo consome oxigênio.", "esperado": {"frases": ["fora", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-08", "frase": "O computador está ligado. Logo, o computador gera calor.", "esperado": {"frases": ["observacao", "observacao"], "conclusaoComRelato": "segue"}}
+{"id": "RF-09", "frase": "A pedra tem massa. Logo, a pedra não é atraída pela gravidade.", "esperado": {"frases": ["fato", "contraria"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-10", "frase": "O cachorro é um animal. Logo, o cachorro precisa de energia para viver.", "esperado": {"frases": ["fato", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-11", "frase": "Toda planta precisa de luz. Logo, toda planta é um ser vivo.", "esperado": {"frases": ["contraria", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-12", "frase": "O carro é rápido. Logo, o carro se move mais rápido que a luz.", "esperado": {"frases": ["fora", "contraria"], "conclusaoComRelato": "contradiz"}}
+{"id": "RF-13", "frase": "Pedro é um ser humano. Logo, Pedro precisa de água.", "esperado": {"frases": ["observacao", "observacao"], "conclusaoComRelato": "segue"}}
+{"id": "RF-14", "frase": "Ninguém vê tudo. Logo, todo ser humano é limitado no que percebe.", "esperado": {"frases": ["fato", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-15", "frase": "O gelo é frio. Logo, o gelo não gera calor.", "esperado": {"frases": ["fato", "observacao"], "conclusaoComRelato": "independente"}}
+{"id": "RF-16", "frase": "A televisão está ligada. Logo, a televisão gera calor.", "esperado": {"frases": ["observacao", "observacao"], "conclusaoComRelato": "segue"}}
+{"id": "RF-17", "frase": "As pessoas veem as outras como deuses. Logo, as pessoas sofrem.", "esperado": {"frases": ["fora", "fora"], "conclusaoComRelato": "independente"}}
+{"id": "RF-18", "frase": "O notebook ficou no sol. Logo, o notebook esquentou.", "esperado": {"frases": ["observacao", "observacao"], "conclusaoComRelato": "independente"}}
+{"id": "RF-19", "frase": "Todo animal pode morrer. Logo, todo ser humano pode morrer.", "esperado": {"frases": ["fato", "fato"], "conclusaoComRelato": "segue"}}
+{"id": "RF-20", "frase": "João é um ser humano. Logo, João se move mais rápido que a luz.", "esperado": {"frases": ["observacao", "contraria"], "conclusaoComRelato": "contradiz"}}

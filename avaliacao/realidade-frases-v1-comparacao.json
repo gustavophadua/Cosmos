@@ -1,0 +1,91 @@
+{
+ "formato": "realidade-frases-v1-comparacao",
+ "data": "2026-11-02",
+ "o_que_e": "as mesmas 20 frases no Cosmos (tradução qwen3:4b + base realidade-v1 + Z3) e em duas IAs comuns sozinhas, sem base e sem Z3 (testes/realidade-sozinho.test.ts), pontuadas por scripts/pontuar-realidade.py",
+ "ias": {
+  "cosmos": "qwen3:4b traduz, Z3 decide pela base realidade-v1 (rodada de 01/11)",
+  "gpt-oss-120b": "openai/gpt-oss-120b na Groq, temperatura 0, sozinho",
+  "qwen3:4b": "qwen3:4b no Ollama, temperatura 0, semente 0, sozinho"
+ },
+ "gabarito_original": {
+  "arquivo": "avaliacao/realidade-frases-v1.jsonl",
+  "cosmos": {
+   "exatos": 26,
+   "chutes": 0,
+   "faltas": 20,
+   "outros": 14
+  },
+  "gpt-oss-120b": {
+   "exatos": 42,
+   "chutes": 12,
+   "faltas": 2,
+   "outros": 4
+  },
+  "qwen3:4b": {
+   "exatos": 30,
+   "chutes": 24,
+   "faltas": 5,
+   "outros": 1
+  }
+ },
+ "correcoes": [
+  {
+   "id": "RF-05",
+   "posicao": "frase 2",
+   "vira": "contraria",
+   "porque": "nenhum observador físico percebe todos os acontecimentos (cone de luz)"
+  },
+  {
+   "id": "RF-10",
+   "posicao": "frase 1",
+   "vira": "fato",
+   "porque": "cachorro é animal por definição biológica"
+  },
+  {
+   "id": "RF-10",
+   "posicao": "frase 2",
+   "vira": "fato",
+   "porque": "todo animal precisa de energia para viver"
+  },
+  {
+   "id": "RF-11",
+   "posicao": "frase 1",
+   "vira": "contraria",
+   "porque": "há plantas parasitas sem clorofila que não precisam de luz (ex.: Monotropa uniflora)"
+  },
+  {
+   "id": "RF-15",
+   "posicao": "frase 1",
+   "vira": "fato",
+   "porque": "gelo à pressão normal está abaixo de 0 °C (dúvida registrada antes de rodar)"
+  },
+  {
+   "id": "RF-20",
+   "posicao": "frase 2",
+   "vira": "contraria",
+   "porque": "nada com massa passa da velocidade da luz; o gabarito já dizia isso no RF-12"
+  }
+ ],
+ "nota_correcoes": "decididas depois de ver as respostas, olhando a física; as seis tiram acertos do Cosmos e dão à IA comum, nenhuma o favorece. O gabarito original fica como foi publicado.",
+ "gabarito_corrigido": {
+  "arquivo": "avaliacao/realidade-frases-v1-corrigido.jsonl",
+  "cosmos": {
+   "exatos": 24,
+   "chutes": 0,
+   "faltas": 26,
+   "outros": 10
+  },
+  "gpt-oss-120b": {
+   "exatos": 48,
+   "chutes": 6,
+   "faltas": 2,
+   "outros": 4
+  },
+  "qwen3:4b": {
+   "exatos": 33,
+   "chutes": 20,
+   "faltas": 6,
+   "outros": 1
+  }
+ }
+}
