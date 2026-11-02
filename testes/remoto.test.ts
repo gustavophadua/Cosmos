@@ -28,7 +28,7 @@ beforeAll(async () => {
   interno = createServer(exigirSegredo(segredo, (req, res) => { recebidos.push({ url: req.url, headers: req.headers }); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}') }))
   await new Promise<void>((ok) => interno.listen(0, '127.0.0.1', ok))
   const conta = await criarContaRemota(SENHA)
-  servidor = createServer(criarPortaRemota({ conta, html: Buffer.from('<!doctype html><html><head><title>C</title></head><body></body></html>'), interno: { porta: (interno.address() as { port: number }).port, segredo }, hosts: () => [host()], pastaDados: pasta }))
+  servidor = createServer(criarPortaRemota({ conta, html: Buffer.from('<!doctype html><html><head><title>C</title></head><body></body></html>'), interno: { porta: (interno.address() as { port: number }).port, segredo }, hosts: () => [host()], pastaDados: pasta, icones: { 'icone-192.png': Buffer.from('png-192') } }))
   await new Promise<void>((ok) => servidor.listen(0, '127.0.0.1', ok))
   porta = (servidor.address() as { port: number }).port
 }, 60_000)
@@ -42,6 +42,17 @@ describe('a porta remota', () => {
     expect((await pedir('/cosmos/__p0/ollama/estado')).status).toBe(401)
     expect((await pedir('/cosmos/__remoto/dados/ia-indice', { headers: { 'x-cosmos-remoto': '1' } })).status).toBe(401)
     expect(recebidos).toHaveLength(0)
+  })
+
+  it('o manifest e os ícones do app saem sem login (é o que o telefone instala), e só eles', async () => {
+    const m = await pedir('/cosmos/manifest.webmanifest')
+    expect(m.status).toBe(200); expect(m.headers['content-type']).toMatch(/^application\/manifest\+json/)
+    expect(JSON.parse(m.corpo)).toMatchObject({ name: 'Cosmos', start_url: '/cosmos/#/i-ai', scope: '/cosmos/', display: 'standalone' })
+    const i = await pedir('/cosmos/icone-192.png')
+    expect(i.status).toBe(200); expect(i.headers['content-type']).toBe('image/png'); expect(i.corpo).toBe('png-192')
+    expect((await pedir('/cosmos/icone-512.png')).status).toBe(404)
+    expect((await pedir('/cosmos/outro.png')).status).toBe(404)
+    expect((await pedir('/cosmos/entrar')).corpo).toContain('<link rel="manifest" href="/cosmos/manifest.webmanifest">')
   })
 
   it('a ponte interna só atende quem traz o segredo', async () => {

@@ -60,14 +60,23 @@ export interface OpcoesPortaRemota {
   /** Os endereços aceitos no Host: o do túnel e o local (127.0.0.1:porta), para abrir no próprio computador. */
   hosts: () => readonly string[]
   pastaDados: string
+  /** Os ícones do app (nome do arquivo → bytes PNG), servidos sem login com o manifest: é o que o telefone instala. */
+  icones?: Readonly<Record<string, Uint8Array>>
   agora?: () => number
 }
+export const ICONES_APP = ['icone-192.png', 'icone-512.png', 'icone-maskable-512.png', 'apple-touch-icon.png'] as const
+// o app instalado abre direto na Conversa; o login cuida do resto
+const MANIFEST = JSON.stringify({ name: 'Cosmos', short_name: 'Cosmos', id: '/cosmos/', start_url: '/cosmos/#/i-ai', scope: '/cosmos/', display: 'standalone',
+  background_color: '#ffffff', theme_color: '#ffffff', lang: 'pt-BR',
+  icons: [{ src: '/cosmos/icone-192.png', sizes: '192x192', type: 'image/png' }, { src: '/cosmos/icone-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/cosmos/icone-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] })
+const LINKS_APP = '<link rel="manifest" href="/cosmos/manifest.webmanifest"><link rel="apple-touch-icon" href="/cosmos/apple-touch-icon.png"><meta name="theme-color" content="#ffffff"><meta name="apple-mobile-web-app-title" content="Cosmos">'
 
 export function criarPortaRemota(o: OpcoesPortaRemota): RequestListener & { encerrar(): void } {
   const conta = lerContaRemota(o.conta), agora = o.agora ?? Date.now
   const sessoes = new Map<string, { criada: number; ultimo: number }>()
   let falhas: number[] = [], chaveDados: Buffer | null = null
-  const html = Buffer.from(Buffer.from(o.html).toString('utf8').replace('<head>', '<head><meta name="cosmos-remoto" content="1">'))
+  const html = Buffer.from(Buffer.from(o.html).toString('utf8').replace('<head>', `<head><meta name="cosmos-remoto" content="1">${o.icones ? LINKS_APP : ''}`))
   mkdirSync(o.pastaDados, { recursive: true })
 
   const limpar = () => {
@@ -127,7 +136,7 @@ export function criarPortaRemota(o: OpcoesPortaRemota): RequestListener & { ence
     renameSync(temporario, arquivo(chave))
   }
 
-  const paginaEntrar = (aviso: string) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cosmos · entrar</title>
+  const paginaEntrar = (aviso: string) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cosmos · entrar</title>${o.icones ? LINKS_APP : ''}
 <style>:root{color-scheme:light dark}body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px/1.5 system-ui,sans-serif;background:#f6f6f4;color:#1d1d1b}
 main{width:min(360px,calc(100% - 32px))}h1{font-size:24px;margin:0 0 4px}p{margin:0 0 20px;color:#5c5c58}label{display:block;font-weight:600;margin-bottom:6px}
 input{box-sizing:border-box;width:100%;font:inherit;padding:12px;border:1px solid #c9c9c4;border-radius:8px;background:#fff;color:inherit}
@@ -136,7 +145,7 @@ button{margin-top:12px;width:100%;font:inherit;font-weight:600;padding:12px;bord
 <body><main><h1>Cosmos</h1><p>Entre com a senha da conta dona para usar a Conversa deste computador.</p>
 <form method="post" action="/cosmos/entrar"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required minlength="12" maxlength="256" autofocus>
 <button type="submit">Entrar</button>${aviso ? `<p class="aviso" role="alert">${aviso}</p>` : ''}</form></main></body></html>`
-  const CSP_ENTRAR = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+  const CSP_ENTRAR = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 
   const repassar = (req: IncomingMessage, res: ServerResponse, host: string) => {
     const interno = `127.0.0.1:${o.interno.porta}`
@@ -170,6 +179,14 @@ button{margin-top:12px;width:100%;font:inherit;font-weight:600;padding:12px;bord
         if (req.headers.origin !== origemDe(host) || (site !== undefined && site !== 'same-origin')) { json(res, host, 403, { erro: 'origem' }); return }
       }
       if (caminho === '/' && req.method === 'GET') { ir(res, host, '/cosmos/#/i-ai'); return }
+      // o manifest e os ícones do app: sem login (o telefone busca sem o cookie), e nada além disso
+      if (req.method === 'GET' && o.icones && caminho === '/cosmos/manifest.webmanifest') {
+        res.writeHead(200, cabecalhos(host, { 'Content-Type': 'application/manifest+json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' })); res.end(MANIFEST); return
+      }
+      const icone = req.method === 'GET' && o.icones ? /^\/cosmos\/([a-z0-9-]+\.png)$/.exec(caminho)?.[1] : undefined
+      if (icone && (ICONES_APP as readonly string[]).includes(icone) && o.icones![icone]) {
+        res.writeHead(200, cabecalhos(host, { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' })); res.end(o.icones![icone]); return
+      }
       if (caminho === '/cosmos/entrar') {
         if (req.method === 'GET') {
           const aviso = url.searchParams.get('erro') === 'senha' ? 'Senha errada.' : url.searchParams.get('erro') === 'espera' ? 'Muitas tentativas. Espere 15 minutos e tente de novo.' : ''

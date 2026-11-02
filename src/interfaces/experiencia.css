@@ -20,9 +20,25 @@
   .cosmos-bar-extra a:hover,.cosmos-bar-extra a[aria-current=page] { background:var(--hover); color:var(--text); }
   .cosmos-bar-conta b { display:grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--p-accent,#315fd6); color:var(--p-on-accent,#fff); font-size:11px; font-weight:650; }
   .cosmos-bar-conta span { max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+  /* Baixar o app: o botão segue os links da barra; o painel cai embaixo dele (no celular, ocupa a largura). */
+  .cosmos-baixar { position:relative; }
+  .cosmos-baixar-botao { display:flex; align-items:center; gap:7px; height:32px; padding:0 10px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:inherit; white-space:nowrap; cursor:pointer; transition:color .15s,background-color .15s; }
+  .cosmos-baixar-botao:hover,.cosmos-baixar-botao[aria-expanded=true] { background:var(--hover); color:var(--text); }
+  .cosmos-baixar-botao:focus-visible { outline:2px solid var(--p-accent,currentColor); outline-offset:2px; }
+  .cosmos-baixar-painel { position:absolute; right:0; top:calc(100% + 8px); z-index:80; width:min(340px,calc(100vw - 24px)); padding:16px; border:1px solid var(--p-line); border-radius:12px; background:var(--p-bg,#fff); color:var(--text); box-shadow:0 12px 32px #0000001f; font:400 14px/1.5 Inter,'Segoe UI',Arial,sans-serif; white-space:normal; }
+  .cosmos-baixar-painel h2 { margin:0 0 6px; font-size:16px; font-weight:650; }
+  .cosmos-baixar-painel p { margin:0 0 10px; color:var(--muted); }
+  .cosmos-baixar-painel ol { margin:10px 0; padding-left:20px; }
+  .cosmos-baixar-painel li { margin:4px 0; }
+  .cosmos-baixar-painel code { font-size:12px; }
+  .cosmos-baixar-acao { display:flex; justify-content:center; align-items:center; width:100%; height:40px; margin:10px 0 4px; border:0; border-radius:8px; background:var(--p-accent,#315fd6); color:var(--p-on-accent,#fff)!important; font:600 14px/1 Inter,'Segoe UI',Arial,sans-serif; cursor:pointer; }
+  .cosmos-baixar-acao:hover { filter:brightness(1.08); }
+  .cosmos-baixar-secundaria { margin-top:4px; padding:0; border:0; background:none; color:var(--muted); font:inherit; font-size:13px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
+  .cosmos-baixar-nota { font-size:13px; }
+  .cosmos-baixar-nota a { text-decoration:underline; text-underline-offset:3px; }
   .cosmos-licenca { color:var(--muted); font-size:11px; line-height:1.5; text-align:center; }
   .cosmos-licenca a { text-decoration:underline; text-underline-offset:3px; }
-  @media(max-width:1000px) { .cosmos-bar-extra a:not(.cosmos-bar-conta) span { display:none; } }
+  @media(max-width:1000px) { .cosmos-bar-extra a:not(.cosmos-bar-conta) span,.cosmos-baixar-botao span { display:none; } }
   /* Celular: os destinos descem para abas fixas no rodapé; a barra de cima fica só com a marca e a conta. */
   @media(max-width:760px) {
     :scope { --barra:46px; --abas:calc(58px + env(safe-area-inset-bottom)); padding-bottom:var(--abas); }
@@ -33,7 +49,9 @@
     .cosmos-bar-destinos .cosmos-line-icon { width:44px; height:26px; padding:3px 12px; border-radius:999px; transition:background-color .2s; }
     .cosmos-bar-destinos a[aria-current=page] .cosmos-line-icon { background:color-mix(in srgb,var(--p-accent,#315fd6) 18%,transparent); color:var(--text); }
     .cosmos-bar-extra span { display:none; }
-    .cosmos-bar-extra a { width:36px; height:36px; padding:0; justify-content:center; }
+    .cosmos-bar-extra a,.cosmos-baixar-botao { width:36px; height:36px; padding:0; justify-content:center; }
+    .cosmos-baixar { position:static; }
+    .cosmos-baixar-painel { position:fixed; left:12px; right:12px; top:calc(var(--barra) + 8px); width:auto; }
   }
 
   /* A moeda: duas faces com a imagem oficial, borda dourada em fatias e um brilho que passa. */

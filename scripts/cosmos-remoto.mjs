@@ -41,7 +41,7 @@ await build({ configFile: false, envDir: false, envPrefix: [], publicDir: false,
     rolldownOptions: { input: { servidor: 'src/integracoes/servidor-node.ts', ponte: 'src/integracoes/ponte-node.ts', remoto: 'src/integracoes/remoto-node.ts', 'z3-trabalhador': 'src/integracoes/z3-trabalhador-node.ts' },
       output: { entryFileNames: '[name].mjs' } } },
 })
-const { criarContaRemota, lerContaRemota, criarPortaRemota, exigirSegredo } = await import(new URL('../tmp/remoto-runtime/remoto.mjs', import.meta.url).href)
+const { criarContaRemota, lerContaRemota, criarPortaRemota, exigirSegredo, ICONES_APP } = await import(new URL('../tmp/remoto-runtime/remoto.mjs', import.meta.url).href)
 
 if (process.argv.includes('--definir-senha')) {
   try {
@@ -84,7 +84,9 @@ tratarInterno = ponte.tratar
 const hosts = [local]
 const fixo = process.argv.find((a) => a.startsWith('--host='))?.slice(7)
 if (fixo) { if (!/^[a-z0-9.-]{1,253}$/.test(fixo)) { console.error('Host inválido'); process.exit(1) } hosts.push(fixo) }
-porta = criarPortaRemota({ conta, html, interno: { porta: portaInterna, segredo }, hosts: () => hosts, pastaDados: DADOS })
+// os ícones do app, para o telefone instalar o Cosmos na tela inicial a partir deste endereço
+const icones = Object.fromEntries(ICONES_APP.filter((n) => existsSync(`public/${n}`)).map((n) => [n, readFileSync(`public/${n}`)]))
+porta = criarPortaRemota({ conta, html, interno: { porta: portaInterna, segredo }, hosts: () => hosts, pastaDados: DADOS, icones })
 const remoto = createServer({ maxHeaderSize: 8192 }, porta)
 remoto.requestTimeout = 12 * 60_000; remoto.headersTimeout = 10_000
 await new Promise((ok, falha) => { remoto.once('error', falha); remoto.listen(PORTA, '127.0.0.1', ok) })

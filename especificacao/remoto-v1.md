@@ -64,6 +64,16 @@ A chave da Groq fica só no processo do computador (variável `GROQ_API_KEY`), n
 3. O terminal mostra o endereço, por exemplo `https://palavras-aleatorias.trycloudflare.com/cosmos/`. Abra no telefone
    e entre com a senha.
 
+4. Para ter o Cosmos na tela inicial do telefone, toque em **Baixar o app**, na barra do topo:
+   - no Android, o botão instala direto quando o navegador oferece; senão, mostra o caminho pelo menu ⋮;
+   - no iPhone, mostra o caminho: Safari → Compartilhar → Adicionar à Tela de Início.
+
+   O app instalado abre direto na Conversa. A porta remota serve o manifest e os ícones sem login, porque o telefone
+   os busca sem o cookie; eles não contêm nada da dona.
+
+No computador, o mesmo botão baixa o pacote do Cosmos para Windows, o `.zip` do repositório com o
+`Instalar-Cosmos.cmd`.
+
 Para trocar a senha: `node scripts/cosmos-remoto.mjs --definir-senha`. A senha nova gera outra chave, e o histórico
 remoto antigo deixa de se ler.
 

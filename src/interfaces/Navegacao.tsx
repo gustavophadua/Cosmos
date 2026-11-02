@@ -3,6 +3,7 @@ import type { InterfaceProduto } from './config'
 import { useContaLocal } from './Conta'
 import { Icone, type NomeIcone } from './Janela'
 import { CAMINHO_LOGO } from '../ui/logo'
+import { BaixarApp } from './BaixarApp'
 
 export type Destino = InterfaceProduto | 'integracoes'
 // a Conversa é o produto (a IA com o Z3); o resto (Labs, cadeia, moeda, Terminal de demonstração) fica no Avançado
@@ -25,6 +26,7 @@ export function BarraCosmos({ atual }: { atual: Destino }) {
       {PRINCIPAIS.map(([rota, nome, icone]) => <a key={rota} href={`#/${rota}`} aria-current={rota === atual ? 'page' : undefined}><Icone nome={icone} /><span>{nome}</span></a>)}
     </nav>
     <div className="cosmos-bar-extra">
+      <BaixarApp />
       <a href="#/integracoes" aria-current={atual === 'integracoes' ? 'page' : undefined} aria-label="Integrações" title="Integrações"><Icone nome="plug" /><span>Integrações</span></a>
       <a className="cosmos-bar-conta" href="#/conta" aria-current={atual === 'conta' ? 'page' : undefined} aria-label={conta.perfil ? 'Conta local desbloqueada' : 'Entrar na conta local'}>
         {conta.perfil ? <b aria-hidden="true">{conta.perfil.perfil.apelido.slice(0, 1).toUpperCase()}</b> : <Icone nome="user" />}<span>{conta.perfil ? conta.perfil.perfil.apelido : 'Entrar'}</span>
