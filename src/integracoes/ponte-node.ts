@@ -24,7 +24,7 @@ function unico(req: IncomingMessage, nome: string) {
  */
 export function criarPonteIntegracoes(opcoes: { origem: string; portaApi: number; token: string;
   groq?: { chave: () => string | undefined; buscar?: typeof fetch; prazoMs?: number }
-  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA } }) {
+  ollama?: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA; reservaLocal?: boolean } }) {
   const { origem, portaApi, token } = opcoes
   if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem
       || !Number.isSafeInteger(portaApi) || portaApi < 1 || portaApi > 65535 || !/^[a-f0-9]{64}$/.test(token)) throw new Error('Ponte local inválida')

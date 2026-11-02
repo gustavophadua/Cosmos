@@ -10,6 +10,7 @@ import { MoedaCosmos } from './Moeda'
 import { MoedaTeste } from './MoedaTeste'
 import { BarraCosmos, NotaLicenca } from './Navegacao'
 import { clienteIA, esquecerSessaoIA, ligarComSenha, obterSessaoIA, observarSessaoIA } from './sessao-ia'
+import { ErroLoginRemoto, modoRemoto } from './modo-remoto'
 import { abrirHistoricoIA, arquivoDeRelatos, conversasDoIndice, gravarMensagemIA, gravarRelatoErro, lerMensagemIA, lerRelatosErro, type EntradaIA, type MensagemIA } from './historico-ia'
 import { lerProposta } from '../motor/formalizacao'
 import type { Termo } from '../motor/avaliacao'
@@ -67,7 +68,8 @@ function LigarComSenha() {
 }
 
 function IAI() {
-  const conta = useContaLocal(), dono = conta.perfil?.perfil.pubkey
+  // no modo remoto (do telefone, depois do login), quem entrou é a dona: o login fez o papel da conta do aparelho
+  const conta = useContaLocal(), remoto = modoRemoto(), dono = remoto ? 'remoto' : conta.perfil?.perfil.pubkey
   const sessaoIA = useSessaoIA()
   const [indice, setIndice] = useState<EntradaIA[] | null>(null), indiceAtual = useRef<EntradaIA[]>([])
   const [fio, setFio] = useState<number | null>(sessao.fio), [novo, setNovo] = useState<number | null>(null)
@@ -77,7 +79,8 @@ function IAI() {
   // a IA: o serviço local com o Ollama; enquanto não responde, tenta de novo a cada 8 s (o serviço pode estar subindo)
   const [ia, setIa] = useState<EstadoIA>({ estado: 'conectando' })
   const [comando, setComando] = useState<Comando | null>(null), [menu, setMenu] = useState(false)
-  const [usarNuvem, setUsarNuvem] = useState(lerEscolhaNuvem)
+  // no remoto a nuvem vem primeiro (rápida no telefone) e o modelo do computador fica de reserva; a escolha é só do local
+  const [escolhaNuvem, setUsarNuvem] = useState(lerEscolhaNuvem), usarNuvem = remoto || escolhaNuvem
   const escolherNuvem = (sim: boolean) => { setUsarNuvem(sim); try { localStorage.setItem(NUVEM_ESCOLHIDA, sim ? '1' : '0') } catch { /* fica só nesta página */ } }
   const [andamento, setAndamento] = useState<{ id: number; pergunta: string; progresso: string } | null>(null), [, atualizar] = useState(0)
   const input = useRef<HTMLTextAreaElement>(null), rolagem = useRef<HTMLDivElement>(null)
@@ -175,11 +178,16 @@ function IAI() {
       } catch (e) {
         const m = (e as Error).message
         if (m === 'sessao-expirada') esquecerSessaoIA()
-        resposta = m === 'sessao-expirada' ? 'A sessão da IA caiu (o serviço reiniciou ou ficou parado). Digite a senha abaixo para ligar de novo e mande outra vez.'
+        resposta = m === 'sessao-expirada' && remoto ? 'O login acabou (12 horas parado, ou o Cosmos reiniciou no computador). Recarregue a página para entrar de novo.'
+          : m === 'sem-servico' && remoto ? 'O computador não respondeu. Confira se ele está ligado, com o Cosmos remoto aberto.'
+          : m === 'sessao-expirada' ? 'A sessão da IA caiu (o serviço reiniciou ou ficou parado). Digite a senha abaixo para ligar de novo e mande outra vez.'
           : m === 'limite' ? 'O modelo está ocupado com outra tarefa. Tente de novo em instantes.' : m === 'sem-servico' || m === 'indisponivel' ? 'O serviço local não respondeu. Confira se o Cosmos e o Ollama estão abertos.' : m
       }
       await guardar({ id, fio: fioDaMensagem, pergunta, resposta: resposta.normalize('NFC'), ...(resultado ? { resultado } : {}), em })
-    } catch (e) { setErro(`Não foi possível guardar a conversa: ${(e as Error).message}`) }
+    } catch (e) {
+      if (e instanceof ErroLoginRemoto) { location.assign('/cosmos/entrar'); return }
+      setErro(`Não foi possível guardar a conversa: ${(e as Error).message}`)
+    }
     finally { setAndamento(null); setSalvando(false) }
   }
   // "Refazer com estes termos": a mesma verificação, com o vocabulário que a pessoa corrigiu, como mensagem nova
@@ -218,7 +226,8 @@ function IAI() {
         <div className="iai-history"><p>{indice === null ? 'Abrindo o histórico…' : conversas.length ? 'Conversas' : 'Nenhuma conversa ainda'}</p>
           {conversas.map(c => <button key={c.fio} className={fio === c.fio ? 'active' : ''} onClick={() => { setFio(c.fio); setNovo(null); setSidebar(false) }}>{c.titulo}</button>)}
         </div>
-        <div className="iai-sidebar-footer">{relatos > 0 && <p className="iai-relatos">Relatos de erro ({relatos}) · <button type="button" onClick={() => void exportarRelatos()}>exportar</button></p>}<p className="iai-history-note"><Icone nome="shield" /> Cifradas com a sua senha, neste computador. Só a sua conta usa a IA.</p><button onClick={() => setDark(!dark)} aria-label="Alternar tema">{dark ? 'Tema claro' : 'Tema escuro'}</button></div>
+        <div className="iai-sidebar-footer">{relatos > 0 && <p className="iai-relatos">Relatos de erro ({relatos}) · <button type="button" onClick={() => void exportarRelatos()}>exportar</button></p>}<p className="iai-history-note"><Icone nome="shield" /> {remoto ? 'Guardadas no seu computador, cifradas com a senha do login. Só a dona entra.' : 'Cifradas com a sua senha, neste computador. Só a sua conta usa a IA.'}</p><button onClick={() => setDark(!dark)} aria-label="Alternar tema">{dark ? 'Tema claro' : 'Tema escuro'}</button>
+          {remoto && <form method="post" action="/cosmos/sair"><button type="submit">Sair</button></form>}</div>
       </aside>
       <main className="iai-main"><header className="iai-mobile-header"><button className="iai-mobile-menu" aria-label="Abrir conversas" aria-expanded={sidebar} onClick={() => setSidebar(!sidebar)}>☰</button><span>Conversa</span><button aria-label="Nova conversa" onClick={novaConversa}>＋</button></header>
         <div className={`iai-content ${turnos.length ? 'has-conversation' : ''}`} ref={rolagem}>
@@ -245,9 +254,10 @@ function IAI() {
           {ia.estado === 'ligada' && ia.exigeSessao && sessaoIA.estado !== 'ligada' && (sessaoIA.estado === 'ligando' ? <p className="iai-estado">Ligando a IA à sua conta…</p>
             : sessaoIA.estado === 'outra-conta' ? <p className="iai-estado" role="alert">Este Cosmos está ligado a outra conta. Para trocar de dona, abra o serviço com --novo-dono.</p>
             : <LigarComSenha />)}
-          {ia.estado === 'ligada' && ia.nuvem && <label className="iai-nuvem"><input type="checkbox" checked={usarNuvem} onChange={e => escolherNuvem(e.target.checked)} />
+          {ia.estado === 'ligada' && ia.nuvem && !remoto && <label className="iai-nuvem"><input type="checkbox" checked={usarNuvem} onChange={e => escolherNuvem(e.target.checked)} />
             <span>Traduzir com o modelo grande na nuvem ({ia.nuvem}, no Groq): o texto do argumento sai deste computador.<span className="iai-nuvem-detalhe"> Lê melhor frases abstratas; o Z3 decide aqui do mesmo jeito.</span></span></label>}
-          <p className="iai-estado" data-estado={sessaoPronta ? 'ligada' : ia.estado}>{ia.estado === 'ligada' ? (usarNuvem && ia.nuvem ? `Tradução na nuvem (${ia.nuvem}) · o Z3 decide neste computador` : `IA local (${ia.modelo})${sessaoPronta ? ' ligada à sua conta' : ''} · o Z3 decide · o texto não sai deste computador`)
+          <p className="iai-estado" data-estado={sessaoPronta ? 'ligada' : ia.estado}>{ia.estado === 'ligada' ? (remoto ? `Pelo seu computador: tradução ${ia.nuvem ? `na nuvem (${ia.nuvem}), com o ${ia.modelo} de reserva` : `pelo ${ia.modelo}`} · o Z3 decide lá`
+              : usarNuvem && ia.nuvem ? `Tradução na nuvem (${ia.nuvem}) · o Z3 decide neste computador` : `IA local (${ia.modelo})${sessaoPronta ? ' ligada à sua conta' : ''} · o Z3 decide · o texto não sai deste computador`)
             : ia.estado === 'conectando' ? 'Conectando à IA local…'
             : ia.local ? 'IA local desligada: abra o Ollama e o atalho "Cosmos". Tentando de novo…'
             : <>A IA roda no Cosmos instalado no seu computador: <a href={ENDERECO_LOCAL}>abrir o Cosmos local</a></>}</p>

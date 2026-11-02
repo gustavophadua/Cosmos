@@ -35,6 +35,7 @@ import { relatorioEmMarkdown } from '../motor/revisor-relatorio'
 import { lerDeVolta } from '../motor/formalizacao'
 import type { Afirmacao } from '../motor/registro'
 import type { ParaRegistro } from './FormalizacaoAssistida'
+import { modoRemoto } from './modo-remoto'
 import './conversa-ia.css'
 import './conversa-mapa.css'
 
@@ -180,7 +181,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
   return <div className="iai-cartao" data-veredito={veredito}>
     <p className="iai-veredito" data-veredito={veredito}>{titulo}</p>
     {notasDaLeitura(resultado).map((n, i) => <p key={i} className="iai-nota">{n}</p>)}
-    {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu neste computador.</small>}
+    {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu {modoRemoto() ? 'no seu computador' : 'neste computador'}.</small>}
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
       lidas={texto.premissas.map((_, i) => entendi(proposta.premissas[i], proposta.vocabulario))} conclusaoLida={entendi(proposta.conclusao, proposta.vocabulario)}
       usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'} />

@@ -15,8 +15,10 @@ export interface EstadoOllama { estado: 'pronto' | 'sem-modelo' | 'indisponivel'
  * A formalização pelo Ollama local, pela ponte do serviço local (rotas ollama/estado e ollama). O navegador manda só
  * premissas e conclusão; o pedido, o modelo e as opções ficam no processo Node.
  */
-export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch, sessao: () => string | null = () => null) {
-  if (!/^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/.test(origem) || new URL(origem).origin !== origem) throw new ErroIntegracoes('sem-servico')
+export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch, sessao: () => string | null = () => null, remoto = false) {
+  // no modo remoto (a porta remota, depois do login), a origem é a do túnel, em https, e o cookie do login vai junto
+  const valida = remoto ? /^(?:https:\/\/[a-z0-9.-]{1,253}|http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4})$/ : /^http:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}$/
+  if (!valida.test(origem) || new URL(origem).origin !== origem) throw new ErroIntegracoes('sem-servico')
   async function chamar(rota: 'ollama/estado' | 'ollama' | 'ollama/conferir' | 'ollama/ponte' | 'ollama/realidade' | 'ollama/desafio' | 'ollama/sessao' | 'ollama/revisar' | 'ollama/revisar/estado', corpo: unknown, prazoMs: number, signal?: AbortSignal, limite = 131072) {
     const controle = new AbortController(), abortar = () => controle.abort()
     if (signal?.aborted) controle.abort()
@@ -25,7 +27,7 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch,
     try {
       const r = await buscar(`${origem}/cosmos/__p0/${rota}`, { method: corpo === undefined ? 'GET' : 'POST',
         headers: { 'X-Cosmos-P0': '1', Accept: 'application/json', ...(corpo === undefined ? {} : { 'Content-Type': 'application/json' }), ...(sessao() ? { 'X-Cosmos-Sessao': sessao()! } : {}) },
-        body: corpo === undefined ? undefined : JSON.stringify(corpo), signal: controle.signal, credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'same-origin' })
+        body: corpo === undefined ? undefined : JSON.stringify(corpo), signal: controle.signal, credentials: remoto ? 'same-origin' : 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'same-origin' })
       // 401: sem a sessão da conta; 403 ao abrir a sessão: o serviço é de outra conta
       if (r.status === 422 && rota === 'ollama') throw new ErroIntegracoes('provedor-recusou')
       if (!r.ok) throw new ErroIntegracoes(r.status === 401 ? 'sessao-expirada' : r.status === 403 ? 'conflito' : r.status === 429 ? 'limite' : r.status === 400 ? 'invalido' : 'sem-servico')
@@ -48,7 +50,7 @@ export function criarClienteOllama(origem: string, buscar: typeof fetch = fetch,
       const o = await chamar('ollama', { premissas: texto.premissas, conclusao: texto.conclusao, ...(texto.vocabulario ? { vocabulario: texto.vocabulario } : {}), ...(texto.nuvem ? { nuvem: true } : {}) }, 620000, signal)
       if (o.formato !== 'cosmos-ollama-resposta-v1' || typeof o.conteudo !== 'string' || !Number.isSafeInteger(o.prompt_tokens) || !Number.isSafeInteger(o.completion_tokens)) throw new ErroIntegracoes('invalido')
       return { conteudo: o.conteudo, prompt_tokens: o.prompt_tokens as number, completion_tokens: o.completion_tokens as number, ...(typeof o.reparo === 'string' ? { reparo: o.reparo } : {}),
-        ...(typeof o.modelo === 'string' && o.modelo.length <= 80 ? { modelo: o.modelo } : {}) }
+        ...(typeof o.modelo === 'string' && o.modelo.length <= 80 ? { modelo: o.modelo } : {}), ...(o.reserva === true ? { reserva: true } : {}) }
     },
     /** O modo automático: o Z3 dá a classe das fórmulas do modelo (a primeira abre o Z3). */
     async conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal) {

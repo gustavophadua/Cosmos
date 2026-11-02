@@ -175,9 +175,10 @@ export function validarTextoRevisor(x: unknown): string {
  *
  * `nuvem` (só com --groq): o mesmo pedido, as mesmas regras e a mesma tradução cega, pelo modelo grande no Groq, quando a
  * pessoa liga essa opção na Conversa. Aí o texto sai do aparelho (para o Groq); o Z3 continua decidindo aqui.
+ * `reservaLocal` (o modo remoto): quando a nuvem falha, a mesma tradução vai ao modelo local, e a resposta diz `reserva`.
  */
-export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA
-  nuvem?: { executar: (p: PedidoGroq) => Promise<{ conteudo: string; usage: { prompt_tokens: number; completion_tokens: number } }>; modelo: ModeloGroq } }) {
+export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof fetch; prazoMs?: number; conferidor?: ConferidorZ3; sessao?: OpcoesSessaoIA; reservaLocal?: boolean
+  nuvem?:{ executar: (p: PedidoGroq) => Promise<{ conteudo: string; usage: { prompt_tokens: number; completion_tokens: number } }>; modelo: ModeloGroq } }) {
   const modelo = opcoes.modelo ?? MODELO_OLLAMA_PADRAO
   // a tradução cega: as premissas sem a conclusão, depois a conclusão só com o vocabulário (formalizacao-v1.md §8b)
   const premissas = criarAdaptadorOllama({ modelo, formato: ESQUEMA_PREMISSAS, temperatura: 0, semente: 0, contexto: 4096, buscar: opcoes.buscar, prazoMs: opcoes.prazoMs ?? 300_000 })
@@ -321,9 +322,18 @@ export function criarControleOllama(opcoes: { modelo?: string; buscar?: typeof f
         opcoes.conferidor?.parar()
         const inicio = Date.now()
         // em cada passo, a resposta que não se lê, ou com premissa a mais ou a menos, volta uma vez ao modelo com o erro
-        const r = texto.nuvem && perguntarNuvem ? await formalizarCego(perguntarNuvem, perguntarNuvem, texto, texto.vocabulario ?? null, EXEMPLOS) : await traduzir(texto)
+        // com a reserva local (o modo remoto), a nuvem que falha (sem cota, fora do ar, prazo) passa a vez ao modelo local;
+        // a recusa do provedor não passa: ela é uma resposta, não uma falha
+        let reserva = false
+        const r = texto.nuvem && perguntarNuvem
+          ? await formalizarCego(perguntarNuvem, perguntarNuvem, texto, texto.vocabulario ?? null, EXEMPLOS).catch((e) => {
+            if (!opcoes.reservaLocal || !(e instanceof ErroGroq) || e.codigo === 'provedor-recusou' || encerrado) throw e
+            reserva = true
+            return traduzir(texto)
+          })
+          : await traduzir(texto)
         if (encerrado) throw new ErroOllama(503, 'indisponivel')
-        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo: texto.nuvem && nuvem ? nuvem.modelo : modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo })
+        enviar(res, 200, { formato: 'cosmos-ollama-resposta-v1', modelo: texto.nuvem && nuvem && !reserva ? nuvem.modelo : modelo, conteudo: r.conteudo, prompt_tokens: r.prompt, completion_tokens: r.completion, ms: Date.now() - inicio, reparo: r.reparo, ...(reserva ? { reserva: true } : {}) })
       } finally { pendente = false }
     } catch (e) {
       const erro = e instanceof ErroOllama ? e : e instanceof ErroGroq && e.codigo === 'provedor-recusou' ? new ErroOllama(422, 'provedor-recusou') : new ErroOllama(503, 'indisponivel')

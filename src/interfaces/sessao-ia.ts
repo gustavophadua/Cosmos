@@ -5,6 +5,7 @@
 import { assinarComSenha, observarContaLocal, obterContaLocal, registrarAoEntrar } from '../local/conta'
 import { criarClienteOllama } from './ollama-cliente'
 import { ErroIntegracoes } from './integracoes-cliente'
+import { modoRemoto } from './modo-remoto'
 import type { DominioMensagem } from '../v4/carteira'
 
 export type EstadoSessaoIA = { estado: 'sem-sessao' } | { estado: 'ligando' } | { estado: 'ligada' } | { estado: 'outra-conta' } | { estado: 'erro'; motivo: string }
@@ -16,10 +17,10 @@ export const tokenSessaoIA = () => token
 export const obterSessaoIA = () => estado
 export const observarSessaoIA = (f: () => void) => { ouvintes.add(f); return () => { ouvintes.delete(f) } }
 
-/** O cliente do serviço local com a sessão (null fora de 127.0.0.1: a IA só roda no computador da pessoa). */
+/** O cliente do serviço com a sessão (null fora de 127.0.0.1 e da porta remota: a IA só roda no computador da pessoa). */
 let cliente: ReturnType<typeof criarClienteOllama> | null | undefined
 export function clienteIA() {
-  if (cliente === undefined) { try { cliente = criarClienteOllama(location.origin, fetch, tokenSessaoIA) } catch { cliente = null } }
+  if (cliente === undefined) { try { cliente = criarClienteOllama(location.origin, fetch, tokenSessaoIA, modoRemoto()) } catch { cliente = null } }
   return cliente
 }
 

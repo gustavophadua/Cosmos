@@ -37,7 +37,7 @@ function ollamaFalso(rodando = true, chats: string[] = []) {
 }
 
 type Chamada = { rota: string; metodo?: string; corpo?: unknown; headers?: Record<string, string | undefined> }
-async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[]; groq?: typeof fetch; sessao?: { arquivoDono: string }; token?: () => string | null } = {}) {
+async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>; chamar: (o: Chamada) => Promise<number>; pedidos: { url: string; corpo: unknown }[] }) => Promise<void>, o: { ligado?: boolean; rodando?: boolean; ttlSessaoMs?: number; conferidor?: ConferidorZ3; chats?: string[]; groq?: typeof fetch; sessao?: { arquivoDono: string }; token?: () => string | null; reservaLocal?: boolean } = {}) {
   let ponte: ReturnType<typeof criarPonteIntegracoes> | undefined
   const server = createServer((q, r) => ponte!.tratar(q, r))
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -53,7 +53,7 @@ async function ambiente(fn: (c: { cliente: ReturnType<typeof criarClienteOllama>
   try {
     const endereco = await api.iniciar(), token = api.emitirSessaoLocal().token
     ponte = criarPonteIntegracoes({ origem, portaApi: endereco.porta, token, ...(o.groq ? { groq: { chave: () => 'chave-de-teste-123', buscar: o.groq } } : {}),
-      ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}), ...(o.sessao ? { sessao: o.sessao } : {}) } }) })
+      ...(o.ligado === false ? {} : { ollama: { buscar: falso.buscar, ...(o.conferidor ? { conferidor: o.conferidor } : {}), ...(o.sessao ? { sessao: o.sessao } : {}), ...(o.reservaLocal ? { reservaLocal: true } : {}) } }) })
     const browser: typeof fetch = (url, init) => fetch(url, { ...init, headers: { ...init?.headers, Origin: origem, 'Sec-Fetch-Site': 'same-origin' } })
     await fn({ cliente: criarClienteOllama(origem, browser, o.token), chamar, pedidos: falso.pedidos })
   } finally {
@@ -211,6 +211,22 @@ describe('Formalização pelo Ollama local na ponte', () => {
       expect((await c.cliente.carregar()).nuvem).toBeUndefined()
       expect(await c.chamar({ rota: 'ollama', metodo: 'POST', corpo: { ...TEXTO, nuvem: true } })).toBe(503)
     })
+  })
+
+  it('a reserva local (modo remoto): o Groq sem cota passa a vez ao Ollama e a resposta diz; a recusa do provedor não passa', async () => {
+    const semCota = (async () => new Response('{}', { status: 429, headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+    await ambiente(async (c) => {
+      const r = await c.cliente.formalizar({ ...TEXTO, nuvem: true })
+      expect(r).toMatchObject({ conteudo: CEGA, modelo: 'qwen3:4b', reserva: true })
+      expect(c.pedidos.filter((p) => p.url.endsWith('/api/chat'))).toHaveLength(2)
+    }, { groq: semCota, reservaLocal: true })
+    // sem a reserva (o modo local de sempre), a falha da nuvem continua sendo falha
+    await ambiente(async (c) => { await expect(c.cliente.formalizar({ ...TEXTO, nuvem: true })).rejects.toThrow() }, { groq: semCota })
+    const recusa = (async () => new Response(JSON.stringify({ choices: [{ message: { content: null, refusal: 'não' } }] }), { headers: { 'Content-Type': 'application/json' } })) as typeof fetch
+    await ambiente(async (c) => {
+      await expect(c.cliente.formalizar({ ...TEXTO, nuvem: true })).rejects.toThrow('provedor-recusou')
+      expect(c.pedidos.some((p) => p.url.endsWith('/api/chat'))).toBe(false)
+    }, { groq: recusa, reservaLocal: true })
   })
 
   it('com o porteiro: sem a sessão da conta, o modelo não atende; com ela, atende', async () => {

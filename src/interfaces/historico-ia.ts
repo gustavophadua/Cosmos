@@ -2,9 +2,14 @@
 // linha, com o cartão inteiro (o resultado da IA), e um índice pequeno com as conversas. Fica fora dos dados da conta,
 // que têm formato fixo (50 mensagens, 12 mil caracteres por resposta). As mensagens antigas do cofre entram uma vez.
 
-import { gravarSelado, lerSelado } from '../local/conta'
+import { gravarSelado as gravarNaConta, lerSelado as lerDaConta } from '../local/conta'
 import type { ConversaLocal } from '../local/dados'
 import type { ResultadoIA } from './assistente'
+import { gravarRemoto, lerRemoto, modoRemoto } from './modo-remoto'
+
+// no modo remoto (do telefone), as mesmas linhas ficam no computador, cifradas lá; no local, na conta deste aparelho
+const lerSelado = <T>(chave: string) => modoRemoto() ? lerRemoto<T>(chave) : lerDaConta<T>(chave)
+const gravarSelado = (chave: string, valor: unknown) => modoRemoto() ? gravarRemoto(chave, valor) : gravarNaConta(chave, valor)
 
 export const MAX_MENSAGENS_IA = 1000
 export interface MensagemIA { id: number; fio: number; pergunta: string; resposta: string; resultado?: ResultadoIA; em: string }

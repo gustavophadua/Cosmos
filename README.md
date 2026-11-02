@@ -20,6 +20,10 @@ Quando um registro revelado nao se sustenta, a CI certifica a afirmacao contrari
 
 Baixe o repositorio (Code > Download ZIP), extraia e abra `Instalar-Cosmos.cmd`. Ele confere o Node.js 22 e o Ollama (e instala pelo winget se faltar, com a sua confirmacao), instala as dependencias, baixa o modelo qwen3:4b (cerca de 2,5 GB) e poe o atalho "Cosmos" na Area de Trabalho. O atalho abre o servico local e o navegador na Conversa: na primeira vez, crie a conta local (a IA so atende a conta dona). Escreva um raciocinio ou cole um plano: o Cosmos desenha o mapa do argumento (fatos, a ligacao que falta e a conclusao) e o Z3 decide se a conclusao e provada, salto ou contradicao. O texto nao sai do computador, salvo com o modelo grande na nuvem ligado (opcional). Como usar e o kit do teste fechado: `teste-fechado/`. Detalhes e limites: `especificacao/revisor-v1.md` e `especificacao/formalizacao-v1.md`.
 
+## Usar pelo telefone (modo remoto)
+
+Com o Cosmos instalado, instale o tunel uma vez (`winget install --id Cloudflare.cloudflared`) e abra `Abrir-Cosmos-Remoto.cmd`. Na primeira vez ele pede a senha da dona. Depois mostra um endereco https: abra no telefone e entre com a senha. O computador continua sendo o servidor (precisa ficar ligado): a traducao vai pelo Groq, com o Ollama de reserva, e o Z3 decide no computador. A conta cifrada, a carteira e a moeda de teste continuam so no modo local. Detalhes, seguranca e limites: `especificacao/remoto-v1.md`.
+
 ## Desenvolvimento
 
 Node 22.14.0. Instale dependencias com `npm ci`. Execute `npm run typecheck`, `npm test -- --maxWorkers=1` e `npm run build`. `npm run dev` abre o ambiente de desenvolvimento; a base do site publico e `/Cosmos/`. Integracoes locais: `node scripts/integracoes-p0.mjs`. Credenciais de provedor somente no processo servidor, nunca em VITE_*, navegador ou Git. Nenhuma credencial acompanha este repositorio.

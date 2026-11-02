@@ -7,6 +7,7 @@ import { objetoDaResposta, type Proposta } from '../motor/formalizacao'
 import { relatorioEmMarkdown, tituloDoVeredito, type RelatorioRevisor } from '../motor/revisor-relatorio'
 import type { Ligacao } from './ollama-cliente'
 import { fatoPorId, type ResultadoRealidade, type Situacao } from '../motor/realidade'
+import { modoRemoto } from './modo-remoto'
 
 export type Comando = 'verificar' | 'revisar' | 'desmistificar' | 'contrariar'
 /** o que a Conversa faz com o texto: um comando de IA, ou a resposta sem modelo para a afirmação solta */
@@ -200,7 +201,7 @@ export type ResultadoIA =
   | { tipo: 'relatorio'; comando: 'revisar' | 'desmistificar'; relatorio: RelatorioRevisor }
 
 export interface ClienteIA {
-  formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: boolean }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string; modelo?: string }>
+  formalizar(texto: { premissas: string[]; conclusao: string; vocabulario?: Termo[]; nuvem?: boolean }, signal?: AbortSignal): Promise<{ conteudo: string; reparo?: string; modelo?: string; reserva?: boolean }>
   conferir(p: { vocabulario: Termo[]; premissas: string[]; conclusao: string; classe: Classe | null }, signal?: AbortSignal): Promise<{ classeZ3: Classe | null; motivo: string; cenario?: string[] }>
   revisar(texto: string, signal?: AbortSignal): Promise<unknown>
   /** a ligação que falta num salto (ponte.ts); sem ela, o salto vem sem a proposta */
@@ -260,7 +261,7 @@ export async function executar(cliente: ClienteIA, comando: Comando, texto: stri
   catch (e) { throw new Error(falhaDaTraducao(r.conteudo, t, detalheDaFalha(e))) }
   progresso('O Z3 está conferindo…')
   const c = await cliente.conferir({ vocabulario: proposta.vocabulario, premissas: proposta.premissas, conclusao: proposta.conclusao, classe: null })
-  const logica = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo ? { nuvem: r.modelo } : {}) }
+  const logica = { tipo: 'argumento' as const, comando, texto: t, proposta, classe: c.classeZ3, ...(c.motivo ? { motivo: c.motivo } : {}), ...(c.cenario ? { cenario: c.cenario } : {}), ...(r.reparo ? { reparo: r.reparo } : {}), ...(nuvem && r.modelo && !r.reserva ? { nuvem: r.modelo } : {}) }
   // a realidade registrada: cada frase diante da base de fatos físicos (só com a tradução lida e a lógica decidida)
   let base: typeof logica & { realidade?: ResultadoRealidade; cadeia?: { premissa: number; classe: Classe | null }[] } = logica
   if (t.passos?.length && proposta.premissas.length === t.premissas.length) {
@@ -343,7 +344,7 @@ export function resumoEmTexto(r: ResultadoIA): string {
     const md = relatorioEmMarkdown(r.relatorio)
     return md.length <= 6000 ? md : `${md.slice(0, 5900)}\n\n(resumo cortado; baixe o relatório completo na hora da revisão)`
   }
-  const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu neste computador.`] : [])]
+  const notas = [...notasDaLeitura(r), ...(r.nuvem ? [`Traduzido na nuvem por ${r.nuvem}; o Z3 decidiu ${modoRemoto() ? 'no seu computador' : 'neste computador'}.`] : [])]
   const l = [provadoSoNaFormaForte(r) ? `${TITULO_FORMA_FORTE}.` : r.classe ? `${TITULO_DA_CLASSE[r.classe]}.` : `${tituloNaoDecidido(r.motivo)}.`, ...(notas.length ? ['', ...notas] : []), '', 'Premissas:', ...r.texto.premissas.map((p) => `- ${p}`), `Conclusão: ${r.texto.conclusao}`]
   if (r.cenario) l.push('', 'Cenário em que as premissas valem e a conclusão não:', ...r.cenario.map((c) => `- ${c}`))
   if (r.cadeia) l.push('', 'A cadeia, passo a passo:', ...r.cadeia.map((p) => `- "${r.texto.premissas[p.premissa]}": ${p.classe ? PASSO_DA_CADEIA[p.classe] : 'o Z3 não concluiu'}`))
