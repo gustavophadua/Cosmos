@@ -119,7 +119,7 @@ describe('assistente da Conversa', () => {
     const texto = resumoEmTexto(r)
     expect(texto).toContain('Para a conclusão valer, falta aceitar:')
     expect(texto).toContain('- Para qualquer A: se A é cliente, então A tem suporte.')
-    expect(texto).toContain('Fatos que ela usa: A padaria é cliente.')
+    expect(texto).toContain('Premissas que ela usa: A padaria é cliente.')
     expect(texto).toContain('Há mais 2 ligação(ões)')
     // contrariar não pede a ligação (o salto já é o contra-exemplo)
     const c = await executar({ ...cliente, ponte: async () => { throw new Error('não devia') } }, 'contrariar', 'Todo cliente tem suporte. A padaria é cliente. Então a padaria tem suporte.', (x) => lerProposta(x, null), () => undefined)

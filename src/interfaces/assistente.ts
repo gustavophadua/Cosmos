@@ -182,7 +182,8 @@ function comPassos(a: ArgumentoSeparado): ArgumentoSeparado {
  */
 export function falhaDaTraducao(conteudo: string, t: ArgumentoSeparado, detalhe: string): string {
   const o = (() => { try { return objetoDaResposta(conteudo) as { premissas?: unknown; conclusao?: unknown } | null } catch { return null } })()
-  const dica = 'Tente uma frase por razão, cada uma com quem faz e o que faz (por exemplo, "A pessoa vê só o que chega até ela."), ou ligue o modelo grande na nuvem.'
+  // no modo remoto a nuvem já vem ligada: a dica não manda ligar o que já está ligado
+  const dica = `Tente uma frase por razão, cada uma com quem faz e o que faz (por exemplo, "A pessoa vê só o que chega até ela.")${modoRemoto() ? '.' : ', ou ligue o modelo grande na nuvem.'}`
   if (o && typeof o.conclusao === 'string' && !o.conclusao.trim())
     return `Tradução ilegível: o modelo não conseguiu traduzir a conclusão "${t.conclusao}" sem copiar uma das razões. Nenhuma classe lógica foi atribuída. ${dica}`
   if (o && (!Array.isArray(o.premissas) || o.premissas.length !== t.premissas.length))
@@ -356,8 +357,8 @@ export function resumoEmTexto(r: ResultadoIA): string {
   return l.join('\n').slice(0, 6000)
 }
 /**
- * Fato, visão e lógica de um salto com a ligação achada: as premissas que a conclusão usa são os fatos (precisam de fonte
- * ou são a base); a ligação é a visão (o que a pessoa escolhe aceitar); com as duas, a conclusão é obrigatória.
+ * Premissa, visão e lógica de um salto com a ligação achada: as premissas que a conclusão usa precisam ser fatos (com
+ * fonte) ou são a base; a ligação é a visão (o que a pessoa escolhe aceitar); com as duas, a conclusão é obrigatória.
  */
 export function textoDaLigacao(l: Extract<Ligacao, { fonte: string }>, premissas: string[]): string[] {
   const varias = l.opcoes.length > 1
@@ -365,11 +366,11 @@ export function textoDaLigacao(l: Extract<Ligacao, { fonte: string }>, premissas
     ...l.opcoes.flatMap((o, n) => {
       const sobram = premissas.filter((_, i) => !o.essenciais.includes(i))
       return [`${varias ? `${n + 1}. ` : '- '}${o.leitura}`,
-        ...(o.essenciais.length ? [`   Fatos que ela usa: ${o.essenciais.map((i) => premissas[i]).join(' ')}`] : []),
+        ...(o.essenciais.length ? [`   Premissas que ela usa: ${o.essenciais.map((i) => premissas[i]).join(' ')}`] : []),
         ...(sobram.length ? [`   Não fazem falta: ${sobram.join(' ')}`] : []), '']
     }),
     ...(l.outras > 0 ? [`Há mais ${l.outras} ligação(ões) parecida(s) que também fecham.`, ''] : []),
-    'A ligação é a visão por trás do argumento: não é um fato, é o que você escolhe aceitar. Os fatos (as premissas que ela usa) precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.']
+    'A ligação é a visão por trás do argumento: não é um fato, é o que você escolhe aceitar. As premissas que ela usa precisam ser fatos (com fonte), ou são a base que você assume. Com as duas, a conclusão é obrigatória.']
 }
 /**
  * O símbolo de um termo novo ou corrigido, pela leitura: "x é parte do todo" → ParteDoTodo; "Deus" (constante) → deus.

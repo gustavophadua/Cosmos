@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { CONCLUSAO_REAL, PASSO_DA_CADEIA, SITUACAO_REAL, tituloNaoDecidido, COMANDOS, leituraComVariavel, notasDaLeitura, provadoSoNaFormaForte, simboloDaLeitura, TITULO_DA_CLASSE, TITULO_FORMA_FORTE, type Comando, type ResultadoIA } from './assistente'
 import type { Termo } from '../motor/avaliacao'
-import { fatoPorId, type ResultadoRealidade } from '../motor/realidade'
+import { fatoPorId, type ResultadoRealidade, type Situacao } from '../motor/realidade'
 
 /** A camada de fatos no cartão: cada frase diante dos fatos registrados, o mecanismo por trás do que foi observado e as fontes. */
 function RealidadeRegistrada({ r }: { r: ResultadoRealidade }) {
@@ -122,21 +122,25 @@ function TermosDaLeitura({ vocabulario, aoRefazer, aberto }: { vocabulario: Term
 type Veredito = 'provado' | 'salto' | 'contradiz' | 'sem-traducao'
 const ROTULO_DO_VEREDITO: Record<Veredito, string> = { provado: 'Provado', salto: 'Salto', contradiz: 'Contradição', 'sem-traducao': 'Não decidido' }
 
+// a premissa é o que a pessoa disse, não um fato: o nome vem da camada da realidade, quando ela conferiu a frase
+const ROTULO_DA_PREMISSA: Record<Situacao, string> = { fato: 'Fato registrado', contraria: 'Contraria os fatos', observacao: 'Relato seu', fora: 'Visão sua', 'nao-decidido': 'Premissa' }
+
 /**
- * O argumento desenhado: os fatos (as premissas) em cima, a visão (a ligação que falta, quando há salto) no meio e a
- * conclusão embaixo, com o veredito. Com uma ligação escolhida, as premissas que ela não usa ficam apagadas ("não faz
- * falta"); no "contrariar", as que sustentam a conclusão ficam marcadas.
+ * O argumento desenhado: as premissas em cima, a visão (a ligação que falta, quando há salto) no meio e a conclusão
+ * embaixo, com o veredito. Cada premissa leva o que a realidade registrada diz dela (fato, relato, visão, contraria);
+ * sem essa conferência, é só "premissa". Com uma ligação escolhida, as premissas que ela não usa ficam apagadas ("não
+ * faz falta"); no "contrariar", as que sustentam a conclusão ficam marcadas.
  */
-function MapaDoArgumento({ veredito, premissas, conclusao, lidas, conclusaoLida, usadas, sustentam, visao, lacuna }: {
+function MapaDoArgumento({ veredito, premissas, conclusao, lidas, conclusaoLida, usadas, sustentam, visao, lacuna, situacoes }: {
   veredito: Veredito; premissas: string[]; conclusao: string; lidas: (string | null)[]; conclusaoLida: string | null
-  usadas?: number[]; sustentam?: number[]; visao?: string; lacuna: boolean
+  usadas?: number[]; sustentam?: number[]; visao?: string; lacuna: boolean; situacoes?: Situacao[]
 }) {
-  return <figure className="mapa" data-veredito={veredito} aria-label={`Mapa do argumento: ${premissas.length} fato(s), ${visao ? 'uma ligação, ' : ''}conclusão ${ROTULO_DO_VEREDITO[veredito]}`}>
+  return <figure className="mapa" data-veredito={veredito} aria-label={`Mapa do argumento: ${premissas.length} premissa(s), ${visao ? 'uma ligação, ' : ''}conclusão ${ROTULO_DO_VEREDITO[veredito]}`}>
     <div className="mapa-fatos">
       {premissas.map((p, i) => {
-        const sobra = usadas !== undefined && !usadas.includes(i)
-        return <div key={i} className="mapa-no mapa-fato" data-sobra={sobra || undefined} data-sustenta={sustentam?.includes(i) || undefined}>
-          <span className="mapa-rotulo">{sobra ? 'Não faz falta' : sustentam?.includes(i) ? 'Fato que sustenta' : 'Fato'}</span>
+        const sobra = usadas !== undefined && !usadas.includes(i), situacao = situacoes?.[i]
+        return <div key={i} className="mapa-no mapa-fato" data-sobra={sobra || undefined} data-sustenta={sustentam?.includes(i) || undefined} data-situacao={situacao}>
+          <span className="mapa-rotulo">{sobra ? 'Não faz falta' : sustentam?.includes(i) ? 'Premissa que sustenta' : ROTULO_DA_PREMISSA[situacao ?? 'nao-decidido']}</span>
           <p>{p}</p>
           {lidas[i] && <small className="mapa-lido">entendi: {lidas[i]}</small>}
         </div>
@@ -148,7 +152,7 @@ function MapaDoArgumento({ veredito, premissas, conclusao, lidas, conclusaoLida,
       <div className="mapa-no mapa-visao"><span className="mapa-rotulo">Visão · a ligação que falta</span><p>{visao}</p></div>
     </> : lacuna ? <>
       <div className="mapa-fio mapa-fio-visao" aria-hidden="true" />
-      <div className="mapa-no mapa-lacuna"><span className="mapa-rotulo">Falta uma ligação</span><p>Nada nos fatos leva até a conclusão.</p></div>
+      <div className="mapa-no mapa-lacuna"><span className="mapa-rotulo">Falta uma ligação</span><p>Nada nas premissas leva até a conclusão.</p></div>
     </> : null}
     <div className="mapa-fio" aria-hidden="true" />
     <div className="mapa-no mapa-conclusao">
@@ -184,7 +188,8 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
     {resultado.nuvem && <small className="iai-entendi">Traduzido na nuvem por {resultado.nuvem}; o Z3 decidiu {modoRemoto() ? 'no seu computador' : 'neste computador'}.</small>}
     <MapaDoArgumento veredito={veredito} premissas={texto.premissas} conclusao={texto.conclusao}
       lidas={texto.premissas.map((_, i) => entendi(proposta.premissas[i], proposta.vocabulario))} conclusaoLida={entendi(proposta.conclusao, proposta.vocabulario)}
-      usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'} />
+      usadas={opcao?.essenciais} sustentam={essenciais} visao={opcao?.leitura} lacuna={classe === 'independente' && !opcao && comando !== 'contrariar'}
+      situacoes={(() => { const s = resultado.realidade?.frases.filter((f) => !f.conclusao).map((f) => f.situacao); return s?.length === texto.premissas.length ? s : undefined })()} />
     {resultado.cadeia && <div className="iai-realidade">
       <p><b>A cadeia, passo a passo</b></p>
       <ul>{resultado.cadeia.map((p) => <li key={p.premissa} data-situacao={p.classe === 'segue' ? 'fato' : p.classe === 'contradiz' ? 'contraria' : p.classe ? 'observacao' : 'nao-decidido'}>"{texto.premissas[p.premissa]}": <b>{p.classe ? PASSO_DA_CADEIA[p.classe] : 'o Z3 não concluiu'}</b></li>)}</ul>
@@ -199,7 +204,7 @@ export function CartaoIA({ resultado, aoRefazer }: { resultado: ResultadoIA; aoR
         </div>
       </>}
       {achada.outras > 0 && <small>Há mais {achada.outras} ligação(ões) parecida(s) que também fecham.</small>}
-      <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. Os <b>fatos</b> precisam de fonte, ou são a base que você assume. Com os dois, a conclusão é obrigatória.</small>
+      <small>A ligação é a <b>visão</b> por trás do argumento: não é um fato, é o que você escolhe aceitar. As <b>premissas</b> precisam ser fatos (com fonte), ou são a base que você assume. Com as duas, a conclusão é obrigatória.</small>
     </div>}
     {classe === 'independente' && !achada && comando !== 'contrariar' && <small>{falhou ? `Não achei uma ligação que feche: ${falhou.motivo}.` : 'Para a conclusão valer, falta uma afirmação que ligue os fatos a ela.'}</small>}
     {cenario && <details className="iai-cenario" open={comando === 'contrariar'}><summary>{comando === 'contrariar' ? 'O contra-exemplo: um caso em que os fatos valem e a conclusão não' : 'Ver um caso em que os fatos valem e a conclusão não'}</summary><ul>{cenario.map((c, i) => <li key={i}>{c}</li>)}</ul></details>}
